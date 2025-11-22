@@ -715,10 +715,10 @@ async function renderGastos(gastosArray = null) {
 
     if (gastos.length === 0) {
       container.innerHTML = `
-        <div class="text-center text-gray-400 py-16">
-          <span class="text-8xl mb-6 block">📋</span>
-          <p class="text-2xl mb-4">No hay gastos registrados</p>
-          <p class="text-lg">¡Agrega tu primer gasto para comenzar!</p>
+        <div class="text-center text-gray-400 py-12 lg:py-16">
+          <span class="text-6xl lg:text-8xl mb-4 lg:mb-6 block">📋</span>
+          <p class="text-xl lg:text-2xl mb-3 lg:mb-4">No hay gastos registrados</p>
+          <p class="text-base lg:text-lg">¡Agrega tu primer gasto para comenzar!</p>
         </div>
       `;
     } else {
@@ -738,43 +738,43 @@ function crearTarjetaGasto(gasto) {
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
   
   const comprobanteIcon = gasto.comprobanteAdjunto 
-    ? '<span class="text-green-400">✓ Comprobante adjunto</span>' 
-    : '<span class="text-red-400">✗ Sin comprobante</span>';
+    ? '<span class="text-green-400 text-sm">✓ Comprobante adjunto</span>' 
+    : '<span class="text-red-400 text-sm">✗ Sin comprobante</span>';
 
   const estadoRegistro = gasto.registrado 
-    ? '<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-900 text-green-300 border border-green-700">✓ REGISTRADO</span>'
-    : '<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-300 border border-gray-600">⏳ PENDIENTE</span>';
+    ? '<span class="inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-bold bg-green-900 text-green-300 border border-green-700 whitespace-nowrap">✓ REGISTRADO</span>'
+    : '<span class="inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-300 border border-gray-600 whitespace-nowrap">⏳ PENDIENTE</span>';
 
   return `
-    <div class="card-dark rounded-2xl p-6 hover:border-2 hover:border-orange-500 transition-all">
-      <div class="flex items-start justify-between mb-4">
-        <div class="flex-1">
-          <div class="flex items-center space-x-3 mb-3">
-            <span class="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-${cat.color}-900 text-${cat.color}-300 border border-${cat.color}-700">
+    <div class="card-dark rounded-2xl p-4 lg:p-6 hover:border-2 hover:border-orange-500 transition-all">
+      <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center gap-2 mb-3">
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs lg:text-sm font-bold bg-${cat.color}-900 text-${cat.color}-300 border border-${cat.color}-700 whitespace-nowrap">
               ${cat.emoji} ${cat.label}
             </span>
-            <span class="text-sm text-gray-400">📅 ${gasto.fecha}</span>
+            <span class="text-xs lg:text-sm text-gray-400 whitespace-nowrap">📅 ${gasto.fecha}</span>
             ${estadoRegistro}
           </div>
-          <h4 class="text-xl font-bold text-white mb-2">${gasto.descripcion}</h4>
-          <p class="text-sm text-gray-400">${comprobanteIcon}</p>
+          <h4 class="text-base lg:text-xl font-bold text-white mb-2 break-words">${gasto.descripcion}</h4>
+          <p class="text-xs lg:text-sm text-gray-400">${comprobanteIcon}</p>
         </div>
-        <div class="text-right ml-6">
-          <p class="text-3xl font-bold text-orange-400">$${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+        <div class="flex-shrink-0 text-left lg:text-right">
+          <p class="text-2xl lg:text-3xl font-bold text-orange-400">$${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
           <p class="text-xs text-gray-500 mt-1">ARS</p>
         </div>
       </div>
 
       ${esAdmin ? `
-      <div class="flex items-center justify-between pt-4 border-t border-gray-700">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pt-4 border-t border-gray-700">
         <label class="flex items-center cursor-pointer">
           <input type="checkbox" ${gasto.registrado ? 'checked' : ''} 
             onchange="toggleRegistrado('${gasto.id}', this.checked)"
-            class="w-5 h-5 rounded border-2 border-gray-600 bg-gray-700 text-orange-500 focus:ring-2 focus:ring-orange-500">
-          <span class="ml-2 text-white font-semibold">Marcar como registrado</span>
+            class="w-5 h-5 rounded border-2 border-gray-600 bg-gray-700 text-orange-500 focus:ring-2 focus:ring-orange-500 flex-shrink-0">
+          <span class="ml-2 text-sm lg:text-base text-white font-semibold">Marcar como registrado</span>
         </label>
         <button onclick="eliminarGasto('${gasto.id}')" data-id="${gasto.id}" 
-          class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-semibold transition-colors">
+          class="w-full lg:w-auto bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-semibold transition-colors text-sm lg:text-base">
           🗑️ Eliminar
         </button>
       </div>
