@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Función para verificar si el usuario está autenticado con un PIN válido
+    // NOTA: En producción, deberías implementar Firebase Authentication
+    // Esta es una solución temporal basada en PINs
+    
+    // Configuración del sistema - Solo lectura para todos, escritura restringida
+    match /configuracion/sistema {
+      // Permitir lectura a todos (necesario para validar PINs)
+      allow read: if true;
+      
+      // Solo permitir escritura si existe el documento y se mantienen los campos críticos
+      allow write: if request.resource.data.keys().hasAll(['pinUsuario', 'pinAdmin', 'presupuestoTotal', 'presupuestoViaticos']);
+    }
+    
+    // Colección de gastos
+    match /gastos/{gastoId} {
+      // Permitir lectura a todos los usuarios autenticados
+      allow read: if true;
+      
+      // Permitir crear nuevos gastos
+      allow create: if request.resource.data.keys().hasAll([
+        'descripcion', 
+        'monto', 
+        'fecha', 
+        'categoria', 
+        'comprobanteAdjunto', 
+        'registrado', 
+        'creadoPor', 
+        'fechaCreacion'
+      ]) 
+      && request.resource.data.monto > 0
+      && request.resource.data.categoria in ['presupuesto', 'viaticos'];
+      
+      // Permitir actualizar solo el campo 'registrado' y campos relacionados
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['registrado', 'fechaRegistro', 'registradoPor']);
+      
+      // Permitir eliminar gastos
+      allow delete: if true;
+    }
+    
+    // Denegar todo lo demás por defecto
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

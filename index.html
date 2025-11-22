@@ -1,0 +1,662 @@
+﻿<!DOCTYPE html>
+<html lang="es" class="h-full bg-gray-900">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>💼 Gestor de Gastos Corporativo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-storage-compat.js"></script>
+  <script src="./firebase-config.js"></script>
+  
+  <style>
+    /* ==================== VARIABLES CSS ==================== */
+    :root {
+      --primary-orange: #f97316;
+      --secondary-orange: #ea580c;
+      --dark-orange: #c2410c;
+      --primary-gray: #374151;
+      --light-gray: #6b7280;
+      --bg-gray: #111827;
+      --surface-gray: #1f2937;
+      --border-gray: #374151;
+    }
+
+    /* ==================== FUENTES Y LAYOUT ==================== */
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #374151 100%);
+      color: #f8fafc;
+    }
+
+    /* ==================== COMPONENTES ==================== */
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-orange) 0%, var(--secondary-orange) 100%);
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(249, 115, 22, 0.4);
+      background: linear-gradient(135deg, var(--secondary-orange) 0%, var(--dark-orange) 100%);
+    }
+
+    .card-dark {
+      background: var(--surface-gray);
+      border: 1px solid var(--border-gray);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .card-dark:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      border-color: var(--primary-orange);
+    }
+
+    .input-dark {
+      background: #374151;
+      border: 2px solid #4b5563;
+      color: #f8fafc;
+      transition: all 0.3s ease;
+    }
+
+    .input-dark:focus {
+      background: #4b5563;
+      border-color: var(--primary-orange);
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+      outline: none;
+    }
+
+    .input-dark::placeholder {
+      color: #9ca3af;
+    }
+
+    /* ==================== ANIMACIONES ==================== */
+    @keyframes slideInRight {
+      from {
+        opacity: 0;
+        transform: translateX(100%);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes pulse-orange {
+      0%, 100% {
+        box-shadow: 0 0 20px rgba(249, 115, 22, 0.3);
+      }
+      50% {
+        box-shadow: 0 0 30px rgba(249, 115, 22, 0.6);
+      }
+    }
+
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      animation: slideInRight 0.3s ease-out;
+    }
+
+    .progress-bar {
+      transition: width 0.5s ease-out;
+    }
+
+    .pin-glow {
+      animation: pulse-orange 2s infinite;
+    }
+
+    /* ==================== ESTADOS ==================== */
+    .status-good { color: #10b981; }
+    .status-warning { color: #f59e0b; }
+    .status-danger { color: #ef4444; }
+    
+    .bg-status-good { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+    .bg-status-warning { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+    .bg-status-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+
+    /* ==================== RESPONSIVE ==================== */
+    @media (max-width: 768px) {
+      .card-dark {
+        margin: 0.5rem;
+      }
+      
+      .btn-primary {
+        padding: 0.75rem 1rem;
+        font-size: 0.875rem;
+      }
+    }
+  </style>
+</head>
+
+<body class="min-h-full bg-gray-900">
+  
+  <!-- ==================== MODAL DE PIN SEGURO ==================== -->
+  <div id="pin-screen" class="fixed inset-0 bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 flex items-center justify-center z-[9999]">
+    <div class="card-dark rounded-3xl p-10 w-full max-w-md text-center backdrop-blur-lg pin-glow">
+      
+      <!-- Logo Profesional -->
+      <div class="w-24 h-24 mx-auto mb-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-2xl">
+        <span class="text-4xl text-white">🔐</span>
+      </div>
+      
+      <h2 class="text-4xl font-bold text-white mb-3">Acceso Seguro</h2>
+      <p class="text-gray-300 mb-10 text-lg">Ingresa tu PIN de 6 dígitos para continuar</p>
+
+      <!-- Contenedor del PIN -->
+      <div class="relative mb-8">
+        <input 
+          type="password" 
+          id="pin-input" 
+          maxlength="6"
+          class="input-dark w-full text-center text-5xl tracking-[0.8em] rounded-2xl py-6 font-mono"
+          placeholder="••••••"
+        />
+        
+        <!-- Botón de Visibilidad -->
+        <button type="button" onclick="togglePinVisibility()" 
+          class="absolute right-6 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors text-2xl">
+          <span id="pin-toggle-icon">👁️</span>
+        </button>
+      </div>
+
+      <!-- Botón de Ingreso -->
+      <button onclick="validarPIN()" id="login-btn"
+        class="w-full btn-primary text-white font-bold py-5 rounded-2xl text-xl mb-6">
+        <span class="flex items-center justify-center">
+          <span class="mr-3 text-2xl">🚀</span>
+          Ingresar al Sistema
+        </span>
+      </button>
+
+      <!-- Mensaje de Error -->
+      <div id="pin-error" class="hidden p-4 bg-red-900 border border-red-600 rounded-xl">
+        <p class="text-red-300 font-semibold">❌ Error de conexión. Intenta más tarde.</p>
+      </div>
+
+      <!-- Texto de Ayuda -->
+      <div class="mt-8 text-xs text-gray-500">
+        <p>🔒 Sistema protegido con encriptación avanzada</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== APLICACIÓN PRINCIPAL ==================== -->
+  <div id="app" class="min-h-full pb-8">
+    
+    <!-- Header Profesional -->
+    <header class="bg-gradient-to-r from-gray-900 via-slate-800 to-gray-900 shadow-2xl sticky top-0 z-40 border-b-2 border-orange-500">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex justify-between items-center">
+          
+          <!-- Logo y Título -->
+          <div class="flex items-center space-x-6">
+            <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-4xl shadow-2xl border-2 border-orange-400">
+              💼
+            </div>
+            <div>
+              <h1 id="company-name" class="text-4xl font-bold text-white">Sistema de Control de Gastos</h1>
+              <p id="welcome-message" class="text-gray-300 text-lg">
+                <span id="user-role-badge" class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-orange-100 text-orange-800 mr-3"></span>
+                Control profesional de gastos corporativos
+              </p>
+            </div>
+          </div>
+
+          <!-- Botones de Acción -->
+          <div class="flex space-x-4">
+            <button id="btn-panel-admin" class="hidden bg-gradient-to-r from-red-600 to-red-700 text-white font-bold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105 border border-red-500"> 
+              ⚙️ Panel Admin 
+            </button>
+            <button id="btn-nuevo-gasto" class="btn-primary text-white font-bold px-8 py-4 rounded-xl"> 
+              ➕ Nuevo Gasto 
+            </button>
+            <button id="btn-cerrar-sesion" class="bg-gradient-to-r from-gray-600 to-gray-700 text-white font-bold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105 border border-gray-500"> 
+              🚪 Salir 
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      
+      <!-- Resumen de Presupuestos -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+        
+        <!-- Presupuesto Total -->
+        <div class="card-dark rounded-3xl p-8">
+          <h2 class="text-xl font-bold text-white mb-8 flex items-center">
+            <span class="w-12 h-12 rounded-lg bg-orange-500 text-white flex items-center justify-center mr-4 text-2xl">💰</span> 
+            PRESUPUESTO TOTAL
+          </h2>
+          
+          <div class="space-y-6">
+            <div class="flex justify-between">
+              <span class="text-gray-400">Presupuesto Total:</span>
+              <span class="font-bold text-orange-400 text-xl" id="presupuesto-total">$0.00</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Total Gastado:</span>
+              <span class="font-bold text-red-400 text-xl" id="total-gastado">$0.00</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Disponible:</span>
+              <span class="font-bold text-green-400 text-xl" id="presupuesto-disponible">$0.00</span>
+            </div>
+            
+            <div class="mt-6">
+              <div class="flex justify-between mb-3 text-sm text-gray-400">
+                <span>Progreso:</span>
+                <span id="porcentaje-usado" class="font-bold">0%</span>
+              </div>
+              <div class="w-full bg-gray-700 rounded-full h-4 border border-gray-600">
+                <div id="barra-progreso" class="bg-gradient-to-r from-orange-500 to-orange-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Viáticos -->
+        <div class="card-dark rounded-3xl p-8">
+          <h2 class="text-xl font-bold text-white mb-8 flex items-center">
+            <span class="w-12 h-12 rounded-lg bg-orange-500 text-white flex items-center justify-center mr-4 text-2xl">🚗</span> 
+            VIÁTICOS
+          </h2>
+          
+          <div class="space-y-6">
+            <div class="flex justify-between">
+              <span class="text-gray-400">Presupuesto Viáticos:</span>
+              <span class="font-bold text-orange-400 text-xl" id="presupuesto-viaticos">$0.00</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Viáticos Gastados:</span>
+              <span class="font-bold text-red-400 text-xl" id="viaticos-gastados">$0.00</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Disponibles:</span>
+              <span class="font-bold text-green-400 text-xl" id="viaticos-disponibles">$0.00</span>
+            </div>
+            
+            <div class="mt-6">
+              <div class="flex justify-between mb-3 text-sm text-gray-400">
+                <span>Progreso:</span>
+                <span id="porcentaje-viaticos" class="font-bold">0%</span>
+              </div>
+              <div class="w-full bg-gray-700 rounded-full h-4 border border-gray-600">
+                <div id="barra-viaticos" class="bg-gradient-to-r from-orange-500 to-orange-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de Gastos -->
+      <section class="card-dark rounded-3xl p-8">
+        <div class="flex justify-between items-center mb-8">
+          <h2 class="text-3xl font-bold text-white flex items-center">
+            <span class="mr-4 text-3xl">📊</span>
+            Lista de Gastos
+          </h2>
+        </div>
+        
+        <!-- Pestañas de Filtro -->
+        <div class="flex space-x-2 mb-6 border-b border-gray-700">
+          <button onclick="filtrarPorEstado('todos')" id="tab-todos" 
+            class="tab-btn px-6 py-3 font-semibold text-white border-b-2 border-orange-500 transition-all">
+            📋 Todos
+          </button>
+          <button onclick="filtrarPorEstado('pendientes')" id="tab-pendientes"
+            class="tab-btn px-6 py-3 font-semibold text-gray-400 border-b-2 border-transparent hover:text-white transition-all">
+            ⏳ Pendientes
+          </button>
+          <button onclick="filtrarPorEstado('registrados')" id="tab-registrados"
+            class="tab-btn px-6 py-3 font-semibold text-gray-400 border-b-2 border-transparent hover:text-white transition-all">
+            ✅ Registrados
+          </button>
+        </div>
+        
+        <!-- Filtros de Categoría -->
+        <div class="flex space-x-3 mb-6">
+          <button onclick="filtrarPorCategoria('todos')" id="cat-todos" class="filtro-btn btn-primary px-6 py-3 rounded-xl font-semibold">
+            Todos
+          </button>
+          <button onclick="filtrarPorCategoria('presupuesto')" id="cat-presupuesto" class="filtro-btn bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold hover:bg-gray-600 transition-all">
+            💰 Presupuesto
+          </button>
+          <button onclick="filtrarPorCategoria('viaticos')" id="cat-viaticos" class="filtro-btn bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold hover:bg-gray-600 transition-all">
+            🚗 Viáticos
+          </button>
+        </div>
+        
+        <div id="lista-gastos" class="space-y-4">
+          <div class="text-center text-gray-400 py-16">
+            <span class="text-8xl mb-6 block">📋</span>
+            <p class="text-2xl mb-4">No hay gastos registrados</p>
+            <p class="text-lg">¡Agrega tu primer gasto para comenzar!</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ==================== MODAL NUEVO GASTO ==================== -->
+  <div id="modal-gasto" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50">
+    <div class="card-dark rounded-3xl p-10 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
+      
+      <div class="flex justify-between items-center mb-8">
+        <h3 id="modal-title" class="text-3xl font-bold text-white flex items-center">
+          <span class="mr-3 text-3xl">➕</span>Nuevo Gasto
+        </h3>
+        <button onclick="cerrarModal()" class="text-gray-400 hover:text-orange-500 text-3xl font-bold transition-colors">
+          ✕
+        </button>
+      </div>
+
+      <form id="form-gasto" class="space-y-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          
+          <div>
+            <label class="block text-lg font-semibold text-white mb-3">📅 Fecha</label>
+            <input type="date" id="fecha" required 
+              class="input-dark w-full rounded-xl px-6 py-4 text-lg">
+          </div>
+
+          <div>
+            <label class="block text-lg font-semibold text-white mb-3">📁 Categoría</label>
+            <select id="categoria" required 
+              class="input-dark w-full rounded-xl px-6 py-4 text-lg">
+              <option value="">Seleccionar categoría</option>
+              <option value="presupuesto">💰 Presupuesto</option>
+              <option value="viaticos">🚗 Viáticos</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-lg font-semibold text-white mb-3">📝 Descripción</label>
+            <input type="text" id="descripcion" required 
+              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              placeholder="Descripción del gasto">
+          </div>
+
+          <div>
+            <label class="block text-lg font-semibold text-white mb-3">💰 Monto (ARS)</label>
+            <input type="number" id="monto" step="0.01" min="0" required 
+              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              placeholder="Ingresa el monto en pesos">
+          </div>
+
+          <div class="flex items-center">
+            <label class="flex items-center cursor-pointer">
+              <input type="checkbox" id="comprobante" 
+                class="w-6 h-6 rounded border-2 border-gray-600 bg-gray-700 text-orange-500 focus:ring-2 focus:ring-orange-500">
+              <span class="ml-3 text-lg font-semibold text-white">📎 ¿Se adjuntó comprobante al grupo de finanzas?</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Botones de Acción -->
+        <div class="flex space-x-6 pt-4">
+          <button type="submit" id="btn-guardar" 
+            class="flex-1 btn-primary text-white font-bold py-4 rounded-xl text-xl">
+            <span class="flex items-center justify-center">
+              <span class="mr-3">💾</span>Guardar Gasto
+            </span>
+          </button>
+          <button type="button" onclick="cerrarModal()" 
+            class="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 text-white font-bold py-4 rounded-xl text-xl hover:shadow-lg transition-all">
+            <span class="flex items-center justify-center">
+              <span class="mr-3">❌</span>Cancelar
+            </span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL PANEL ADMIN ==================== -->
+  <div id="modal-admin" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50">
+    <div class="card-dark rounded-3xl p-10 w-full max-w-5xl mx-4 max-h-[90vh] overflow-y-auto">
+      
+      <div class="flex justify-between items-center mb-8">
+        <h3 class="text-4xl font-bold text-white flex items-center">
+          <span class="mr-4 text-4xl">👑</span>Panel de Administración
+        </h3>
+        <button onclick="cerrarModalAdmin()" class="text-gray-400 hover:text-orange-500 text-3xl font-bold transition-colors">
+          ✕
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+        
+        <!-- Configuración de Presupuestos -->
+        <div class="space-y-8">
+          <h4 class="text-2xl font-bold text-white flex items-center border-b border-gray-600 pb-4">
+            <span class="mr-3 text-2xl">💰</span>Configuración de Presupuestos
+          </h4>
+          
+          <div>
+            <label class="block text-lg font-semibold text-white mb-3">Presupuesto Total (ARS)</label>
+            <input type="number" id="nuevo-presupuesto-total" step="0.01" min="0" 
+              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              placeholder="Ingresa el monto en pesos">
+          </div>
+
+          <div>
+            <label class="block text-lg font-semibold text-white mb-3">Presupuesto de Viáticos (ARS)</label>
+            <input type="number" id="nuevo-presupuesto-viaticos" step="0.01" min="0" 
+              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              placeholder="Ingresa el monto en pesos">
+          </div>
+
+          <button onclick="actualizarPresupuestos()" 
+            class="w-full bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-4 rounded-xl text-lg hover:shadow-lg transition-all">
+            <span class="flex items-center justify-center">
+              <span class="mr-3">💾</span>Actualizar Presupuestos
+            </span>
+          </button>
+        </div>
+
+        <!-- Configuración de Seguridad -->
+        <div class="space-y-8">
+          <h4 class="text-2xl font-bold text-white flex items-center border-b border-gray-600 pb-4">
+            <span class="mr-3 text-2xl">🔒</span>Configuración de Seguridad
+          </h4>
+          
+          <div>
+            <label class="block text-lg font-semibold text-white mb-3">PIN de Usuario</label>
+            <input type="password" id="nuevo-pin-usuario" maxlength="6" 
+              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              placeholder="Nuevo PIN de 6 dígitos">
+          </div>
+
+          <div>
+            <label class="block text-lg font-semibold text-white mb-3">PIN de Administrador</label>
+            <input type="password" id="nuevo-pin-admin" maxlength="6" 
+              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              placeholder="Nuevo PIN de administrador">
+          </div>
+
+          <button onclick="actualizarPINs()" 
+            class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-bold py-4 rounded-xl text-lg hover:shadow-lg transition-all">
+            <span class="flex items-center justify-center">
+              <span class="mr-3">🔑</span>Actualizar PINs
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Gestión de Gastos -->
+      <div class="mt-12">
+        <h4 class="text-2xl font-bold text-white flex items-center border-b border-gray-600 pb-4 mb-8">
+          <span class="mr-3 text-2xl">📊</span>Gestión de Gastos
+        </h4>
+        
+        <div id="lista-gastos-admin" class="space-y-4 max-h-80 overflow-y-auto bg-gray-800 rounded-2xl p-6">
+          <div class="text-center text-gray-400 py-8">
+            <p class="text-lg">Los gastos aparecerán aquí para administración</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container para Notificaciones -->
+  <div id="notification-container" class="fixed top-6 right-6 z-[10000] space-y-4"></div>
+
+</body>
+
+<!-- ==================== SCRIPTS ==================== -->
+<script>
+// ==================== EVENT LISTENERS ==================== 
+document.addEventListener('DOMContentLoaded', () => {
+  
+  // Establecer fecha actual
+  const fechaInput = document.getElementById('fecha');
+  if (fechaInput) {
+    fechaInput.valueAsDate = new Date();
+  }
+
+  // Configurar drag and drop
+  setupDragAndDrop();
+  
+  // Configurar botones principales
+  setupMainButtons();
+  
+  // Configurar formulario
+  setupForm();
+  
+  // Event listener para Enter en PIN
+  const pinInput = document.getElementById('pin-input');
+  if (pinInput) {
+    pinInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        validarPIN();
+      }
+    });
+  }
+});
+
+function setupDragAndDrop() {
+  const dragArea = document.getElementById('drag-area');
+  const fileInput = document.getElementById('archivo');
+
+  if (dragArea && fileInput) {
+    dragArea.addEventListener('click', () => fileInput.click());
+
+    dragArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dragArea.classList.add('border-orange-500', 'bg-orange-900', 'bg-opacity-20');
+    });
+
+    dragArea.addEventListener('dragleave', () => {
+      dragArea.classList.remove('border-orange-500', 'bg-orange-900', 'bg-opacity-20');
+    });
+
+    dragArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragArea.classList.remove('border-orange-500', 'bg-orange-900', 'bg-opacity-20');
+      
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        fileInput.files = files;
+        mostrarArchivoSeleccionado(files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        mostrarArchivoSeleccionado(e.target.files[0]);
+      }
+    });
+  }
+}
+
+function setupMainButtons() {
+  const btnNuevoGasto = document.getElementById('btn-nuevo-gasto');
+  const btnPanelAdmin = document.getElementById('btn-panel-admin');
+  const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
+
+  if (btnNuevoGasto) {
+    btnNuevoGasto.addEventListener('click', () => {
+      document.getElementById('modal-gasto').classList.remove('hidden');
+      // Establecer fecha actual por defecto
+      const hoy = new Date().toISOString().split('T')[0];
+      document.getElementById('fecha').value = hoy;
+    });
+  }
+
+  if (btnPanelAdmin) {
+    btnPanelAdmin.addEventListener('click', () => {
+      mostrarPanelAdmin();
+    });
+  }
+
+  if (btnCerrarSesion) {
+    btnCerrarSesion.addEventListener('click', () => {
+      cerrarSesion();
+    });
+  }
+}
+
+function setupForm() {
+  const formGasto = document.getElementById('form-gasto');
+  if (formGasto) {
+    formGasto.addEventListener('submit', guardarGasto);
+  }
+}
+
+// ==================== FUNCIONES AUXILIARES ====================
+function mostrarArchivoSeleccionado(file) {
+  const dragArea = document.getElementById('drag-area');
+  dragArea.innerHTML = `
+    <div class="text-orange-400">
+      <span class="text-6xl block mb-4">✅</span>
+      <p class="font-semibold text-xl">${file.name}</p>
+      <p class="text-lg mt-2">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+    </div>
+  `;
+}
+
+function cerrarModal() {
+  document.getElementById('modal-gasto').classList.add('hidden');
+  document.getElementById('form-gasto').reset();
+  
+  // Restablecer área de drag and drop
+  const dragArea = document.getElementById('drag-area');
+  dragArea.innerHTML = `
+    <div class="text-gray-400">
+      <span class="text-6xl block mb-4">📎</span>
+      <p class="font-semibold text-xl mb-2">Arrastra un archivo aquí o <span class="text-orange-500">haz clic para seleccionar</span></p>
+      <p class="text-lg">Imágenes o PDF (máx. 5MB)</p>
+    </div>
+  `;
+  
+  // Establecer fecha actual
+  document.getElementById('fecha').valueAsDate = new Date();
+}
+
+function cerrarModalAdmin() {
+  document.getElementById('modal-admin').classList.add('hidden');
+}
+
+function cerrarSesion() {
+  usuarioActual = null;
+  esAdmin = false;
+  document.getElementById('pin-screen').classList.remove('hidden');
+  document.getElementById('pin-input').value = '';
+  document.getElementById('btn-panel-admin').classList.add('hidden');
+  mostrarNotificacion('👋 Sesión cerrada correctamente', 'success');
+}
+</script>
+
+<!-- Script de la aplicación principal -->
+<script src="./app.js"></script>
+
+</html>

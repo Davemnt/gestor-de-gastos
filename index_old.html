@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>💼 Gestor de Gastos Corporativo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-storage-compat.js"></script>
+  <script src="./firebase-config.js"></script>
+  
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    }
+
+    .card-elevated {
+      transition: all 0.3s ease;
+    }
+
+    .card-elevated:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      animation: slideInRight 0.3s ease-out;
+    }
+
+    @keyframes slideInRight {
+      from {
+        opacity: 0;
+        transform: translateX(100%);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .progress-bar {
+      transition: width 0.5s ease-out;
+    }
+
+    .backdrop-blur-custom {
+      backdrop-filter: blur(10px);
+    }
+  </style>
+</head>
+<body class="min-h-full">
+  
+  <!-- Modal de PIN de Seguridad Mejorado -->
+  <div id="pin-screen" class="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-purple-900 flex items-center justify-center z-[9999]">
+    <div class="bg-white rounded-3xl p-10 w-full max-w-md text-center shadow-2xl border border-gray-200 backdrop-blur-lg">
+      <!-- Logo/Icon -->
+      <div class="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+        <span class="text-3xl text-white">🔐</span>
+      </div>
+      
+      <h2 class="text-3xl font-bold text-gray-800 mb-2">Acceso Seguro</h2>
+      <p class="text-gray-500 mb-8">Ingresa tu PIN de 6 dígitos para continuar</p>
+
+      <!-- PIN Input Container -->
+      <div class="relative mb-6">
+        <input 
+          type="password" 
+          id="pin-input" 
+          maxlength="6"
+          class="w-full text-center text-4xl tracking-[0.5em] border-2 border-gray-300 rounded-2xl py-4 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all font-mono bg-gray-50"
+          placeholder="••••••"
+        />
+        
+        <!-- Toggle visibility button -->
+        <button type="button" onclick="togglePinVisibility()" 
+          class="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+          <span id="pin-toggle-icon">👁️</span>
+        </button>
+      </div>
+
+      <!-- Login Button -->
+      <button onclick="validarPIN()" id="login-btn"
+        class="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-blue-700 text-white font-bold py-4 rounded-2xl hover:scale-[1.02] transition-all shadow-lg hover:shadow-xl text-lg">
+        <span class="flex items-center justify-center">
+          <span class="mr-2">🚀</span>
+          Ingresar al Sistema
+        </span>
+      </button>
+
+      <!-- Error Message -->
+      <div id="pin-error" class="hidden mt-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+        <p class="text-red-600 font-semibold text-sm">❌ PIN incorrecto. Intenta nuevamente.</p>
+      </div>
+
+      <!-- Help Text -->
+      <div class="mt-6 text-xs text-gray-400">
+        <p>🔒 Sistema protegido con encriptación</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aplicación Principal -->
+  <div id="app" class="min-h-full pb-8">
+    
+    <!-- Header Profesional -->
+    <header class="bg-gradient-to-r from-slate-800 via-blue-900 to-indigo-900 shadow-2xl sticky top-0 z-40 border-b border-white/10">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="flex justify-between items-center">
+          <div class="flex items-center space-x-4">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-3xl shadow-xl border-2 border-white/20 backdrop-blur-sm">
+              💼
+            </div>
+            <div>
+              <h1 id="company-name" class="text-3xl font-bold text-white">Sistema de Control de Gastos</h1>
+              <p id="welcome-message" class="text-blue-200"><span id="user-role-badge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2"></span>Control profesional de gastos corporativos</p>
+            </div>
+          </div>
+          <div class="flex space-x-3">
+            <button id="btn-panel-admin" class="bg-gradient-to-r from-red-500 to-pink-600 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105 hidden border border-white/20 backdrop-blur-sm"> 
+              ⚙️ Panel Admin 
+            </button>
+            <button id="btn-nuevo-gasto" class="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105 border border-white/20 backdrop-blur-sm"> 
+              ➕ Nuevo Gasto 
+            </button>
+            <button id="btn-cerrar-sesion" class="bg-gradient-to-r from-gray-600 to-slate-700 text-white font-bold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105 border border-white/20 backdrop-blur-sm"> 
+              🚪 Salir 
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+    
+    <!-- Medidores de Presupuesto y Viáticos -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <!-- Medidor de Presupuesto -->
+        <div class="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 card-elevated">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center">
+              <span class="mr-2">💰</span>Presupuesto General
+            </h3>
+            <div id="budget-status-badge" class="px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800">
+              BUENO
+            </div>
+          </div>
+          <div class="space-y-3">
+            <div class="flex justify-between text-sm text-gray-600">
+              <span>Disponible: $<span id="budget-disponible">0</span></span>
+              <span>Gastado: $<span id="budget-gastado">0</span></span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+              <div id="budget-progress" class="h-full bg-gradient-to-r from-green-500 to-blue-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div class="text-right text-xs text-gray-500">
+              <span id="budget-percentage">0%</span> utilizado
+            </div>
+          </div>
+        </div>
+
+        <!-- Medidor de Viáticos -->
+        <div class="bg-white rounded-2xl shadow-xl p-6 border border-gray-100 card-elevated">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-bold text-gray-800 flex items-center">
+              <span class="mr-2">✈️</span>Viáticos
+            </h3>
+            <div id="travel-status-badge" class="px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800">
+              BUENO
+            </div>
+          </div>
+          <div class="space-y-3">
+            <div class="flex justify-between text-sm text-gray-600">
+              <span>Disponible: $<span id="travel-disponible">0</span></span>
+              <span>Gastado: $<span id="travel-gastado">0</span></span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+              <div id="travel-progress" class="h-full bg-gradient-to-r from-green-500 to-blue-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div class="text-right text-xs text-gray-500">
+              <span id="travel-percentage">0%</span> utilizado
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contenido Principal -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      
+      <!-- Presupuestos Section Original -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- Presupuesto Total -->
+        <div class="bg-white rounded-2xl shadow-xl p-6 card-elevated">
+          <h2 class="text-lg font-bold text-gray-700 mb-6 flex items-center">
+            <span class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mr-3 text-xl">💰</span> 
+            PRESUPUESTO TOTAL
+          </h2>
+          <div class="space-y-4">
+            <div class="flex justify-between">
+              <span class="text-gray-600">Presupuesto Total:</span>
+              <span class="font-bold text-blue-600" id="presupuesto-total">$0.00</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Total Gastado:</span>
+              <span class="font-bold text-red-500" id="total-gastado">$0.00</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Disponible:</span>
+              <span class="font-bold text-green-500" id="presupuesto-disponible">$0.00</span>
+            </div>
+            <div class="mt-4">
+              <div class="flex justify-between mb-2 text-sm">
+                <span>Progreso:</span>
+                <span id="porcentaje-usado">0%</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-3">
+                <div id="barra-progreso" class="bg-gradient-to-r from-blue-500 to-purple-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Viáticos -->
+        <div class="bg-white rounded-2xl shadow-xl p-6 card-elevated">
+          <h2 class="text-lg font-bold text-gray-700 mb-6 flex items-center">
+            <span class="w-10 h-10 rounded-lg bg-green-100 text-green-600 flex items-center justify-center mr-3 text-xl">✈️</span> 
+            VIÁTICOS
+          </h2>
+          <div class="space-y-4">
+            <div class="flex justify-between">
+              <span class="text-gray-600">Presupuesto Viáticos:</span>
+              <span class="font-bold text-blue-600" id="presupuesto-viaticos">$0.00</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Viáticos Gastados:</span>
+              <span class="font-bold text-red-500" id="viaticos-gastados">$0.00</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-600">Disponibles:</span>
+              <span class="font-bold text-green-500" id="viaticos-disponibles">$0.00</span>
+            </div>
+            <div class="mt-4">
+              <div class="flex justify-between mb-2 text-sm">
+                <span>Progreso:</span>
+                <span id="porcentaje-viaticos">0%</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-3">
+                <div id="barra-viaticos" class="bg-gradient-to-r from-green-500 to-blue-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gastos Section -->
+      <div class="bg-white rounded-2xl shadow-xl p-6 card-elevated">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+            <span class="mr-3 text-2xl">📊</span>
+            Lista de Gastos
+          </h2>
+          <div class="flex space-x-2">
+            <button onclick="filtrarPorCategoria('todos')" class="filtro-btn bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition-all">
+              Todos
+            </button>
+            <button onclick="filtrarPorCategoria('viaticos')" class="filtro-btn bg-green-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-green-700 transition-all">
+              Viáticos
+            </button>
+            <button onclick="filtrarPorCategoria('otros')" class="filtro-btn bg-purple-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-purple-700 transition-all">
+              Otros
+            </button>
+          </div>
+        </div>
+        
+        <div id="lista-gastos" class="space-y-4">
+          <div class="text-center text-gray-500 py-8">
+            <span class="text-6xl mb-4 block">📋</span>
+            <p class="text-lg">No hay gastos registrados</p>
+            <p class="text-sm mt-2">¡Agrega tu primer gasto para comenzar!</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal para Nuevo/Editar Gasto -->
+  <div id="modal-gasto" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 modal-overlay">
+    <div class="bg-white rounded-3xl p-8 w-full max-w-2xl mx-4 shadow-2xl">
+      <div class="flex justify-between items-center mb-6">
+        <h3 id="modal-title" class="text-2xl font-bold text-gray-800">➕ Nuevo Gasto</h3>
+        <button onclick="cerrarModal()" class="text-gray-500 hover:text-gray-700 text-2xl font-bold">
+          ✕
+        </button>
+      </div>
+
+      <form id="form-gasto" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">📝 Descripción</label>
+            <input type="text" id="descripcion" required 
+              class="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+              placeholder="Descripción del gasto">
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">💰 Monto</label>
+            <input type="number" id="monto" step="0.01" min="0" required 
+              class="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+              placeholder="0.00">
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">📁 Categoría</label>
+            <select id="categoria" required 
+              class="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all">
+              <option value="">Seleccionar categoría</option>
+              <option value="viaticos">✈️ Viáticos</option>
+              <option value="oficina">🏢 Oficina</option>
+              <option value="tecnologia">💻 Tecnología</option>
+              <option value="marketing">📢 Marketing</option>
+              <option value="otros">📦 Otros</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">📅 Fecha</label>
+            <input type="date" id="fecha" required 
+              class="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">📎 Adjunto (Opcional)</label>
+          <div id="drag-area" class="drag-area border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer transition-all hover:border-blue-400">
+            <input type="file" id="archivo" accept="image/*,.pdf" class="hidden">
+            <div class="text-gray-500">
+              <span class="text-4xl block mb-2">📎</span>
+              <p class="font-semibold">Arrastra un archivo aquí o <span class="text-blue-600">haz clic para seleccionar</span></p>
+              <p class="text-sm mt-1">Imágenes o PDF (máx. 5MB)</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex space-x-4">
+          <button type="submit" id="btn-guardar" 
+            class="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold py-3 rounded-xl hover:scale-105 transition-all shadow-lg">
+            💾 Guardar Gasto
+          </button>
+          <button type="button" onclick="cerrarModal()" 
+            class="flex-1 bg-gray-600 text-white font-bold py-3 rounded-xl hover:scale-105 transition-all shadow-lg">
+            ❌ Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Panel Administrador -->
+  <div id="modal-admin" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 modal-overlay">
+    <div class="bg-white rounded-3xl p-8 w-full max-w-4xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-3xl font-bold text-gray-800 flex items-center">
+          <span class="mr-3">👑</span>Panel de Administración
+        </h3>
+        <button onclick="cerrarModalAdmin()" class="text-gray-500 hover:text-gray-700 text-2xl font-bold">
+          ✕
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Configuración de Presupuestos -->
+        <div class="space-y-6">
+          <h4 class="text-xl font-bold text-gray-700 flex items-center border-b pb-3">
+            <span class="mr-2">💰</span>Configuración de Presupuestos
+          </h4>
+          
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Presupuesto Total</label>
+            <input type="number" id="nuevo-presupuesto-total" step="0.01" min="0" 
+              class="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+              placeholder="Ingresa el presupuesto total">
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Presupuesto de Viáticos</label>
+            <input type="number" id="nuevo-presupuesto-viaticos" step="0.01" min="0" 
+              class="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+              placeholder="Ingresa el presupuesto de viáticos">
+          </div>
+
+          <button onclick="actualizarPresupuestos()" 
+            class="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold py-3 rounded-xl hover:scale-105 transition-all shadow-lg">
+            💾 Actualizar Presupuestos
+          </button>
+        </div>
+
+        <!-- Configuración de Seguridad -->
+        <div class="space-y-6">
+          <h4 class="text-xl font-bold text-gray-700 flex items-center border-b pb-3">
+            <span class="mr-2">🔒</span>Configuración de Seguridad
+          </h4>
+          
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">PIN de Usuario</label>
+            <input type="password" id="nuevo-pin-usuario" maxlength="6" 
+              class="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+              placeholder="Nuevo PIN de 6 dígitos">
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">PIN de Administrador</label>
+            <input type="password" id="nuevo-pin-admin" maxlength="6" 
+              class="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+              placeholder="Nuevo PIN de administrador">
+          </div>
+
+          <button onclick="actualizarPINs()" 
+            class="w-full bg-gradient-to-r from-red-600 to-pink-600 text-white font-bold py-3 rounded-xl hover:scale-105 transition-all shadow-lg">
+            🔑 Actualizar PINs
+          </button>
+        </div>
+      </div>
+
+      <!-- Gestión de Gastos -->
+      <div class="mt-8">
+        <h4 class="text-xl font-bold text-gray-700 flex items-center border-b pb-3 mb-6">
+          <span class="mr-2">📊</span>Gestión de Gastos
+        </h4>
+        
+        <div id="lista-gastos-admin" class="space-y-3 max-h-60 overflow-y-auto">
+          <!-- Los gastos se cargarán aquí dinámicamente -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container para Notificaciones -->
+  <div id="notification-container" class="fixed top-4 right-4 z-[10000] space-y-3"></div>
+
+  <!-- Script de la aplicación -->
+  <script src="./app.js"></script>
+
+  <script>
+    // Event listeners adicionales
+    document.addEventListener('DOMContentLoaded', () => {
+      
+      // Establecer fecha actual por defecto
+      const fechaInput = document.getElementById('fecha');
+      if (fechaInput) {
+        fechaInput.valueAsDate = new Date();
+      }
+
+      // Configurar drag and drop para archivos
+      const dragArea = document.getElementById('drag-area');
+      const fileInput = document.getElementById('archivo');
+
+      if (dragArea && fileInput) {
+        dragArea.addEventListener('click', () => fileInput.click());
+
+        dragArea.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dragArea.classList.add('drag-over');
+        });
+
+        dragArea.addEventListener('dragleave', () => {
+          dragArea.classList.remove('drag-over');
+        });
+
+        dragArea.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dragArea.classList.remove('drag-over');
+          
+          const files = e.dataTransfer.files;
+          if (files.length > 0) {
+            fileInput.files = files;
+            mostrarArchivoSeleccionado(files[0]);
+          }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files.length > 0) {
+            mostrarArchivoSeleccionado(e.target.files[0]);
+          }
+        });
+      }
+
+      // Event listeners para botones principales
+      const btnNuevoGasto = document.getElementById('btn-nuevo-gasto');
+      const btnPanelAdmin = document.getElementById('btn-panel-admin');
+      const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
+
+      if (btnNuevoGasto) {
+        btnNuevoGasto.addEventListener('click', () => {
+          document.getElementById('modal-gasto').classList.remove('hidden');
+        });
+      }
+
+      if (btnPanelAdmin) {
+        btnPanelAdmin.addEventListener('click', () => {
+          mostrarPanelAdmin();
+        });
+      }
+
+      if (btnCerrarSesion) {
+        btnCerrarSesion.addEventListener('click', () => {
+          cerrarSesion();
+        });
+      }
+
+      // Event listener para el formulario de gastos
+      const formGasto = document.getElementById('form-gasto');
+      if (formGasto) {
+        formGasto.addEventListener('submit', guardarGasto);
+      }
+
+      // Event listener para Enter en el PIN
+      const pinInput = document.getElementById('pin-input');
+      if (pinInput) {
+        pinInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            validarPIN();
+          }
+        });
+      }
+    });
+
+    function mostrarArchivoSeleccionado(file) {
+      const dragArea = document.getElementById('drag-area');
+      dragArea.innerHTML = `
+        <div class="text-green-600">
+          <span class="text-4xl block mb-2">✅</span>
+          <p class="font-semibold">${file.name}</p>
+          <p class="text-sm mt-1">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+        </div>
+      `;
+    }
+
+    function cerrarModal() {
+      document.getElementById('modal-gasto').classList.add('hidden');
+      document.getElementById('form-gasto').reset();
+      
+      // Restablecer área de drag and drop
+      const dragArea = document.getElementById('drag-area');
+      dragArea.innerHTML = `
+        <div class="text-gray-500">
+          <span class="text-4xl block mb-2">📎</span>
+          <p class="font-semibold">Arrastra un archivo aquí o <span class="text-blue-600">haz clic para seleccionar</span></p>
+          <p class="text-sm mt-1">Imágenes o PDF (máx. 5MB)</p>
+        </div>
+      `;
+      
+      // Establecer fecha actual
+      document.getElementById('fecha').valueAsDate = new Date();
+    }
+
+    function cerrarModalAdmin() {
+      document.getElementById('modal-admin').classList.add('hidden');
+    }
+
+    function cerrarSesion() {
+      usuarioActual = null;
+      esAdmin = false;
+      document.getElementById('pin-screen').classList.remove('hidden');
+      document.getElementById('pin-input').value = '';
+      document.getElementById('btn-panel-admin').classList.add('hidden');
+      mostrarNotificacion('👋 Sesión cerrada correctamente', 'success');
+    }
+  </script>
+
+</body>
+</html>
