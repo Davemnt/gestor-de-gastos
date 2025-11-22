@@ -35,12 +35,18 @@
       background: linear-gradient(135deg, var(--primary-orange) 0%, var(--secondary-orange) 100%);
       transition: all 0.3s ease;
       box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
+      min-height: 44px; /* Área táctil mínima */
     }
 
     .btn-primary:hover {
       transform: translateY(-2px);
       box-shadow: 0 8px 25px rgba(249, 115, 22, 0.4);
       background: linear-gradient(135deg, var(--secondary-orange) 0%, var(--dark-orange) 100%);
+    }
+    
+    .btn-primary:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 10px rgba(249, 115, 22, 0.3);
     }
 
     .card-dark {
@@ -61,6 +67,7 @@
       border: 2px solid #4b5563;
       color: #f8fafc;
       transition: all 0.3s ease;
+      min-height: 44px; /* Área táctil mínima */
     }
 
     .input-dark:focus {
@@ -72,6 +79,37 @@
 
     .input-dark::placeholder {
       color: #9ca3af;
+    }
+    
+    /* Botones responsive */
+    button, a, .tab-btn, .filtro-btn {
+      min-height: 44px; /* Área táctil mínima según Apple/Google */
+      -webkit-tap-highlight-color: rgba(249, 115, 22, 0.2);
+      cursor: pointer;
+    }
+    
+    button:active, .tab-btn:active, .filtro-btn:active {
+      transform: scale(0.98);
+    }
+    
+    /* Mejorar scrollbars en móviles */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #374151;
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: var(--primary-orange);
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--secondary-orange);
     }
 
     /* ==================== ANIMACIONES ==================== */
@@ -110,6 +148,80 @@
     .pin-glow {
       animation: pulse-orange 2s infinite;
     }
+    
+    /* ==================== MENÚ MÓVIL ==================== */
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: 0;
+      right: -100%;
+      width: 280px;
+      height: 100vh;
+      background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+      box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5);
+      transition: right 0.3s ease;
+      z-index: 100;
+      padding: 1.5rem;
+    }
+    
+    .mobile-menu.active {
+      right: 0;
+    }
+    
+    .mobile-menu-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 99;
+    }
+    
+    .mobile-menu-overlay.active {
+      display: block;
+    }
+    
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      gap: 0.375rem;
+      cursor: pointer;
+      padding: 0.5rem;
+    }
+    
+    .hamburger span {
+      display: block;
+      width: 1.75rem;
+      height: 0.1875rem;
+      background: white;
+      border-radius: 2px;
+      transition: all 0.3s ease;
+    }
+    
+    .hamburger.active span:nth-child(1) {
+      transform: rotate(45deg) translate(0.5rem, 0.5rem);
+    }
+    
+    .hamburger.active span:nth-child(2) {
+      opacity: 0;
+    }
+    
+    .hamburger.active span:nth-child(3) {
+      transform: rotate(-45deg) translate(0.5rem, -0.5rem);
+    }
+    
+    @media (max-width: 768px) {
+      .hamburger {
+        display: flex;
+      }
+      
+      .mobile-menu {
+        display: block;
+      }
+      
+      .desktop-buttons {
+        display: none !important;
+      }
+    }
 
     /* ==================== ESTADOS ==================== */
     .status-good { color: #10b981; }
@@ -121,14 +233,232 @@
     .bg-status-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
 
     /* ==================== RESPONSIVE ==================== */
-    @media (max-width: 768px) {
-      .card-dark {
-        margin: 0.5rem;
+    
+    /* Tablets */
+    @media (max-width: 1024px) {
+      .max-w-7xl {
+        padding-left: 1rem;
+        padding-right: 1rem;
       }
       
+      .grid-cols-1.lg\:grid-cols-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    /* Móviles */
+    @media (max-width: 768px) {
+      body {
+        font-size: 14px;
+      }
+      
+      /* Header responsive */
+      header .flex {
+        flex-direction: column;
+        gap: 1rem;
+      }
+      
+      header .flex.items-center.space-x-6 {
+        flex-direction: row;
+        width: 100%;
+      }
+      
+      header .w-20 {
+        width: 3rem;
+        height: 3rem;
+      }
+      
+      header h1 {
+        font-size: 1.25rem !important;
+        line-height: 1.5;
+      }
+      
+      header p {
+        font-size: 0.75rem !important;
+      }
+      
+      header .flex.space-x-4 {
+        flex-direction: column;
+        width: 100%;
+        gap: 0.5rem;
+      }
+      
+      header .flex.space-x-4 button {
+        width: 100%;
+        padding: 0.75rem 1rem !important;
+        font-size: 0.875rem !important;
+      }
+      
+      /* Tarjetas */
+      .card-dark {
+        margin: 0.5rem 0;
+        padding: 1.5rem !important;
+      }
+      
+      .card-dark h2 {
+        font-size: 1.25rem !important;
+        margin-bottom: 1.5rem !important;
+      }
+      
+      .card-dark .w-12 {
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: 1.5rem;
+      }
+      
+      /* Grid responsive */
+      .grid.grid-cols-1.lg\:grid-cols-2,
+      .grid.grid-cols-1.md\:grid-cols-2 {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      
+      /* Botones */
       .btn-primary {
-        padding: 0.75rem 1rem;
+        padding: 0.875rem 1rem;
         font-size: 0.875rem;
+      }
+      
+      /* Filtros scrolleables */
+      .flex.space-x-3,
+      .flex.space-x-2 {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 0.5rem;
+      }
+      
+      .flex.space-x-3::-webkit-scrollbar,
+      .flex.space-x-2::-webkit-scrollbar {
+        height: 4px;
+      }
+      
+      .flex.space-x-3::-webkit-scrollbar-thumb,
+      .flex.space-x-2::-webkit-scrollbar-thumb {
+        background: var(--primary-orange);
+        border-radius: 2px;
+      }
+      
+      .filtro-btn,
+      .tab-btn {
+        white-space: nowrap;
+        flex-shrink: 0;
+        padding: 0.75rem 1.25rem;
+        font-size: 0.875rem;
+      }
+      
+      /* Modales */
+      #modal-gasto .card-dark,
+      #modal-admin .card-dark {
+        margin: 1rem;
+        padding: 1.5rem !important;
+        max-height: 95vh;
+      }
+      
+      #modal-gasto h3,
+      #modal-admin h3 {
+        font-size: 1.5rem !important;
+      }
+      
+      #modal-gasto .text-3xl,
+      #modal-admin .text-4xl {
+        font-size: 1.5rem !important;
+      }
+      
+      #modal-gasto input,
+      #modal-gasto select,
+      #modal-admin input {
+        padding: 0.75rem 1rem !important;
+        font-size: 1rem !important;
+      }
+      
+      #modal-gasto label,
+      #modal-admin label {
+        font-size: 1rem !important;
+        margin-bottom: 0.5rem !important;
+      }
+      
+      #modal-gasto .flex.space-x-6,
+      #modal-admin button {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      
+      #modal-gasto button,
+      #modal-admin button {
+        padding: 1rem !important;
+        font-size: 1rem !important;
+      }
+      
+      /* PIN Screen */
+      #pin-screen .card-dark {
+        margin: 1rem;
+        padding: 2rem !important;
+      }
+      
+      #pin-screen h2 {
+        font-size: 2rem !important;
+      }
+      
+      #pin-screen .text-4xl {
+        font-size: 2rem !important;
+      }
+      
+      #pin-input {
+        font-size: 2rem !important;
+        padding: 1rem !important;
+        tracking: 0.5em;
+      }
+      
+      /* Notificaciones */
+      .notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        font-size: 0.875rem;
+      }
+      
+      /* Textos responsive */
+      .text-4xl { font-size: 1.875rem !important; }
+      .text-3xl { font-size: 1.5rem !important; }
+      .text-2xl { font-size: 1.25rem !important; }
+      .text-xl { font-size: 1.125rem !important; }
+      .text-lg { font-size: 1rem !important; }
+      
+      /* Espaciado */
+      .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
+      .py-8 { padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }
+      .px-6 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+      .py-6 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+      
+      .space-y-8 > * + * { margin-top: 1.5rem !important; }
+      .space-y-6 > * + * { margin-top: 1rem !important; }
+      
+      /* Márgenes */
+      .mb-12 { margin-bottom: 2rem !important; }
+      .mb-8 { margin-bottom: 1.5rem !important; }
+      .mb-6 { margin-bottom: 1rem !important; }
+    }
+    
+    /* Móviles pequeños */
+    @media (max-width: 480px) {
+      #pin-input {
+        font-size: 1.5rem !important;
+        letter-spacing: 0.3em;
+      }
+      
+      .card-dark {
+        padding: 1rem !important;
+      }
+      
+      header .px-4 {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+      }
+      
+      .filtro-btn,
+      .tab-btn {
+        padding: 0.625rem 1rem;
+        font-size: 0.8125rem;
       }
     }
   </style>
@@ -137,50 +467,50 @@
 <body class="min-h-full bg-gray-900">
   
   <!-- ==================== MODAL DE PIN SEGURO ==================== -->
-  <div id="pin-screen" class="fixed inset-0 bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 flex items-center justify-center z-[9999]">
-    <div class="card-dark rounded-3xl p-10 w-full max-w-md text-center backdrop-blur-lg pin-glow">
+  <div id="pin-screen" class="fixed inset-0 bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 flex items-center justify-center z-[9999] p-4">
+    <div class="card-dark rounded-3xl p-6 lg:p-10 w-full max-w-md text-center backdrop-blur-lg pin-glow">
       
       <!-- Logo Profesional -->
-      <div class="w-24 h-24 mx-auto mb-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-2xl">
-        <span class="text-4xl text-white">🔐</span>
+      <div class="w-16 h-16 lg:w-24 lg:h-24 mx-auto mb-6 lg:mb-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-2xl">
+        <span class="text-3xl lg:text-4xl text-white">🔐</span>
       </div>
       
-      <h2 class="text-4xl font-bold text-white mb-3">Acceso Seguro</h2>
-      <p class="text-gray-300 mb-10 text-lg">Ingresa tu PIN de 6 dígitos para continuar</p>
+      <h2 class="text-2xl lg:text-4xl font-bold text-white mb-2 lg:mb-3">Acceso Seguro</h2>
+      <p class="text-gray-300 mb-6 lg:mb-10 text-sm lg:text-lg">Ingresa tu PIN de 6 dígitos para continuar</p>
 
       <!-- Contenedor del PIN -->
-      <div class="relative mb-8">
+      <div class="relative mb-6 lg:mb-8">
         <input 
           type="password" 
           id="pin-input" 
           maxlength="6"
-          class="input-dark w-full text-center text-5xl tracking-[0.8em] rounded-2xl py-6 font-mono"
+          class="input-dark w-full text-center text-3xl lg:text-5xl tracking-[0.5em] lg:tracking-[0.8em] rounded-2xl py-4 lg:py-6 font-mono"
           placeholder="••••••"
         />
         
         <!-- Botón de Visibilidad -->
         <button type="button" onclick="togglePinVisibility()" 
-          class="absolute right-6 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors text-2xl">
+          class="absolute right-4 lg:right-6 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors text-xl lg:text-2xl">
           <span id="pin-toggle-icon">👁️</span>
         </button>
       </div>
 
       <!-- Botón de Ingreso -->
       <button onclick="validarPIN()" id="login-btn"
-        class="w-full btn-primary text-white font-bold py-5 rounded-2xl text-xl mb-6">
+        class="w-full btn-primary text-white font-bold py-4 lg:py-5 rounded-2xl text-base lg:text-xl mb-4 lg:mb-6">
         <span class="flex items-center justify-center">
-          <span class="mr-3 text-2xl">🚀</span>
+          <span class="mr-2 lg:mr-3 text-xl lg:text-2xl">🚀</span>
           Ingresar al Sistema
         </span>
       </button>
 
       <!-- Mensaje de Error -->
-      <div id="pin-error" class="hidden p-4 bg-red-900 border border-red-600 rounded-xl">
-        <p class="text-red-300 font-semibold">❌ Error de conexión. Intenta más tarde.</p>
+      <div id="pin-error" class="hidden p-3 lg:p-4 bg-red-900 border border-red-600 rounded-xl">
+        <p class="text-red-300 font-semibold text-sm lg:text-base">❌ Error de conexión. Intenta más tarde.</p>
       </div>
 
       <!-- Texto de Ayuda -->
-      <div class="mt-8 text-xs text-gray-500">
+      <div class="mt-6 lg:mt-8 text-xs text-gray-500">
         <p>🔒 Sistema protegido con encriptación avanzada</p>
       </div>
     </div>
@@ -191,25 +521,32 @@
     
     <!-- Header Profesional -->
     <header class="bg-gradient-to-r from-gray-900 via-slate-800 to-gray-900 shadow-2xl sticky top-0 z-40 border-b-2 border-orange-500">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8">
         <div class="flex justify-between items-center">
           
           <!-- Logo y Título -->
-          <div class="flex items-center space-x-6">
-            <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-4xl shadow-2xl border-2 border-orange-400">
+          <div class="flex items-center space-x-3 lg:space-x-6 flex-1">
+            <div class="w-12 h-12 lg:w-20 lg:h-20 rounded-xl lg:rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-2xl lg:text-4xl shadow-2xl border-2 border-orange-400">
               💼
             </div>
-            <div>
-              <h1 id="company-name" class="text-4xl font-bold text-white">Sistema de Control de Gastos</h1>
-              <p id="welcome-message" class="text-gray-300 text-lg">
-                <span id="user-role-badge" class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-orange-100 text-orange-800 mr-3"></span>
-                Control profesional de gastos corporativos
+            <div class="flex-1 min-w-0">
+              <h1 id="company-name" class="text-lg lg:text-4xl font-bold text-white truncate">Sistema de Control de Gastos</h1>
+              <p id="welcome-message" class="text-gray-300 text-xs lg:text-lg hidden sm:block">
+                <span id="user-role-badge" class="inline-flex items-center px-2 lg:px-4 py-1 lg:py-2 rounded-full text-xs lg:text-sm font-medium bg-orange-100 text-orange-800 mr-2 lg:mr-3"></span>
+                <span class="hidden md:inline">Control profesional de gastos corporativos</span>
               </p>
             </div>
           </div>
 
-          <!-- Botones de Acción -->
-          <div class="flex space-x-4">
+          <!-- Botón Hamburguesa (móvil) -->
+          <button class="hamburger" onclick="toggleMobileMenu()" aria-label="Menú">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+
+          <!-- Botones de Acción (desktop) -->
+          <div class="desktop-buttons flex space-x-4">
             <button id="btn-panel-admin" class="hidden bg-gradient-to-r from-red-600 to-red-700 text-white font-bold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105 border border-red-500"> 
               ⚙️ Panel Admin 
             </button>
@@ -224,39 +561,60 @@
       </div>
     </header>
 
+    <!-- Menú Móvil -->
+    <div class="mobile-menu-overlay" onclick="toggleMobileMenu()"></div>
+    <div class="mobile-menu">
+      <div class="flex justify-between items-center mb-8">
+        <h3 class="text-xl font-bold text-white">Menú</h3>
+        <button onclick="toggleMobileMenu()" class="text-gray-400 hover:text-white text-2xl">✕</button>
+      </div>
+      
+      <div class="space-y-3">
+        <button id="btn-nuevo-gasto-mobile" class="w-full btn-primary text-white font-bold px-4 py-3 rounded-xl text-left flex items-center" onclick="toggleMobileMenu()"> 
+          <span class="mr-3">➕</span> Nuevo Gasto 
+        </button>
+        <button id="btn-panel-admin-mobile" class="hidden w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center" onclick="toggleMobileMenu()"> 
+          <span class="mr-3">⚙️</span> Panel Admin 
+        </button>
+        <button id="btn-cerrar-sesion-mobile" class="w-full bg-gradient-to-r from-gray-600 to-gray-700 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center" onclick="toggleMobileMenu()"> 
+          <span class="mr-3">🚪</span> Salir 
+        </button>
+      </div>
+    </div>
+
     <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8">
       
       <!-- Resumen de Presupuestos -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 mb-8 lg:mb-12">
         
         <!-- Presupuesto Total -->
-        <div class="card-dark rounded-3xl p-8">
-          <h2 class="text-xl font-bold text-white mb-8 flex items-center">
-            <span class="w-12 h-12 rounded-lg bg-orange-500 text-white flex items-center justify-center mr-4 text-2xl">💰</span> 
+        <div class="card-dark rounded-3xl p-6 lg:p-8">
+          <h2 class="text-lg lg:text-xl font-bold text-white mb-6 lg:mb-8 flex items-center">
+            <span class="w-10 h-10 lg:w-12 lg:h-12 rounded-lg bg-orange-500 text-white flex items-center justify-center mr-3 lg:mr-4 text-xl lg:text-2xl">💰</span> 
             PRESUPUESTO TOTAL
           </h2>
           
-          <div class="space-y-6">
-            <div class="flex justify-between">
-              <span class="text-gray-400">Presupuesto Total:</span>
-              <span class="font-bold text-orange-400 text-xl" id="presupuesto-total">$0.00</span>
+          <div class="space-y-4 lg:space-y-6">
+            <div class="flex justify-between items-center">
+              <span class="text-gray-400 text-sm lg:text-base">Presupuesto Total:</span>
+              <span class="font-bold text-orange-400 text-lg lg:text-xl" id="presupuesto-total">$0.00</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-gray-400">Total Gastado:</span>
-              <span class="font-bold text-red-400 text-xl" id="total-gastado">$0.00</span>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-400 text-sm lg:text-base">Total Gastado:</span>
+              <span class="font-bold text-red-400 text-lg lg:text-xl" id="total-gastado">$0.00</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-gray-400">Disponible:</span>
-              <span class="font-bold text-green-400 text-xl" id="presupuesto-disponible">$0.00</span>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-400 text-sm lg:text-base">Disponible:</span>
+              <span class="font-bold text-green-400 text-lg lg:text-xl" id="presupuesto-disponible">$0.00</span>
             </div>
             
-            <div class="mt-6">
-              <div class="flex justify-between mb-3 text-sm text-gray-400">
+            <div class="mt-4 lg:mt-6">
+              <div class="flex justify-between mb-2 lg:mb-3 text-xs lg:text-sm text-gray-400">
                 <span>Progreso:</span>
                 <span id="porcentaje-usado" class="font-bold">0%</span>
               </div>
-              <div class="w-full bg-gray-700 rounded-full h-4 border border-gray-600">
+              <div class="w-full bg-gray-700 rounded-full h-3 lg:h-4 border border-gray-600">
                 <div id="barra-progreso" class="bg-gradient-to-r from-orange-500 to-orange-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
               </div>
             </div>
@@ -264,32 +622,32 @@
         </div>
 
         <!-- Viáticos -->
-        <div class="card-dark rounded-3xl p-8">
-          <h2 class="text-xl font-bold text-white mb-8 flex items-center">
-            <span class="w-12 h-12 rounded-lg bg-orange-500 text-white flex items-center justify-center mr-4 text-2xl">🚗</span> 
+        <div class="card-dark rounded-3xl p-6 lg:p-8">
+          <h2 class="text-lg lg:text-xl font-bold text-white mb-6 lg:mb-8 flex items-center">
+            <span class="w-10 h-10 lg:w-12 lg:h-12 rounded-lg bg-orange-500 text-white flex items-center justify-center mr-3 lg:mr-4 text-xl lg:text-2xl">🚗</span> 
             VIÁTICOS
           </h2>
           
-          <div class="space-y-6">
-            <div class="flex justify-between">
-              <span class="text-gray-400">Presupuesto Viáticos:</span>
-              <span class="font-bold text-orange-400 text-xl" id="presupuesto-viaticos">$0.00</span>
+          <div class="space-y-4 lg:space-y-6">
+            <div class="flex justify-between items-center">
+              <span class="text-gray-400 text-sm lg:text-base">Presupuesto Viáticos:</span>
+              <span class="font-bold text-orange-400 text-lg lg:text-xl" id="presupuesto-viaticos">$0.00</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-gray-400">Viáticos Gastados:</span>
-              <span class="font-bold text-red-400 text-xl" id="viaticos-gastados">$0.00</span>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-400 text-sm lg:text-base">Viáticos Gastados:</span>
+              <span class="font-bold text-red-400 text-lg lg:text-xl" id="viaticos-gastados">$0.00</span>
             </div>
-            <div class="flex justify-between">
-              <span class="text-gray-400">Disponibles:</span>
-              <span class="font-bold text-green-400 text-xl" id="viaticos-disponibles">$0.00</span>
+            <div class="flex justify-between items-center">
+              <span class="text-gray-400 text-sm lg:text-base">Disponibles:</span>
+              <span class="font-bold text-green-400 text-lg lg:text-xl" id="viaticos-disponibles">$0.00</span>
             </div>
             
-            <div class="mt-6">
-              <div class="flex justify-between mb-3 text-sm text-gray-400">
+            <div class="mt-4 lg:mt-6">
+              <div class="flex justify-between mb-2 lg:mb-3 text-xs lg:text-sm text-gray-400">
                 <span>Progreso:</span>
                 <span id="porcentaje-viaticos" class="font-bold">0%</span>
               </div>
-              <div class="w-full bg-gray-700 rounded-full h-4 border border-gray-600">
+              <div class="w-full bg-gray-700 rounded-full h-3 lg:h-4 border border-gray-600">
                 <div id="barra-viaticos" class="bg-gradient-to-r from-orange-500 to-orange-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
               </div>
             </div>
@@ -298,48 +656,48 @@
       </div>
 
       <!-- Lista de Gastos -->
-      <section class="card-dark rounded-3xl p-8">
-        <div class="flex justify-between items-center mb-8">
-          <h2 class="text-3xl font-bold text-white flex items-center">
-            <span class="mr-4 text-3xl">📊</span>
+      <section class="card-dark rounded-3xl p-4 lg:p-8">
+        <div class="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-6 lg:mb-8 gap-3 lg:gap-0">
+          <h2 class="text-2xl lg:text-3xl font-bold text-white flex items-center">
+            <span class="mr-3 text-2xl lg:text-3xl">📊</span>
             Lista de Gastos
           </h2>
         </div>
         
         <!-- Pestañas de Filtro -->
-        <div class="flex space-x-2 mb-6 border-b border-gray-700">
+        <div class="flex space-x-2 mb-4 lg:mb-6 border-b border-gray-700 overflow-x-auto pb-2">
           <button onclick="filtrarPorEstado('todos')" id="tab-todos" 
-            class="tab-btn px-6 py-3 font-semibold text-white border-b-2 border-orange-500 transition-all">
+            class="tab-btn px-4 lg:px-6 py-2 lg:py-3 font-semibold text-white border-b-2 border-orange-500 transition-all whitespace-nowrap">
             📋 Todos
           </button>
           <button onclick="filtrarPorEstado('pendientes')" id="tab-pendientes"
-            class="tab-btn px-6 py-3 font-semibold text-gray-400 border-b-2 border-transparent hover:text-white transition-all">
+            class="tab-btn px-4 lg:px-6 py-2 lg:py-3 font-semibold text-gray-400 border-b-2 border-transparent hover:text-white transition-all whitespace-nowrap">
             ⏳ Pendientes
           </button>
           <button onclick="filtrarPorEstado('registrados')" id="tab-registrados"
-            class="tab-btn px-6 py-3 font-semibold text-gray-400 border-b-2 border-transparent hover:text-white transition-all">
+            class="tab-btn px-4 lg:px-6 py-2 lg:py-3 font-semibold text-gray-400 border-b-2 border-transparent hover:text-white transition-all whitespace-nowrap">
             ✅ Registrados
           </button>
         </div>
         
         <!-- Filtros de Categoría -->
-        <div class="flex space-x-3 mb-6">
-          <button onclick="filtrarPorCategoria('todos')" id="cat-todos" class="filtro-btn btn-primary px-6 py-3 rounded-xl font-semibold">
+        <div class="flex space-x-3 mb-4 lg:mb-6 overflow-x-auto pb-2">
+          <button onclick="filtrarPorCategoria('todos')" id="cat-todos" class="filtro-btn btn-primary px-4 lg:px-6 py-2 lg:py-3 rounded-xl font-semibold whitespace-nowrap">
             Todos
           </button>
-          <button onclick="filtrarPorCategoria('presupuesto')" id="cat-presupuesto" class="filtro-btn bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold hover:bg-gray-600 transition-all">
+          <button onclick="filtrarPorCategoria('presupuesto')" id="cat-presupuesto" class="filtro-btn bg-gray-700 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-xl font-semibold hover:bg-gray-600 transition-all whitespace-nowrap">
             💰 Presupuesto
           </button>
-          <button onclick="filtrarPorCategoria('viaticos')" id="cat-viaticos" class="filtro-btn bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold hover:bg-gray-600 transition-all">
+          <button onclick="filtrarPorCategoria('viaticos')" id="cat-viaticos" class="filtro-btn bg-gray-700 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-xl font-semibold hover:bg-gray-600 transition-all whitespace-nowrap">
             🚗 Viáticos
           </button>
         </div>
         
         <div id="lista-gastos" class="space-y-4">
-          <div class="text-center text-gray-400 py-16">
-            <span class="text-8xl mb-6 block">📋</span>
-            <p class="text-2xl mb-4">No hay gastos registrados</p>
-            <p class="text-lg">¡Agrega tu primer gasto para comenzar!</p>
+          <div class="text-center text-gray-400 py-12 lg:py-16">
+            <span class="text-6xl lg:text-8xl mb-4 lg:mb-6 block">📋</span>
+            <p class="text-xl lg:text-2xl mb-3 lg:mb-4">No hay gastos registrados</p>
+            <p class="text-base lg:text-lg">¡Agrega tu primer gasto para comenzar!</p>
           </div>
         </div>
       </section>
@@ -347,31 +705,31 @@
   </div>
 
   <!-- ==================== MODAL NUEVO GASTO ==================== -->
-  <div id="modal-gasto" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50">
-    <div class="card-dark rounded-3xl p-10 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
+  <div id="modal-gasto" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50 p-4">
+    <div class="card-dark rounded-3xl p-6 lg:p-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
       
-      <div class="flex justify-between items-center mb-8">
-        <h3 id="modal-title" class="text-3xl font-bold text-white flex items-center">
-          <span class="mr-3 text-3xl">➕</span>Nuevo Gasto
+      <div class="flex justify-between items-center mb-6 lg:mb-8">
+        <h3 id="modal-title" class="text-xl lg:text-3xl font-bold text-white flex items-center">
+          <span class="mr-2 lg:mr-3 text-xl lg:text-3xl">➕</span>Nuevo Gasto
         </h3>
-        <button onclick="cerrarModal()" class="text-gray-400 hover:text-orange-500 text-3xl font-bold transition-colors">
+        <button onclick="cerrarModal()" class="text-gray-400 hover:text-orange-500 text-2xl lg:text-3xl font-bold transition-colors">
           ✕
         </button>
       </div>
 
-      <form id="form-gasto" class="space-y-8">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <form id="form-gasto" class="space-y-4 lg:space-y-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-8">
           
           <div>
-            <label class="block text-lg font-semibold text-white mb-3">📅 Fecha</label>
+            <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">📅 Fecha</label>
             <input type="date" id="fecha" required 
-              class="input-dark w-full rounded-xl px-6 py-4 text-lg">
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg">
           </div>
 
           <div>
-            <label class="block text-lg font-semibold text-white mb-3">📁 Categoría</label>
+            <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">📁 Categoría</label>
             <select id="categoria" required 
-              class="input-dark w-full rounded-xl px-6 py-4 text-lg">
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg">
               <option value="">Seleccionar categoría</option>
               <option value="presupuesto">💰 Presupuesto</option>
               <option value="viaticos">🚗 Viáticos</option>
@@ -379,40 +737,40 @@
           </div>
 
           <div class="md:col-span-2">
-            <label class="block text-lg font-semibold text-white mb-3">📝 Descripción</label>
+            <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">📝 Descripción</label>
             <input type="text" id="descripcion" required 
-              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg"
               placeholder="Descripción del gasto">
           </div>
 
           <div>
-            <label class="block text-lg font-semibold text-white mb-3">💰 Monto (ARS)</label>
+            <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">💰 Monto (ARS)</label>
             <input type="number" id="monto" step="0.01" min="0" required 
-              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg"
               placeholder="Ingresa el monto en pesos">
           </div>
 
           <div class="flex items-center">
             <label class="flex items-center cursor-pointer">
               <input type="checkbox" id="comprobante" 
-                class="w-6 h-6 rounded border-2 border-gray-600 bg-gray-700 text-orange-500 focus:ring-2 focus:ring-orange-500">
-              <span class="ml-3 text-lg font-semibold text-white">📎 ¿Se adjuntó comprobante al grupo de finanzas?</span>
+                class="w-5 h-5 lg:w-6 lg:h-6 rounded border-2 border-gray-600 bg-gray-700 text-orange-500 focus:ring-2 focus:ring-orange-500">
+              <span class="ml-2 lg:ml-3 text-sm lg:text-lg font-semibold text-white">📎 ¿Se adjuntó comprobante al grupo de finanzas?</span>
             </label>
           </div>
         </div>
 
         <!-- Botones de Acción -->
-        <div class="flex space-x-6 pt-4">
+        <div class="flex flex-col lg:flex-row lg:space-x-6 space-y-3 lg:space-y-0 pt-4">
           <button type="submit" id="btn-guardar" 
-            class="flex-1 btn-primary text-white font-bold py-4 rounded-xl text-xl">
+            class="flex-1 btn-primary text-white font-bold py-3 lg:py-4 rounded-xl text-base lg:text-xl">
             <span class="flex items-center justify-center">
-              <span class="mr-3">💾</span>Guardar Gasto
+              <span class="mr-2 lg:mr-3">💾</span>Guardar Gasto
             </span>
           </button>
           <button type="button" onclick="cerrarModal()" 
-            class="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 text-white font-bold py-4 rounded-xl text-xl hover:shadow-lg transition-all">
+            class="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 text-white font-bold py-3 lg:py-4 rounded-xl text-base lg:text-xl hover:shadow-lg transition-all">
             <span class="flex items-center justify-center">
-              <span class="mr-3">❌</span>Cancelar
+              <span class="mr-2 lg:mr-3">❌</span>Cancelar
             </span>
           </button>
         </div>
@@ -421,86 +779,86 @@
   </div>
 
   <!-- ==================== MODAL PANEL ADMIN ==================== -->
-  <div id="modal-admin" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50">
-    <div class="card-dark rounded-3xl p-10 w-full max-w-5xl mx-4 max-h-[90vh] overflow-y-auto">
+  <div id="modal-admin" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50 p-4">
+    <div class="card-dark rounded-3xl p-6 lg:p-10 w-full max-w-5xl max-h-[90vh] overflow-y-auto">
       
-      <div class="flex justify-between items-center mb-8">
-        <h3 class="text-4xl font-bold text-white flex items-center">
-          <span class="mr-4 text-4xl">👑</span>Panel de Administración
+      <div class="flex justify-between items-center mb-6 lg:mb-8">
+        <h3 class="text-2xl lg:text-4xl font-bold text-white flex items-center">
+          <span class="mr-2 lg:mr-4 text-2xl lg:text-4xl">👑</span>Panel de Administración
         </h3>
-        <button onclick="cerrarModalAdmin()" class="text-gray-400 hover:text-orange-500 text-3xl font-bold transition-colors">
+        <button onclick="cerrarModalAdmin()" class="text-gray-400 hover:text-orange-500 text-2xl lg:text-3xl font-bold transition-colors">
           ✕
         </button>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10">
         
         <!-- Configuración de Presupuestos -->
-        <div class="space-y-8">
-          <h4 class="text-2xl font-bold text-white flex items-center border-b border-gray-600 pb-4">
-            <span class="mr-3 text-2xl">💰</span>Configuración de Presupuestos
+        <div class="space-y-4 lg:space-y-8">
+          <h4 class="text-xl lg:text-2xl font-bold text-white flex items-center border-b border-gray-600 pb-3 lg:pb-4">
+            <span class="mr-2 lg:mr-3 text-xl lg:text-2xl">💰</span>Configuración de Presupuestos
           </h4>
           
           <div>
-            <label class="block text-lg font-semibold text-white mb-3">Presupuesto Total (ARS)</label>
+            <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">Presupuesto Total (ARS)</label>
             <input type="number" id="nuevo-presupuesto-total" step="0.01" min="0" 
-              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg"
               placeholder="Ingresa el monto en pesos">
           </div>
 
           <div>
-            <label class="block text-lg font-semibold text-white mb-3">Presupuesto de Viáticos (ARS)</label>
+            <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">Presupuesto de Viáticos (ARS)</label>
             <input type="number" id="nuevo-presupuesto-viaticos" step="0.01" min="0" 
-              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg"
               placeholder="Ingresa el monto en pesos">
           </div>
 
           <button onclick="actualizarPresupuestos()" 
-            class="w-full bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-4 rounded-xl text-lg hover:shadow-lg transition-all">
+            class="w-full bg-gradient-to-r from-green-600 to-green-700 text-white font-bold py-3 lg:py-4 rounded-xl text-base lg:text-lg hover:shadow-lg transition-all">
             <span class="flex items-center justify-center">
-              <span class="mr-3">💾</span>Actualizar Presupuestos
+              <span class="mr-2 lg:mr-3">💾</span>Actualizar Presupuestos
             </span>
           </button>
         </div>
 
         <!-- Configuración de Seguridad -->
-        <div class="space-y-8">
-          <h4 class="text-2xl font-bold text-white flex items-center border-b border-gray-600 pb-4">
-            <span class="mr-3 text-2xl">🔒</span>Configuración de Seguridad
+        <div class="space-y-4 lg:space-y-8">
+          <h4 class="text-xl lg:text-2xl font-bold text-white flex items-center border-b border-gray-600 pb-3 lg:pb-4">
+            <span class="mr-2 lg:mr-3 text-xl lg:text-2xl">🔒</span>Configuración de Seguridad
           </h4>
           
           <div>
-            <label class="block text-lg font-semibold text-white mb-3">PIN de Usuario</label>
+            <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">PIN de Usuario</label>
             <input type="password" id="nuevo-pin-usuario" maxlength="6" 
-              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg"
               placeholder="Nuevo PIN de 6 dígitos">
           </div>
 
           <div>
-            <label class="block text-lg font-semibold text-white mb-3">PIN de Administrador</label>
+            <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">PIN de Administrador</label>
             <input type="password" id="nuevo-pin-admin" maxlength="6" 
-              class="input-dark w-full rounded-xl px-6 py-4 text-lg"
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg"
               placeholder="Nuevo PIN de administrador">
           </div>
 
           <button onclick="actualizarPINs()" 
-            class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-bold py-4 rounded-xl text-lg hover:shadow-lg transition-all">
+            class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-bold py-3 lg:py-4 rounded-xl text-base lg:text-lg hover:shadow-lg transition-all">
             <span class="flex items-center justify-center">
-              <span class="mr-3">🔑</span>Actualizar PINs
+              <span class="mr-2 lg:mr-3">🔑</span>Actualizar PINs
             </span>
           </button>
         </div>
       </div>
 
       <!-- Gestión de Gastos -->
-      <div class="mt-12">
-        <h4 class="text-2xl font-bold text-white flex items-center border-b border-gray-600 pb-4 mb-8">
-          <span class="mr-3 text-2xl">📊</span>Gestión de Gastos
+      <div class="mt-8 lg:mt-12">
+        <h4 class="text-xl lg:text-2xl font-bold text-white flex items-center border-b border-gray-600 pb-3 lg:pb-4 mb-6 lg:mb-8">
+          <span class="mr-2 lg:mr-3 text-xl lg:text-2xl">📊</span>Gestión de Gastos
         </h4>
         
-        <div id="lista-gastos-admin" class="space-y-4 max-h-80 overflow-y-auto bg-gray-800 rounded-2xl p-6">
-          <div class="text-center text-gray-400 py-8">
-            <p class="text-lg">Los gastos aparecerán aquí para administración</p>
+        <div id="lista-gastos-admin" class="space-y-4 max-h-80 overflow-y-auto bg-gray-800 rounded-2xl p-4 lg:p-6">
+          <div class="text-center text-gray-400 py-6 lg:py-8">
+            <p class="text-base lg:text-lg">Los gastos aparecerán aquí para administración</p>
           </div>
         </div>
       </div>
@@ -580,13 +938,24 @@ function setupDragAndDrop() {
 
 function setupMainButtons() {
   const btnNuevoGasto = document.getElementById('btn-nuevo-gasto');
+  const btnNuevoGastoMobile = document.getElementById('btn-nuevo-gasto-mobile');
   const btnPanelAdmin = document.getElementById('btn-panel-admin');
+  const btnPanelAdminMobile = document.getElementById('btn-panel-admin-mobile');
   const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
+  const btnCerrarSesionMobile = document.getElementById('btn-cerrar-sesion-mobile');
 
   if (btnNuevoGasto) {
     btnNuevoGasto.addEventListener('click', () => {
       document.getElementById('modal-gasto').classList.remove('hidden');
       // Establecer fecha actual por defecto
+      const hoy = new Date().toISOString().split('T')[0];
+      document.getElementById('fecha').value = hoy;
+    });
+  }
+
+  if (btnNuevoGastoMobile) {
+    btnNuevoGastoMobile.addEventListener('click', () => {
+      document.getElementById('modal-gasto').classList.remove('hidden');
       const hoy = new Date().toISOString().split('T')[0];
       document.getElementById('fecha').value = hoy;
     });
@@ -598,8 +967,20 @@ function setupMainButtons() {
     });
   }
 
+  if (btnPanelAdminMobile) {
+    btnPanelAdminMobile.addEventListener('click', () => {
+      mostrarPanelAdmin();
+    });
+  }
+
   if (btnCerrarSesion) {
     btnCerrarSesion.addEventListener('click', () => {
+      cerrarSesion();
+    });
+  }
+
+  if (btnCerrarSesionMobile) {
+    btnCerrarSesionMobile.addEventListener('click', () => {
       cerrarSesion();
     });
   }
@@ -613,6 +994,16 @@ function setupForm() {
 }
 
 // ==================== FUNCIONES AUXILIARES ====================
+function toggleMobileMenu() {
+  const mobileMenu = document.querySelector('.mobile-menu');
+  const overlay = document.querySelector('.mobile-menu-overlay');
+  const hamburger = document.querySelector('.hamburger');
+  
+  mobileMenu.classList.toggle('active');
+  overlay.classList.toggle('active');
+  hamburger.classList.toggle('active');
+}
+
 function mostrarArchivoSeleccionado(file) {
   const dragArea = document.getElementById('drag-area');
   dragArea.innerHTML = `

@@ -158,6 +158,8 @@ async function validarPIN() {
       document.getElementById('pin-screen').classList.add('hidden');
       document.getElementById('user-role-badge').innerHTML = '<span class="bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-bold mr-2">👑 ADMIN</span>';
       document.getElementById('btn-panel-admin').classList.remove('hidden');
+      const btnAdminMobile = document.getElementById('btn-panel-admin-mobile');
+      if (btnAdminMobile) btnAdminMobile.classList.remove('hidden');
       loginBtn.innerHTML = '🔑 Verificar PIN';
       loginBtn.disabled = false;
       mostrarNotificacion('✅ Bienvenido, Administrador', 'success');
@@ -199,6 +201,8 @@ document.getElementById('btn-cerrar-sesion').addEventListener('click', () => {
   document.getElementById('pin-screen').classList.remove('hidden');
   document.getElementById('pin-input').value = '';
   document.getElementById('btn-panel-admin').classList.add('hidden');
+  const btnAdminMobile = document.getElementById('btn-panel-admin-mobile');
+  if (btnAdminMobile) btnAdminMobile.classList.add('hidden');
   document.getElementById('user-role-badge').innerHTML = '';
   
   // Resetear botón de login
