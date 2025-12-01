@@ -982,62 +982,13 @@ async function actualizarPINs() {
 
 // Actualizar seguridad completa (email + PINs)
 async function actualizarSeguridadCompleta() {
-  const emailRecuperacion = document.getElementById('nuevo-email-recuperacion').value;
-  const pinUsuario = document.getElementById('nuevo-pin-usuario').value;
-  const pinAdmin = document.getElementById('nuevo-pin-admin').value;
-  
-  if (pinUsuario && pinUsuario.length < 4) {
-    mostrarNotificacion('❌ El PIN de usuario debe tener al menos 4 caracteres', 'error');
-    return;
-  }
-  
-  if (pinAdmin && pinAdmin.length < 4) {
-    mostrarNotificacion('❌ El PIN de administrador debe tener al menos 4 caracteres', 'error');
-    return;
-  }
-  
-  if (pinUsuario && pinAdmin && pinUsuario === pinAdmin) {
-    mostrarNotificacion('❌ Los PINs no pueden ser iguales', 'error');
-    return;
-  }
-  
-  // Validar formato de email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (emailRecuperacion && !emailRegex.test(emailRecuperacion)) {
-    mostrarNotificacion('❌ El email ingresado no es válido', 'error');
-    return;
-  }
-  
-  try {
-    const updates = {};
-    if (emailRecuperacion) updates.emailRecuperacion = emailRecuperacion;
-    if (pinUsuario) updates.pinUsuario = pinUsuario;
-    if (pinAdmin) updates.pinAdmin = pinAdmin;
-    
-    if (Object.keys(updates).length === 0) {
-      mostrarNotificacion('⚠️ No hay cambios para actualizar', 'error');
-      return;
-    }
-    
-    updates.fechaActualizacion = firebase.firestore.FieldValue.serverTimestamp();
-    
-    await db.collection('configuracion').doc('sistema').update(updates);
-    
-    let mensaje = '✅ Configuración actualizada: ';
-    if (emailRecuperacion) mensaje += 'Email ';
-    if (pinUsuario) mensaje += 'PIN Usuario ';
-    if (pinAdmin) mensaje += 'PIN Admin';
-    
-    mostrarNotificacion(mensaje, 'success');
-    
-    document.getElementById('nuevo-email-recuperacion').value = '';
-    document.getElementById('nuevo-pin-usuario').value = '';
-    document.getElementById('nuevo-pin-admin').value = '';
-    
-  } catch (error) {
-    console.error('Error al actualizar seguridad:', error);
-    mostrarNotificacion('❌ Error al actualizar configuración', 'error');
-  }
+  mostrarMensajeDemo();
+}
+
+// Mostrar mensaje de función bloqueada en DEMO
+function mostrarMensajeDemo() {
+  alert('🔒 FUNCIÓN BLOQUEADA EN VERSIÓN DEMO\n\n⚠️ Por motivos de seguridad, el cambio de contraseñas está deshabilitado en la versión de demostración.\n\n💡 Esta es una medida de protección para evitar que usuarios bloqueen el acceso público a la aplicación.\n\n📧 Para la versión completa, contacta al desarrollador.');
+  mostrarNotificacion('⚠️ Función bloqueada en versión DEMO', 'error');
 }
 
 // Solicitar recuperación de cuenta mediante email

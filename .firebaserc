@@ -2,5 +2,22 @@
   "projects": {
     "default": "gestor-de-gastos-e46ff",
     "demo": "gestor-de-gastos-demo"
-  }
+  },
+  "targets": {
+    "gestor-de-gastos-e46ff": {
+      "hosting": {
+        "produccion": [
+          "gestor-de-gastos-e46ff"
+        ]
+      }
+    },
+    "gestor-de-gastos-demo": {
+      "hosting": {
+        "demo": [
+          "gestor-de-gastos-demo"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

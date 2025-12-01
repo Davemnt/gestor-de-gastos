@@ -1,20 +1,30 @@
 #  Gestor de Gastos Corporativo
 
-Sistema profesional de gestión de gastos con control de presupuestos, autenticación por PIN y monitoreo en tiempo real.
+Sistema profesional de gestiï¿½n de gastos con control de presupuestos, autenticaciï¿½n por PIN y monitoreo en tiempo real.
 
-##  Aplicación en Producción
+## ğŸŒ Aplicaciones Desplegadas
 
-**URL de la App**: https://gestor-de-gastos-e46ff.web.app
+### ğŸ› ï¸ VersiÃ³n de ProducciÃ³n
+**URL**: https://gestor-de-gastos-e46ff.web.app
+- Control total del sistema
+- Cambio de PINs habilitado
+- RecuperaciÃ³n de cuenta por email
+- GestiÃ³n completa de gastos
 
-**Demo Pública**: https://gestor-de-gastos-e46ff.web.app/demo.html
+### ğŸ­ VersiÃ³n DEMO PÃºblica
+**URL**: https://gestor-de-gastos-demo.web.app
+- PINs: `demo123` (usuario) / `admin456` (admin)
+- Cambio de PINs bloqueado para seguridad
+- Proyecto Firebase independiente
+- Datos de prueba separados
 
 ---
 
-##  Características Principales
+##  Caracterï¿½sticas Principales
 
-###  Gestión de Gastos
--  Registro de gastos con fecha, descripción, monto y categoría
--  Dos categorías principales: **Presupuesto** y **Viáticos**
+###  Gestiï¿½n de Gastos
+-  Registro de gastos con fecha, descripciï¿½n, monto y categorï¿½a
+-  Dos categorï¿½as principales: **Presupuesto** y **Viï¿½ticos**
 -  Control de comprobantes adjuntos al grupo de finanzas
 -  Moneda local: Pesos Argentinos (ARS)
 
@@ -25,41 +35,49 @@ Sistema profesional de gestión de gastos con control de presupuestos, autenticac
   - Cambiar PINs de seguridad
   - Eliminar gastos
   
--  **Usuario**: Operación diaria
+-  **Usuario**: Operaciï¿½n diaria
   - Agregar nuevos gastos
   - Ver estado de gastos (Pendiente/Registrado)
   - Consultar presupuestos disponibles
 
-###  Seguridad
-- PIN de 6 dígitos para usuarios
-- PIN personalizado para administradores
-- Validación de campos y tipos de datos
+### ğŸ”’ Seguridad
+- PIN de mÃ­nimo 4 caracteres para usuarios y administradores
+- ğŸ“§ **Sistema de recuperaciÃ³n por email**: VerificaciÃ³n de identidad
+- ğŸ” **VersiÃ³n DEMO protegida**: Cambio de PINs bloqueado
+- ValidaciÃ³n de campos y tipos de datos
 - Reglas de seguridad en Firestore
-- Cifrado en tránsito (HTTPS)
+- Cifrado en trÃ¡nsito (HTTPS)
+- Proyectos Firebase independientes (producciÃ³n/demo)
 
 ###  Monitoreo en Tiempo Real
-- Actualización automática de presupuestos
-- Sincronización entre dispositivos
+- Actualizaciï¿½n automï¿½tica de presupuestos
+- Sincronizaciï¿½n entre dispositivos
 - Estados visuales con colores:
   -  **BUENO**: 0-60% del presupuesto
   -  **REGULAR**: 60-85% del presupuesto
   -  **ALERTA**: 85%+ del presupuesto
 
-###  Organización de Gastos
+###  Organizaciï¿½n de Gastos
 - ** Todos**: Vista completa de gastos
-- ** Pendientes**: Gastos esperando aprobación
+- ** Pendientes**: Gastos esperando aprobaciï¿½n
 - ** Registrados**: Gastos aprobados por administrador
 
 ---
 
-##  Tecnologías Utilizadas
+## ğŸ› ï¸ TecnologÃ­as Utilizadas
 
 - **Frontend**: HTML5, Tailwind CSS, JavaScript ES6+
+- **DiseÃ±o**: 
+  - Tema profesional gris claro (#f3f4f6)
+  - Paleta celeste-azul para acentos
+  - Sistema responsive completo
+  - Grid adaptativo con Tailwind
+  - MenÃº hamburguesa en mÃ³viles
 - **Backend**: Firebase (BaaS)
   - Firestore Database (Base de datos en tiempo real)
-  - Firebase Hosting (Despliegue)
+  - Firebase Hosting (Despliegue con targets)
   - Firebase Storage (Almacenamiento)
-- **Seguridad**: Firestore Security Rules
+- **Seguridad**: Firestore Security Rules, proyectos independientes
 
 ---
 
@@ -68,19 +86,19 @@ Sistema profesional de gestión de gastos con control de presupuestos, autenticac
 ```
 gestor-gastos/
  index.html              # Interfaz principal
- demo.html               # Versión demo pública
- app.js                  # Lógica de la aplicación
- demo.js                 # Lógica de la demo
- firebase-config.js      # Configuración de Firebase
+ demo.html               # Versiï¿½n demo pï¿½blica
+ app.js                  # Lï¿½gica de la aplicaciï¿½n
+ demo.js                 # Lï¿½gica de la demo
+ firebase-config.js      # Configuraciï¿½n de Firebase
  firestore.rules         # Reglas de seguridad
  README.md               # Este archivo
- SEGURIDAD.md           # Guía de seguridad
- INSTRUCCIONES-FIREBASE.md  # Guía de despliegue
+ SEGURIDAD.md           # Guï¿½a de seguridad
+ INSTRUCCIONES-FIREBASE.md  # Guï¿½a de despliegue
 ```
 
 ---
 
-##  Instalación y Configuración
+##  Instalaciï¿½n y Configuraciï¿½n
 
 ### 1. Clonar o Descargar el Proyecto
 
@@ -107,13 +125,13 @@ cd gestor-gastos
 Abre `index.html` en tu navegador o usa un servidor local:
 
 ```bash
-# Opción 1: Python
+# Opciï¿½n 1: Python
 python -m http.server 8000
 
-# Opción 2: Node.js
+# Opciï¿½n 2: Node.js
 npx http-server
 
-# Opción 3: PHP
+# Opciï¿½n 3: PHP
 php -S localhost:8000
 ```
 
@@ -123,13 +141,13 @@ Visita: `http://localhost:8000`
 
 ##  Desplegar en Firebase Hosting
 
-### Opción 1: Firebase CLI (Recomendado)
+### Opciï¿½n 1: Firebase CLI (Recomendado)
 
 ```bash
 # Instalar Firebase CLI
 npm install -g firebase-tools
 
-# Iniciar sesión
+# Iniciar sesiï¿½n
 firebase login
 
 # Inicializar proyecto
@@ -139,7 +157,7 @@ firebase init hosting
 firebase deploy
 ```
 
-### Opción 2: Consola Web
+### Opciï¿½n 2: Consola Web
 
 1. Ve a Firebase Console > Hosting
 2. Sigue el asistente
@@ -147,22 +165,33 @@ firebase deploy
 
 ---
 
-##  Credenciales por Defecto
+## ğŸ”‘ Credenciales por Defecto
 
- **IMPORTANTE**: Cambia estos PINs inmediatamente después del primer inicio
+### ğŸ› ï¸ VersiÃ³n de ProducciÃ³n
+âš ï¸ **IMPORTANTE**: Cambia estos PINs inmediatamente despuÃ©s del primer inicio
 
 - **PIN Usuario**: `123456`
 - **PIN Administrador**: `admin1`
 
 Para cambiar los PINs:
 1. Ingresa como administrador
-2. Clic en " Panel Admin"
-3. Ve a "Configuración de Seguridad"
-4. Actualiza los PINs
+2. Clic en "âš™ï¸ Panel Admin"
+3. Ve a "ConfiguraciÃ³n de Seguridad"
+4. Configura tu **Email de RecuperaciÃ³n**
+5. Actualiza los PINs (mÃ­nimo 4 caracteres)
+6. Guarda los cambios
+
+### ğŸ­ VersiÃ³n DEMO
+
+ğŸ”’ **PINs FIJOS (no modificables)**:
+- **PIN Usuario**: `demo123`
+- **PIN Administrador**: `admin456`
+
+âš ï¸ El cambio de PINs estÃ¡ **bloqueado** en la versiÃ³n demo para proteger el acceso pÃºblico.
 
 ---
 
-##  Uso de la Aplicación
+##  Uso de la Aplicaciï¿½n
 
 ### Como Usuario
 
@@ -172,13 +201,13 @@ Para cambiar los PINs:
 
 2. **Agregar Gasto**
    - Clic en " Nuevo Gasto"
-   - Completa: Fecha, Categoría, Descripción, Monto
+   - Completa: Fecha, Categorï¿½a, Descripciï¿½n, Monto
    - Marca si adjuntaste comprobante
    - Clic en " Guardar Gasto"
 
 3. **Consultar Gastos**
-   - Usa las pestañas: Todos, Pendientes, Registrados
-   - Filtra por categoría: Presupuesto o Viáticos
+   - Usa las pestaï¿½as: Todos, Pendientes, Registrados
+   - Filtra por categorï¿½a: Presupuesto o Viï¿½ticos
 
 ### Como Administrador
 
@@ -193,58 +222,58 @@ Para cambiar los PINs:
 
 3. **Eliminar Gastos**
    - Clic en " Eliminar"
-   - Confirma la acción
+   - Confirma la acciï¿½n
 
 4. **Cambiar PINs**
-   - En el panel admin, sección "Configuración de Seguridad"
+   - En el panel admin, secciï¿½n "Configuraciï¿½n de Seguridad"
    - Ingresa nuevos PINs
    - Clic en " Actualizar PINs"
 
 ---
 
-##  Versión Demo
+##  Versiï¿½n Demo
 
 **URL**: https://gestor-de-gastos-e46ff.web.app/demo.html
 
-La versión demo muestra:
+La versiï¿½n demo muestra:
 -  Interfaz completa del sistema
 -  Datos de ejemplo ficticios
--  Funcionalidad de navegación
--  Sin autenticación requerida
+-  Funcionalidad de navegaciï¿½n
+-  Sin autenticaciï¿½n requerida
 -  Sin acceso a datos reales
 -  Sin capacidad de modificar datos
 
 Ideal para:
 - Mostrar el sistema a terceros
-- Capacitación de personal
+- Capacitaciï¿½n de personal
 - Presentaciones comerciales
 
 ---
 
-##  Seguridad y Buenas Prácticas
+##  Seguridad y Buenas Prï¿½cticas
 
 ###  Implementado
-- Validación de campos en cliente y servidor
+- Validaciï¿½n de campos en cliente y servidor
 - Reglas de seguridad en Firestore
-- HTTPS obligatorio en producción
-- Separación de roles (Usuario/Admin)
-- Validación de tipos de datos
+- HTTPS obligatorio en producciï¿½n
+- Separaciï¿½n de roles (Usuario/Admin)
+- Validaciï¿½n de tipos de datos
 
 ###  Recomendaciones
 1. **Cambiar PINs por defecto inmediatamente**
-2. **Implementar Firebase Authentication para producción**
+2. **Implementar Firebase Authentication para producciï¿½n**
 3. **Configurar App Check para prevenir bots**
-4. **Establecer límites de cuota en Firebase**
+4. **Establecer lï¿½mites de cuota en Firebase**
 5. **Revisar logs de Firestore regularmente**
-6. **Hacer backups periódicos de la base de datos**
+6. **Hacer backups periï¿½dicos de la base de datos**
 
-Ver **SEGURIDAD.md** para más detalles.
+Ver **SEGURIDAD.md** para mï¿½s detalles.
 
 ---
 
 ##  Arquitectura de Datos
 
-### Colección: `configuracion`
+### Colecciï¿½n: `configuracion`
 ```javascript
 {
   pinUsuario: "123456",
@@ -256,10 +285,10 @@ Ver **SEGURIDAD.md** para más detalles.
 }
 ```
 
-### Colección: `gastos`
+### Colecciï¿½n: `gastos`
 ```javascript
 {
-  descripcion: "Combustible vehículo oficial",
+  descripcion: "Combustible vehï¿½culo oficial",
   monto: 15000,
   fecha: "2025-11-22",
   categoria: "viaticos",
@@ -274,64 +303,64 @@ Ver **SEGURIDAD.md** para más detalles.
 
 ---
 
-##  Solución de Problemas
+##  Soluciï¿½n de Problemas
 
-### Error: "Firebase no está inicializado"
+### Error: "Firebase no estï¿½ inicializado"
 - Verifica que `firebase-config.js` tenga las credenciales correctas
-- Asegúrate de tener conexión a internet
-- Revisa la consola del navegador (F12) para más detalles
+- Asegï¿½rate de tener conexiï¿½n a internet
+- Revisa la consola del navegador (F12) para mï¿½s detalles
 
 ### Error: "Cannot access 'variable' before initialization"
-- Recarga la página (F5)
-- Limpia la caché del navegador (Ctrl + Shift + R)
+- Recarga la pï¿½gina (F5)
+- Limpia la cachï¿½ del navegador (Ctrl + Shift + R)
 
 ### Los gastos no se guardan
-- Verifica que Firestore Database esté habilitado
+- Verifica que Firestore Database estï¿½ habilitado
 - Revisa las reglas de seguridad en Firebase Console
 - Comprueba la consola del navegador para errores
 
-### El botón "Verificando..." no se resetea
-- Este problema está corregido en la última versión
-- Recarga la página completamente
+### El botï¿½n "Verificando..." no se resetea
+- Este problema estï¿½ corregido en la ï¿½ltima versiï¿½n
+- Recarga la pï¿½gina completamente
 
 ---
 
 ##  Changelog
 
 ### v1.2.0 (2025-11-22)
--  Agregadas pestañas de filtrado (Todos, Pendientes, Registrados)
--  Versión demo pública
+-  Agregadas pestaï¿½as de filtrado (Todos, Pendientes, Registrados)
+-  Versiï¿½n demo pï¿½blica
 -  Implementadas reglas de seguridad en Firestore
--  Corregido problema de botón "Verificando..."
--  Documentación completa actualizada
+-  Corregido problema de botï¿½n "Verificando..."
+-  Documentaciï¿½n completa actualizada
 
 ### v1.1.0 (2025-11-21)
--  Sistema de aprobación de gastos
+-  Sistema de aprobaciï¿½n de gastos
 -  Checkbox para marcar gastos como registrados
--  Filtros por categoría mejorados
+-  Filtros por categorï¿½a mejorados
 -  Tema oscuro profesional (negro-naranja-gris)
 
 ### v1.0.0 (2025-11-20)
 -  Lanzamiento inicial
--  Gestión básica de gastos
--  Autenticación por PIN
+-  Gestiï¿½n bï¿½sica de gastos
+-  Autenticaciï¿½n por PIN
 -  Monitoreo de presupuestos
 
 ---
 
 ##  Contacto y Soporte
 
-- **Documentación**: Ver archivos .md en el proyecto
+- **Documentaciï¿½n**: Ver archivos .md en el proyecto
 - **Firebase Docs**: https://firebase.google.com/docs
 
 ---
 
 ##  Licencia
 
-Este proyecto es de código abierto y está disponible bajo la licencia MIT.
+Este proyecto es de cï¿½digo abierto y estï¿½ disponible bajo la licencia MIT.
 
 ---
 
-**Desarrollado con  para una gestión eficiente de gastos corporativos**
+**Desarrollado con  para una gestiï¿½n eficiente de gastos corporativos**
 
-*Última actualización: Noviembre 22, 2025*
+*Ãšltima actualizaciÃ³n: Diciembre 1, 2025*

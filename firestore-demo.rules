@@ -3,48 +3,27 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // ==================== REGLAS PARA VERSIÓN DEMO ====================
-    // Estas reglas permiten que cualquiera pueda probar la aplicación
-    // pero con limitaciones para evitar abusos
+    // Estas reglas son PERMISIVAS para permitir probar la aplicación
+    // ⚠️ NO USAR EN PRODUCCIÓN
     
-    // Colección de configuración - Solo lectura pública
+    // Colección de configuración - Lectura y escritura pública
     match /configuracion/{document=**} {
-      allow read: if true;  // Todos pueden leer
-      allow write: if false; // Nadie puede escribir (solo admins desde consola)
+      allow read, write: if true;  // Permitir todo para configuración demo
     }
     
-    // Colección de gastos - Lectura pública, escritura limitada
+    // Colección de gastos - Lectura y escritura pública
     match /gastos/{gastoId} {
-      allow read: if true;  // Todos pueden ver gastos
-      
-      // Permitir crear gastos con validaciones básicas
-      allow create: if request.resource.data.keys().hasAll([
-        'descripcion', 'monto', 'fecha', 'categoria', 
-        'comprobanteAdjunto', 'registrado', 'creadoPor', 'fechaCreacion'
-      ])
-      && request.resource.data.monto is number
-      && request.resource.data.monto > 0
-      && request.resource.data.categoria in ['presupuesto', 'viaticos']
-      && request.resource.data.descripcion is string
-      && request.resource.data.descripcion.size() > 3
-      && request.resource.data.comprobanteAdjunto is bool
-      && request.resource.data.registrado == false;  // Nuevos gastos siempre empiezan como no registrados
-      
-      // Permitir actualizar solo el campo 'registrado' (para aprobar gastos)
-      allow update: if request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['registrado', 'fechaRegistro', 'registradoPor']);
-      
-      // Permitir eliminar gastos
-      allow delete: if true;
+      allow read, write: if true;  // Permitir todo para demo
     }
     
-    // Colección de prueba - Escritura permitida solo para testing
+    // Colección de prueba - Escritura permitida
     match /test/{document=**} {
       allow read, write: if true;
     }
     
-    // Todas las demás colecciones - Sin acceso
+    // Todas las demás colecciones - Permitir todo para demo
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
   }
 }

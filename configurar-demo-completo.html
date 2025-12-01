@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎭 Configuración Completa DEMO</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+  <script src="./firebase-config-demo.js"></script>
+</head>
+<body class="bg-gradient-to-br from-purple-100 to-blue-100 min-h-screen p-8">
+  <div class="max-w-4xl mx-auto">
+    <div class="bg-white rounded-2xl shadow-2xl p-8">
+      <h1 class="text-4xl font-bold text-center mb-2 text-purple-600">🎭 Configuración DEMO</h1>
+      <p class="text-center text-gray-600 mb-8">Inicialización completa con contraseñas fáciles y datos aleatorios</p>
+
+      <!-- Información de Contraseñas -->
+      <div class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-6 border-2 border-purple-200">
+        <h2 class="text-2xl font-bold mb-4 text-purple-700">🔑 Contraseñas DEMO</h2>
+        <div class="space-y-3">
+          <div class="flex justify-between items-center bg-white p-4 rounded-lg">
+            <span class="font-semibold text-gray-700">👤 Usuario:</span>
+            <span class="text-2xl font-bold text-blue-600">demo123</span>
+          </div>
+          <div class="flex justify-between items-center bg-white p-4 rounded-lg">
+            <span class="font-semibold text-gray-700">👨‍💼 Admin:</span>
+            <span class="text-2xl font-bold text-purple-600">admin456</span>
+          </div>
+          <p class="text-sm text-gray-600 mt-4">✅ Las contraseñas son diferentes entre sí</p>
+          <p class="text-sm text-gray-600">✅ Mínimo 4 caracteres (ya no requiere 6 dígitos)</p>
+        </div>
+      </div>
+
+      <!-- Botones de Acción -->
+      <div class="space-y-4">
+        <button onclick="configurarTodo()" 
+          class="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white font-bold py-4 px-6 rounded-xl text-lg transition-all hover:scale-105 shadow-lg">
+          🚀 Configurar Todo Automáticamente
+        </button>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button onclick="paso1ConfigurarPines()" 
+            class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition-all">
+            1️⃣ Configurar PINs
+          </button>
+          
+          <button onclick="paso2CrearGastos()" 
+            class="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg transition-all">
+            2️⃣ Crear Gastos
+          </button>
+          
+          <button onclick="paso3Verificar()" 
+            class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-4 rounded-lg transition-all">
+            3️⃣ Verificar
+          </button>
+        </div>
+
+        <button onclick="limpiarTodo()" 
+          class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-xl transition-all">
+          🗑️ Limpiar Todos los Datos
+        </button>
+      </div>
+
+      <!-- Log de Actividad -->
+      <div class="mt-8">
+        <h3 class="text-xl font-bold mb-4 text-gray-700">📋 Log de Actividad</h3>
+        <div id="log" class="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm h-96 overflow-y-auto">
+          <div>Esperando acción...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let db;
+
+    // Inicializar Firebase
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.firestore();
+        log('✅ Firebase inicializado correctamente');
+        log(`📊 Proyecto: ${firebaseConfig.projectId}`);
+      } catch (error) {
+        log('❌ Error al inicializar Firebase: ' + error.message, 'error');
+      }
+    });
+
+    function log(mensaje, tipo = 'info') {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const color = tipo === 'error' ? 'text-red-400' : tipo === 'success' ? 'text-green-400' : 'text-blue-300';
+      logDiv.innerHTML += `<div class="${color}">[${timestamp}] ${mensaje}</div>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(mensaje);
+    }
+
+    // CONFIGURACIÓN COMPLETA AUTOMÁTICA
+    async function configurarTodo() {
+      log('🚀 Iniciando configuración completa...', 'info');
+      await paso1ConfigurarPines();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await paso2CrearGastos();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await paso3Verificar();
+      log('🎉 ¡CONFIGURACIÓN COMPLETA TERMINADA!', 'success');
+    }
+
+    // PASO 1: Configurar PINs fáciles
+    async function paso1ConfigurarPines() {
+      try {
+        log('🔑 Configurando contraseñas DEMO...');
+        
+        await db.collection('configuracion').doc('sistema').set({
+          pinUsuario: 'demo123',      // Usuario (7 caracteres)
+          pinAdmin: 'admin456',       // Admin (8 caracteres) - DIFERENTE
+          presupuestoTotal: 500000,
+          presupuestoViaticos: 200000,
+          fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+          version: 'DEMO',
+          ultimaActualizacion: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        log('✅ PINs configurados:', 'success');
+        log('   👤 Usuario: demo123', 'success');
+        log('   👨‍💼 Admin: admin456', 'success');
+        log('   💰 Presupuesto Total: $500,000', 'success');
+        log('   🚗 Presupuesto Viáticos: $200,000', 'success');
+      } catch (error) {
+        log('❌ Error al configurar PINs: ' + error.message, 'error');
+      }
+    }
+
+    // PASO 2: Crear gastos aleatorios variados
+    async function paso2CrearGastos() {
+      try {
+        log('📝 Creando gastos de demostración...');
+
+        const gastosDemo = [
+          // Gastos PENDIENTES de reportar
+          {
+            fecha: '2024-12-20',
+            categoria: 'viaticos',
+            descripcion: 'Combustible - Viaje a reunión con cliente en Rosario',
+            monto: 15000,
+            registrado: false,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-12-20')
+          },
+          {
+            fecha: '2024-12-18',
+            categoria: 'presupuesto',
+            descripcion: 'Material de oficina - Resmas A4 y carpetas',
+            monto: 8500,
+            registrado: false,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-12-18')
+          },
+          {
+            fecha: '2024-12-22',
+            categoria: 'viaticos',
+            descripcion: 'Almuerzo con equipo de ventas',
+            monto: 12000,
+            registrado: false,
+            comprobanteAdjunto: false,
+            fechaCreacion: new Date('2024-12-22')
+          },
+
+          // Gastos REPORTADOS - Diciembre 2024
+          {
+            fecha: '2024-12-15',
+            categoria: 'presupuesto',
+            descripcion: 'Renovación licencias software',
+            monto: 45000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-12-15')
+          },
+          {
+            fecha: '2024-12-10',
+            categoria: 'viaticos',
+            descripcion: 'Viaje a Buenos Aires - Conferencia anual',
+            monto: 35000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-12-10')
+          },
+          {
+            fecha: '2024-12-05',
+            categoria: 'presupuesto',
+            descripcion: 'Pago servicios hosting anual',
+            monto: 28000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-12-05')
+          },
+
+          // Gastos REPORTADOS - Noviembre 2024
+          {
+            fecha: '2024-11-25',
+            categoria: 'viaticos',
+            descripcion: 'Combustible - Visitas a clientes zona norte',
+            monto: 18000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-11-25')
+          },
+          {
+            fecha: '2024-11-20',
+            categoria: 'presupuesto',
+            descripcion: 'Equipamiento IT - Teclados y mouse',
+            monto: 22000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-11-20')
+          },
+          {
+            fecha: '2024-11-15',
+            categoria: 'viaticos',
+            descripcion: 'Hotel y estadía - Capacitación en Córdoba',
+            monto: 42000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-11-15')
+          },
+          {
+            fecha: '2024-11-08',
+            categoria: 'presupuesto',
+            descripcion: 'Material promocional - Folletos y banners',
+            monto: 31000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-11-08')
+          },
+
+          // Gastos REPORTADOS - Octubre 2024
+          {
+            fecha: '2024-10-28',
+            categoria: 'viaticos',
+            descripcion: 'Peaje y estacionamiento - Viaje mensual',
+            monto: 8500,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-10-28')
+          },
+          {
+            fecha: '2024-10-20',
+            categoria: 'presupuesto',
+            descripcion: 'Mantenimiento equipos - Service anual',
+            monto: 38000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-10-20')
+          },
+          {
+            fecha: '2024-10-15',
+            categoria: 'viaticos',
+            descripción: 'Comida y refrigerios - Reunión trimestral',
+            monto: 15000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-10-15')
+          },
+
+          // Gastos REPORTADOS - Septiembre 2024
+          {
+            fecha: '2024-09-25',
+            categoria: 'presupuesto',
+            descripcion: 'Publicidad digital - Campaña Q3',
+            monto: 55000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-09-25')
+          },
+          {
+            fecha: '2024-09-18',
+            categoria: 'viaticos',
+            descripcion: 'Vuelo y traslados - Exposición Mendoza',
+            monto: 48000,
+            registrado: true,
+            comprobanteAdjunto: true,
+            fechaCreacion: new Date('2024-09-18')
+          }
+        ];
+
+        let contador = 0;
+        for (const gasto of gastosDemo) {
+          await db.collection('gastos').add(gasto);
+          contador++;
+          log(`   ✓ Gasto ${contador}/${gastosDemo.length}: ${gasto.descripcion.substring(0, 40)}...`);
+        }
+
+        log(`✅ ${gastosDemo.length} gastos creados exitosamente`, 'success');
+        log(`   ⏳ Pendientes: 3 gastos`, 'success');
+        log(`   ✅ Reportados: ${gastosDemo.length - 3} gastos`, 'success');
+      } catch (error) {
+        log('❌ Error al crear gastos: ' + error.message, 'error');
+      }
+    }
+
+    // PASO 3: Verificar configuración
+    async function paso3Verificar() {
+      try {
+        log('🔍 Verificando configuración...');
+
+        // Verificar configuración
+        const configDoc = await db.collection('configuracion').doc('sistema').get();
+        if (configDoc.exists) {
+          const config = configDoc.data();
+          log('✅ Configuración encontrada:', 'success');
+          log(`   PIN Usuario: ${config.pinUsuario}`, 'success');
+          log(`   PIN Admin: ${config.pinAdmin}`, 'success');
+        } else {
+          log('❌ No se encontró configuración', 'error');
+        }
+
+        // Verificar gastos
+        const gastosSnapshot = await db.collection('gastos').get();
+        const totalGastos = gastosSnapshot.size;
+        const pendientes = gastosSnapshot.docs.filter(doc => !doc.data().registrado).length;
+        const reportados = gastosSnapshot.docs.filter(doc => doc.data().registrado).length;
+
+        log('✅ Gastos verificados:', 'success');
+        log(`   📊 Total: ${totalGastos} gastos`, 'success');
+        log(`   ⏳ Pendientes: ${pendientes} gastos`, 'success');
+        log(`   ✅ Reportados: ${reportados} gastos`, 'success');
+
+        log('🎉 ¡Todo configurado correctamente!', 'success');
+        log('🌐 Prueba la demo en: https://gestor-de-gastos-demo.web.app', 'success');
+      } catch (error) {
+        log('❌ Error al verificar: ' + error.message, 'error');
+      }
+    }
+
+    // LIMPIAR TODO
+    async function limpiarTodo() {
+      if (!confirm('⚠️ ¿Estás seguro? Esto eliminará TODOS los datos de la demo.')) {
+        return;
+      }
+
+      try {
+        log('🗑️ Limpiando base de datos...');
+
+        // Eliminar todos los gastos
+        const gastosSnapshot = await db.collection('gastos').get();
+        const batch = db.batch();
+        gastosSnapshot.docs.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+        log(`✅ ${gastosSnapshot.size} gastos eliminados`, 'success');
+
+        // Eliminar configuración
+        await db.collection('configuracion').doc('sistema').delete();
+        log('✅ Configuración eliminada', 'success');
+
+        log('🎉 Base de datos limpiada completamente', 'success');
+      } catch (error) {
+        log('❌ Error al limpiar: ' + error.message, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

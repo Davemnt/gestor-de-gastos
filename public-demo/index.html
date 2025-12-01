@@ -952,32 +952,38 @@
           
           <div>
             <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">📧 Email de Recuperación</label>
-            <input type="email" id="nuevo-email-recuperacion" 
-              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg"
-              placeholder="Email para recuperar cuenta">
-            <p class="text-xs lg:text-sm text-gray-400 mt-2">Ingresa un email válido para recuperar el acceso a tu cuenta</p>
+            <input type="email" id="nuevo-email-recuperacion" disabled
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg opacity-50 cursor-not-allowed"
+              placeholder="Bloqueado en versión DEMO">
+            <p class="text-xs lg:text-sm text-yellow-400 mt-2">🔒 Esta función está deshabilitada en la versión DEMO</p>
           </div>
 
           <div>
             <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">PIN de Usuario</label>
-            <input type="password" id="nuevo-pin-usuario" 
-              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg"
-              placeholder="Nuevo PIN de 6 dígitos">
+            <input type="password" id="nuevo-pin-usuario" disabled
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg opacity-50 cursor-not-allowed"
+              placeholder="Bloqueado en versión DEMO">
           </div>
 
           <div>
             <label class="block text-base lg:text-lg font-semibold text-white mb-2 lg:mb-3">PIN de Administrador</label>
-            <input type="password" id="nuevo-pin-admin" 
-              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg"
-              placeholder="Nuevo PIN de administrador">
+            <input type="password" id="nuevo-pin-admin" disabled
+              class="input-dark w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg opacity-50 cursor-not-allowed"
+              placeholder="Bloqueado en versión DEMO">
           </div>
 
-          <button onclick="actualizarSeguridadCompleta()" 
-            class="w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-bold py-3 lg:py-4 rounded-xl text-base lg:text-lg hover:shadow-lg transition-all">
+          <button onclick="mostrarMensajeDemo()" 
+            class="w-full bg-gradient-to-r from-gray-500 to-gray-600 text-white font-bold py-3 lg:py-4 rounded-xl text-base lg:text-lg opacity-70 cursor-not-allowed">
             <span class="flex items-center justify-center">
-              <span class="mr-2 lg:mr-3">🔑</span>Actualizar Seguridad
+              <span class="mr-2 lg:mr-3">🔒</span>Bloqueado en DEMO
             </span>
           </button>
+          
+          <div class="bg-yellow-900 border border-yellow-600 rounded-xl p-3 lg:p-4">
+            <p class="text-yellow-200 text-xs lg:text-sm text-center">
+              ⚠️ <strong>Versión DEMO:</strong> El cambio de contraseñas está deshabilitado para proteger el acceso público
+            </p>
+          </div>
         </div>
       </div>
 
