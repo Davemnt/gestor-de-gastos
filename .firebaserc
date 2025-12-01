@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "gestor-de-gastos-e46ff"
+    "default": "gestor-de-gastos-e46ff",
+    "demo": "gestor-de-gastos-demo"
   }
 }

@@ -1,6 +1,11 @@
 // ==================== INICIALIZACIÓN DE FIREBASE ====================
 let db, storage, usuarioActual = null, esAdmin = false, categoriaActual = 'todos', estadoActual = 'todos';
 
+// Variables globales para sistema de separación de gastos
+let categoriaPendientes = 'todos';
+let categoriaReportados = 'todos';
+let vistaHistorial = 'mes'; // 'mes', 'trimestre', 'anio'
+
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     console.log('🔥 Iniciando Firebase...');
@@ -974,8 +979,461 @@ function iniciarEscuchaEnTiempoReal() {
   });
   
   db.collection('gastos').onSnapshot(() => {
-    console.log(' Gastos actualizados en tiempo real');
-    cargarGastos();
+    console.log('📊 Gastos actualizados en tiempo real');
+    cargarGastosSeparados();
     calcularGastos();
   });
 }
+
+// ==================== NUEVO SISTEMA DE SEPARACIÓN DE GASTOS ====================
+
+// Función para cargar gastos separados
+async function cargarGastosSeparados() {
+  try {
+    console.log('📥 Cargando gastos separados...');
+    
+    if (!db) {
+      console.error('❌ Firebase no inicializado');
+      return;
+    }
+    
+    const gastosSnapshot = await db.collection('gastos').orderBy('fechaCreacion', 'desc').get();
+    let todosgastos = [];
+    
+    gastosSnapshot.forEach(doc => {
+      todosgastos.push({ id: doc.id, ...doc.data() });
+    });
+
+    console.log(`✅ ${todosgastos.length} gastos cargados en total`);
+
+    // Separar gastos pendientes y reportados
+    const gastosPendientes = todosgastos.filter(g => !g.registrado);
+    const gastosReportados = todosgastos.filter(g => g.registrado);
+
+    console.log(`⏳ ${gastosPendientes.length} gastos pendientes`);
+    console.log(`✅ ${gastosReportados.length} gastos reportados`);
+
+    // Renderizar ambas secciones
+    renderGastosPendientes(gastosPendientes);
+    renderGastosReportados(gastosReportados);
+    
+  } catch (error) {
+    console.error('❌ Error al cargar gastos:', error);
+    mostrarNotificacion('❌ Error al cargar gastos: ' + error.message, 'error');
+  }
+}
+
+// ========================================
+// FUNCIONES DE ACORDEÓN COLAPSABLE
+// ========================================
+
+// Toggle sección de gastos pendientes
+function toggleSeccionPendientes() {
+  const contenido = document.getElementById('contenido-pendientes');
+  const icono = document.getElementById('icon-pendientes');
+  
+  if (contenido.style.display === 'none') {
+    contenido.style.display = 'block';
+    icono.textContent = '▼';
+    icono.style.transform = 'rotate(0deg)';
+  } else {
+    contenido.style.display = 'none';
+    icono.textContent = '▶';
+    icono.style.transform = 'rotate(-90deg)';
+  }
+}
+
+// Toggle sección de gastos reportados
+function toggleSeccionReportados() {
+  const contenido = document.getElementById('contenido-reportados');
+  const icono = document.getElementById('icon-reportados');
+  
+  if (contenido.style.display === 'none') {
+    contenido.style.display = 'block';
+    icono.textContent = '▼';
+    icono.style.transform = 'rotate(0deg)';
+  } else {
+    contenido.style.display = 'none';
+    icono.textContent = '▶';
+    icono.style.transform = 'rotate(-90deg)';
+  }
+}
+
+// ========================================
+// FUNCIONES DE RENDERIZADO
+// ========================================
+
+// Renderizar gastos pendientes
+function renderGastosPendientes(gastos) {
+  // Actualizar contador en el header
+  const countElement = document.getElementById('count-pendientes');
+  if (countElement) {
+    countElement.textContent = `(${gastos.length})`;
+  }
+  // Aplicar filtro de categoría
+  let gastosFiltrados = gastos;
+  if (categoriaPendientes !== 'todos') {
+    gastosFiltrados = gastos.filter(g => g.categoria === categoriaPendientes);
+  }
+
+  const container = document.getElementById('lista-gastos-pendientes');
+
+  if (gastosFiltrados.length === 0) {
+    container.innerHTML = `
+      <div class="text-center text-gray-500 py-12 lg:py-16">
+        <span class="text-6xl lg:text-8xl mb-4 lg:mb-6 block">✅</span>
+        <p class="text-xl lg:text-2xl mb-3 lg:mb-4 font-semibold">¡Excelente! No hay gastos pendientes</p>
+        <p class="text-base lg:text-lg">Todos los gastos han sido reportados</p>
+      </div>
+    `;
+  } else {
+    container.innerHTML = gastosFiltrados.map(crearTarjetaGastoPendiente).join('');
+  }
+}
+
+// Renderizar gastos reportados agrupados
+function renderGastosReportados(gastos) {
+  // Actualizar contador en el header
+  const countElement = document.getElementById('count-reportados');
+  if (countElement) {
+    countElement.textContent = `(${gastos.length})`;
+  }
+  
+  // Aplicar filtro de categoría
+  let gastosFiltrados = gastos;
+  if (categoriaReportados !== 'todos') {
+    gastosFiltrados = gastos.filter(g => g.categoria === categoriaReportados);
+  }
+
+  const container = document.getElementById('historial-reportados');
+
+  if (gastosFiltrados.length === 0) {
+    container.innerHTML = `
+      <div class="text-center text-gray-500 py-12 lg:py-16">
+        <span class="text-6xl lg:text-8xl mb-4 lg:mb-6 block">📋</span>
+        <p class="text-xl lg:text-2xl mb-3 lg:mb-4 font-semibold">No hay gastos reportados aún</p>
+        <p class="text-base lg:text-lg">Los gastos aprobados aparecerán aquí</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Agrupar según la vista seleccionada
+  let gastosAgrupados;
+  if (vistaHistorial === 'mes') {
+    gastosAgrupados = agruparPorMes(gastosFiltrados);
+  } else if (vistaHistorial === 'trimestre') {
+    gastosAgrupados = agruparPorTrimestre(gastosFiltrados);
+  } else if (vistaHistorial === 'anio') {
+    gastosAgrupados = agruparPorAnio(gastosFiltrados);
+  }
+
+  container.innerHTML = renderGastosAgrupados(gastosAgrupados, vistaHistorial);
+}
+
+// Agrupar gastos por mes
+function agruparPorMes(gastos) {
+  const grupos = {};
+  
+  gastos.forEach(gasto => {
+    const fecha = new Date(gasto.fecha);
+    const mesAnio = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+    
+    if (!grupos[mesAnio]) {
+      grupos[mesAnio] = {
+        label: fecha.toLocaleDateString('es-ES', { year: 'numeric', month: 'long' }),
+        gastos: [],
+        total: 0
+      };
+    }
+    
+    grupos[mesAnio].gastos.push(gasto);
+    grupos[mesAnio].total += gasto.monto || 0;
+  });
+  
+  return Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+// Agrupar gastos por trimestre
+function agruparPorTrimestre(gastos) {
+  const grupos = {};
+  
+  gastos.forEach(gasto => {
+    const fecha = new Date(gasto.fecha);
+    const anio = fecha.getFullYear();
+    const mes = fecha.getMonth();
+    const trimestre = Math.floor(mes / 3) + 1;
+    const key = `${anio}-T${trimestre}`;
+    
+    const labels = ['Primer Trimestre', 'Segundo Trimestre', 'Tercer Trimestre', 'Cuarto Trimestre'];
+    
+    if (!grupos[key]) {
+      grupos[key] = {
+        label: `${labels[trimestre - 1]} ${anio}`,
+        gastos: [],
+        total: 0
+      };
+    }
+    
+    grupos[key].gastos.push(gasto);
+    grupos[key].total += gasto.monto || 0;
+  });
+  
+  return Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+// Agrupar gastos por año
+function agruparPorAnio(gastos) {
+  const grupos = {};
+  
+  gastos.forEach(gasto => {
+    const fecha = new Date(gasto.fecha);
+    const anio = fecha.getFullYear().toString();
+    
+    if (!grupos[anio]) {
+      grupos[anio] = {
+        label: `Año ${anio}`,
+        gastos: [],
+        total: 0
+      };
+    }
+    
+    grupos[anio].gastos.push(gasto);
+    grupos[anio].total += gasto.monto || 0;
+  });
+  
+  return Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+// Renderizar gastos agrupados con acordeón colapsable
+function renderGastosAgrupados(grupos, vista) {
+  return grupos.map(([key, grupo], index) => {
+    const icono = vista === 'mes' ? '📅' : vista === 'trimestre' ? '📊' : '📆';
+    const grupoId = `grupo-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    
+    return `
+      <div class="mb-6 lg:mb-8 border border-gray-200 rounded-xl overflow-hidden">
+        <div class="bg-gradient-to-r from-sky-100 to-blue-100 p-4 lg:p-6 cursor-pointer hover:from-sky-200 hover:to-blue-200 transition-all"
+             onclick="toggleGrupoGastos('${grupoId}')">
+          <div class="flex justify-between items-center">
+            <h3 class="text-lg lg:text-2xl font-bold text-gray-800 flex items-center">
+              <span id="icon-${grupoId}" class="mr-2 text-xl transition-transform duration-300">▼</span>
+              <span class="mr-2 lg:mr-3">${icono}</span>
+              ${grupo.label}
+            </h3>
+            <div class="text-right">
+              <p class="text-xs lg:text-sm text-gray-600">${grupo.gastos.length} gasto${grupo.gastos.length !== 1 ? 's' : ''}</p>
+              <p class="text-lg lg:text-2xl font-bold text-sky-600">
+                $${grupo.total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div id="${grupoId}" class="space-y-3 lg:space-y-4 p-4 lg:p-6 bg-gray-50 transition-all duration-300">
+          ${grupo.gastos.map(crearTarjetaGastoReportado).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Toggle grupo de gastos individual
+function toggleGrupoGastos(grupoId) {
+  const contenido = document.getElementById(grupoId);
+  const icono = document.getElementById(`icon-${grupoId}`);
+  
+  if (contenido.style.display === 'none') {
+    contenido.style.display = 'block';
+    icono.textContent = '▼';
+    icono.style.transform = 'rotate(0deg)';
+  } else {
+    contenido.style.display = 'none';
+    icono.textContent = '▶';
+    icono.style.transform = 'rotate(-90deg)';
+  }
+}
+
+// Crear tarjeta de gasto pendiente
+function crearTarjetaGastoPendiente(gasto) {
+  const categoriaInfo = {
+    'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+  };
+
+  const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  
+  const comprobanteIcon = gasto.comprobanteAdjunto 
+    ? '<span class="text-green-600 text-xs lg:text-sm font-semibold">✓ Comprobante adjunto</span>' 
+    : '<span class="text-red-600 text-xs lg:text-sm font-semibold">✗ Sin comprobante</span>';
+
+  const checkboxHtml = esAdmin ? `
+    <div class="flex items-center">
+      <label class="flex items-center cursor-pointer hover:bg-green-50 px-3 py-2 rounded-lg transition-colors">
+        <input type="checkbox" ${gasto.registrado ? 'checked' : ''} 
+          onchange="toggleRegistrado('${gasto.id}', this.checked)"
+          class="mr-2 w-5 h-5 text-green-600 rounded focus:ring-2 focus:ring-green-500">
+        <span class="text-sm lg:text-base font-semibold text-gray-700">Marcar como registrado</span>
+      </label>
+    </div>
+  ` : '';
+
+  const eliminarBtn = esAdmin ? `
+    <button onclick="eliminarGasto('${gasto.id}')" 
+      class="bg-red-500 hover:bg-red-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-xl font-semibold transition-all hover:scale-105 text-sm lg:text-base">
+      🗑️ Eliminar
+    </button>
+  ` : '';
+
+  return `
+    <div class="bg-white border-2 border-gray-200 rounded-2xl p-4 lg:p-6 hover:shadow-xl transition-all hover:border-sky-400">
+      <div class="flex flex-col lg:flex-row lg:justify-between gap-4">
+        <div class="flex-1">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 lg:gap-3 mb-2">
+                <span class="px-3 py-1 rounded-full text-xs lg:text-sm font-bold bg-yellow-100 text-yellow-800 border border-yellow-300">
+                  ⏳ PENDIENTE
+                </span>
+                <span class="px-3 py-1 rounded-full text-xs lg:text-sm font-bold bg-${cat.color}-100 text-${cat.color}-800 border border-${cat.color}-300">
+                  ${cat.emoji} ${cat.label}
+                </span>
+              </div>
+              <p class="text-base lg:text-xl font-bold text-gray-800 mb-2">${gasto.descripcion}</p>
+              <p class="text-xs lg:text-sm text-gray-600">📅 ${new Date(gasto.fecha).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            </div>
+            <div class="text-right ml-4">
+              <p class="text-2xl lg:text-3xl font-bold text-sky-600">
+                $${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+              </p>
+            </div>
+          </div>
+          
+          <div class="flex flex-wrap items-center gap-3 lg:gap-4 text-xs lg:text-sm text-gray-600 border-t border-gray-200 pt-3 mt-3">
+            ${comprobanteIcon}
+            <span class="flex items-center">
+              <span class="mr-1">👤</span>
+              ${gasto.creadoPor || 'Usuario'}
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      ${checkboxHtml || eliminarBtn ? `
+        <div class="flex flex-wrap gap-3 mt-4 lg:mt-6 pt-4 border-t border-gray-200">
+          ${checkboxHtml}
+          ${eliminarBtn}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+// Crear tarjeta de gasto reportado
+function crearTarjetaGastoReportado(gasto) {
+  const categoriaInfo = {
+    'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+  };
+
+  const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  
+  const comprobanteIcon = gasto.comprobanteAdjunto 
+    ? '<span class="text-green-600 text-xs lg:text-sm font-semibold">✓ Comprobante</span>' 
+    : '<span class="text-red-600 text-xs lg:text-sm font-semibold">✗ Sin comprobante</span>';
+
+  const eliminarBtn = esAdmin ? `
+    <button onclick="eliminarGasto('${gasto.id}')" 
+      class="bg-red-500 hover:bg-red-600 text-white px-3 lg:px-4 py-2 rounded-lg font-semibold transition-all text-xs lg:text-sm">
+      🗑️
+    </button>
+  ` : '';
+
+  return `
+    <div class="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-xl p-3 lg:p-4 hover:shadow-lg transition-all">
+      <div class="flex justify-between items-start gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <span class="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-300 flex-shrink-0">
+              ✅ REPORTADO
+            </span>
+            <span class="px-2 py-1 rounded-full text-xs font-bold bg-${cat.color}-100 text-${cat.color}-800 border border-${cat.color}-300 flex-shrink-0">
+              ${cat.emoji} ${cat.label}
+            </span>
+          </div>
+          <p class="text-sm lg:text-base font-bold text-gray-800 mb-1 truncate">${gasto.descripcion}</p>
+          <div class="flex flex-wrap items-center gap-2 lg:gap-3 text-xs text-gray-600">
+            <span>📅 ${new Date(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+            ${comprobanteIcon}
+          </div>
+        </div>
+        <div class="text-right flex items-center gap-2">
+          <p class="text-base lg:text-xl font-bold text-sky-600 whitespace-nowrap">
+            $${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+          </p>
+          ${eliminarBtn}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Filtrar pendientes por categoría
+function filtrarPendientesPorCategoria(categoria) {
+  categoriaPendientes = categoria;
+  
+  // Actualizar botones
+  ['todos', 'presupuesto', 'viaticos'].forEach(cat => {
+    const btn = document.getElementById(`cat-pendientes-${cat}`);
+    if (btn) {
+      if (cat === categoria) {
+        btn.className = 'filtro-btn btn-primary px-4 lg:px-6 py-2 lg:py-3 rounded-xl font-semibold whitespace-nowrap text-sm lg:text-base text-white';
+      } else {
+        btn.className = 'filtro-btn bg-gray-200 text-gray-700 px-4 lg:px-6 py-2 lg:py-3 rounded-xl font-semibold hover:bg-gray-300 transition-all whitespace-nowrap text-sm lg:text-base';
+      }
+    }
+  });
+  
+  cargarGastosSeparados();
+}
+
+// Filtrar reportados por categoría
+function filtrarReportadosPorCategoria(categoria) {
+  categoriaReportados = categoria;
+  
+  // Actualizar botones
+  ['todos', 'presupuesto', 'viaticos'].forEach(cat => {
+    const btn = document.getElementById(`cat-reportados-${cat}`);
+    if (btn) {
+      if (cat === categoria) {
+        btn.className = 'filtro-btn btn-primary px-4 lg:px-6 py-2 lg:py-3 rounded-xl font-semibold whitespace-nowrap text-sm lg:text-base text-white';
+      } else {
+        btn.className = 'filtro-btn bg-gray-200 text-gray-700 px-4 lg:px-6 py-2 lg:py-3 rounded-xl font-semibold hover:bg-gray-300 transition-all whitespace-nowrap text-sm lg:text-base';
+      }
+    }
+  });
+  
+  cargarGastosSeparados();
+}
+
+// Cambiar vista del historial
+function cambiarVistaHistorial(vista) {
+  vistaHistorial = vista;
+  
+  // Actualizar tabs
+  ['mes', 'trimestre', 'anio'].forEach(v => {
+    const tab = document.getElementById(`vista-${v}`);
+    if (tab) {
+      if (v === vista) {
+        tab.className = 'tab-btn px-4 lg:px-6 py-2 lg:py-3 font-semibold text-gray-800 border-b-2 border-sky-500 transition-all whitespace-nowrap text-sm lg:text-base';
+      } else {
+        tab.className = 'tab-btn px-4 lg:px-6 py-2 lg:py-3 font-semibold text-gray-500 border-b-2 border-transparent hover:text-gray-800 transition-all whitespace-nowrap text-sm lg:text-base';
+      }
+    }
+  });
+  
+  cargarGastosSeparados();
+}
+
+// La función cargarGastos() ahora usa el sistema separado
+// Se mantiene la referencia original para compatibilidad

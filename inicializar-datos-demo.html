@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inicializar Datos Demo - Gestor de Gastos</title>
+  <!-- Cargar Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
+  <script src="./firebase-config-demo.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #0ea5e9;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #0284c7;
+    }
+    .log {
+      background: #1f2937;
+      color: #10b981;
+      padding: 20px;
+      border-radius: 5px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      margin-top: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .error {
+      color: #ef4444;
+    }
+    .success {
+      color: #10b981;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎭 Inicializar Proyecto Demo</h1>
+    <p>Este script inicializará la base de datos Firestore del proyecto <strong>gestor-de-gastos-demo</strong> con datos de ejemplo.</p>
+    
+    <div>
+      <button onclick="inicializarConfiguracion()">1️⃣ Crear Configuración</button>
+      <button onclick="crearGastosEjemplo()">2️⃣ Crear Gastos de Ejemplo</button>
+      <button onclick="verificarDatos()">3️⃣ Verificar Datos</button>
+      <button onclick="limpiarLogs()">🗑️ Limpiar Logs</button>
+    </div>
+    
+    <div id="log" class="log"></div>
+  </div>
+
+  <script>
+    // ==================== VARIABLES GLOBALES ====================
+    let db;
+    const logContainer = document.getElementById('log');
+
+    // ==================== FUNCIÓN DE LOGGING ====================
+    /**
+     * Muestra mensajes en el contenedor de logs con colores
+     * @param {string} message - Mensaje a mostrar
+     * @param {string} type - Tipo: 'info', 'success', 'error'
+     */
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+      logContainer.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+      logContainer.scrollTop = logContainer.scrollHeight;
+      console.log(message);
+    }
+
+    // ==================== INICIALIZACIÓN FIREBASE ====================
+    /**
+     * Se ejecuta al cargar la página
+     * Inicializa conexión con Firebase Firestore
+     */
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        log('🔥 Inicializando Firebase...', 'info');
+        log(`📋 Proyecto: ${firebaseConfig.projectId}`, 'info');
+        
+        // Inicializar Firebase App
+        firebase.initializeApp(firebaseConfig);
+        
+        // Obtener referencia a Firestore
+        db = firebase.firestore();
+        
+        log('✅ Firebase inicializado correctamente', 'success');
+        log('📝 Usa los botones de arriba para inicializar datos', 'info');
+        log('---', 'info');
+      } catch (error) {
+        log(`❌ Error al inicializar Firebase: ${error.message}`, 'error');
+      }
+    });
+
+    // ==================== CREAR CONFIGURACIÓN ====================
+    /**
+     * Crea el documento de configuración del sistema
+     * Incluye: PINs, presupuestos, fecha de creación
+     */
+    async function inicializarConfiguracion() {
+      try {
+        log('📝 Creando configuración del sistema...', 'info');
+        
+        // Datos de configuración inicial
+        const config = {
+          pinUsuario: '123456',           // PIN para usuarios normales
+          pinAdmin: 'demo123',            // PIN para administradores
+          presupuestoTotal: 1000000,      // $1,000,000 pesos presupuesto general
+          presupuestoViaticos: 400000,    // $400,000 pesos para viáticos
+          fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(), // Timestamp del servidor
+          ultimaActualizacion: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        // Guardar en Firestore: colección 'configuracion', documento 'sistema'
+        await db.collection('configuracion').doc('sistema').set(config);
+        
+        log('✅ Configuración creada exitosamente', 'success');
+        log(`   - PIN Usuario: ${config.pinUsuario}`, 'info');
+        log(`   - PIN Admin: ${config.pinAdmin}`, 'info');
+        log(`   - Presupuesto Total: $${config.presupuestoTotal.toLocaleString('es-AR')}`, 'info');
+        log(`   - Presupuesto Viáticos: $${config.presupuestoViaticos.toLocaleString('es-AR')}`, 'info');
+        log('---', 'info');
+      } catch (error) {
+        log(`❌ Error al crear configuración: ${error.message}`, 'error');
+      }
+    }
+
+    // ==================== CREAR GASTOS DE EJEMPLO ====================
+    /**
+     * Crea varios gastos de ejemplo con diferentes estados y fechas
+     * Mezcla gastos pendientes y registrados de diferentes meses
+     */
+    async function crearGastosEjemplo() {
+      try {
+        log('📝 Creando gastos de ejemplo...', 'info');
+        
+        // Array con gastos de ejemplo
+        const gastosEjemplo = [
+          // Gasto 1: Pendiente (Diciembre)
+          {
+            descripcion: 'Material de oficina - Papelería',
+            monto: 45000,
+            fecha: '2025-12-01',
+            categoria: 'presupuesto',
+            comprobanteAdjunto: true,
+            registrado: false,  // Pendiente de aprobación
+            creadoPor: 'Usuario Demo',
+            fechaCreacion: new Date('2025-12-01T10:30:00')
+          },
+          
+          // Gasto 2: Registrado (Noviembre)
+          {
+            descripcion: 'Combustible vehículo oficial',
+            monto: 35000,
+            fecha: '2025-11-28',
+            categoria: 'viaticos',
+            comprobanteAdjunto: true,
+            registrado: true,  // Ya fue aprobado
+            creadoPor: 'Usuario Demo',
+            registradoPor: 'Admin Demo',
+            fechaCreacion: new Date('2025-11-28T09:15:00'),
+            fechaRegistro: new Date('2025-11-29T14:20:00')
+          },
+          
+          // Gasto 3: Registrado (Octubre)
+          {
+            descripcion: 'Mantenimiento equipos informáticos',
+            monto: 120000,
+            fecha: '2025-10-15',
+            categoria: 'presupuesto',
+            comprobanteAdjunto: true,
+            registrado: true,
+            creadoPor: 'Usuario Demo',
+            registradoPor: 'Admin Demo',
+            fechaCreacion: new Date('2025-10-15T11:00:00'),
+            fechaRegistro: new Date('2025-10-16T15:30:00')
+          },
+          
+          // Gasto 4: Pendiente (Diciembre)
+          {
+            descripcion: 'Almuerzo reunión con proveedores',
+            monto: 28000,
+            fecha: '2025-12-02',
+            categoria: 'viaticos',
+            comprobanteAdjunto: false,  // Sin comprobante aún
+            registrado: false,
+            creadoPor: 'Usuario Demo',
+            fechaCreacion: new Date('2025-12-02T14:30:00')
+          },
+          
+          // Gasto 5: Registrado (Septiembre)
+          {
+            descripcion: 'Servicio de limpieza trimestral',
+            monto: 85000,
+            fecha: '2025-09-20',
+            categoria: 'presupuesto',
+            comprobanteAdjunto: true,
+            registrado: true,
+            creadoPor: 'Usuario Demo',
+            registradoPor: 'Admin Demo',
+            fechaCreacion: new Date('2025-09-20T09:00:00'),
+            fechaRegistro: new Date('2025-09-21T11:30:00')
+          },
+          
+          // Gasto 6: Registrado (Agosto)
+          {
+            descripcion: 'Hospedaje viaje de negocios',
+            monto: 65000,
+            fecha: '2025-08-10',
+            categoria: 'viaticos',
+            comprobanteAdjunto: true,
+            registrado: true,
+            creadoPor: 'Usuario Demo',
+            registradoPor: 'Admin Demo',
+            fechaCreacion: new Date('2025-08-10T18:00:00'),
+            fechaRegistro: new Date('2025-08-12T09:00:00')
+          },
+          
+          // Gasto 7: Pendiente (Diciembre)
+          {
+            descripcion: 'Reparación impresora multifunción',
+            monto: 55000,
+            fecha: '2025-12-03',
+            categoria: 'presupuesto',
+            comprobanteAdjunto: true,
+            registrado: false,
+            creadoPor: 'Usuario Demo',
+            fechaCreacion: new Date('2025-12-03T13:45:00')
+          },
+          
+          // Gasto 8: Registrado (Julio - Trimestre 3)
+          {
+            descripcion: 'Capacitación personal administrativo',
+            monto: 150000,
+            fecha: '2025-07-15',
+            categoria: 'presupuesto',
+            comprobanteAdjunto: true,
+            registrado: true,
+            creadoPor: 'Usuario Demo',
+            registradoPor: 'Admin Demo',
+            fechaCreacion: new Date('2025-07-15T10:00:00'),
+            fechaRegistro: new Date('2025-07-16T17:00:00')
+          }
+        ];
+
+        // Contador para logs
+        let contador = 0;
+        
+        // Guardar cada gasto en Firestore
+        for (const gasto of gastosEjemplo) {
+          // Agregar documento con ID auto-generado
+          const docRef = await db.collection('gastos').add(gasto);
+          contador++;
+          
+          // Log individual por cada gasto creado
+          const estado = gasto.registrado ? '✅ REGISTRADO' : '⏳ PENDIENTE';
+          log(`   ${contador}. ${gasto.descripcion} - $${gasto.monto.toLocaleString('es-AR')} [${estado}]`, 'info');
+        }
+
+        log(`✅ ${contador} gastos de ejemplo creados exitosamente`, 'success');
+        log('---', 'info');
+      } catch (error) {
+        log(`❌ Error al crear gastos: ${error.message}`, 'error');
+      }
+    }
+
+    // ==================== VERIFICAR DATOS ====================
+    /**
+     * Lee y muestra todos los datos actuales en Firestore
+     * Útil para confirmar que la inicialización fue exitosa
+     */
+    async function verificarDatos() {
+      try {
+        log('🔍 Verificando datos en Firestore...', 'info');
+        log('---', 'info');
+
+        // Leer configuración
+        const configDoc = await db.collection('configuracion').doc('sistema').get();
+        
+        if (configDoc.exists) {
+          const config = configDoc.data();
+          log('✅ Configuración encontrada:', 'success');
+          log(`   PIN Usuario: ${config.pinUsuario}`, 'info');
+          log(`   PIN Admin: ${config.pinAdmin}`, 'info');
+          log(`   Presupuesto Total: $${config.presupuestoTotal?.toLocaleString('es-AR')}`, 'info');
+          log(`   Presupuesto Viáticos: $${config.presupuestoViaticos?.toLocaleString('es-AR')}`, 'info');
+        } else {
+          log('⚠️ Configuración no encontrada. Usa el botón "1️⃣ Crear Configuración"', 'error');
+        }
+
+        log('---', 'info');
+
+        // Leer gastos
+        const gastosSnapshot = await db.collection('gastos').orderBy('fechaCreacion', 'desc').get();
+        
+        if (gastosSnapshot.empty) {
+          log('⚠️ No hay gastos en la base de datos. Usa "2️⃣ Crear Gastos de Ejemplo"', 'error');
+        } else {
+          log(`✅ ${gastosSnapshot.size} gastos encontrados:`, 'success');
+          log('---', 'info');
+          
+          let pendientes = 0;
+          let registrados = 0;
+          let totalPendiente = 0;
+          let totalRegistrado = 0;
+          
+          // Iterar cada gasto
+          gastosSnapshot.forEach((doc, index) => {
+            const gasto = doc.data();
+            const estado = gasto.registrado ? '✅ REGISTRADO' : '⏳ PENDIENTE';
+            const fecha = gasto.fecha || 'Sin fecha';
+            
+            log(`   ${index + 1}. [${estado}] ${gasto.descripcion}`, 'info');
+            log(`      💰 $${gasto.monto?.toLocaleString('es-AR')} | 📅 ${fecha} | 📁 ${gasto.categoria}`, 'info');
+            
+            // Contabilizar
+            if (gasto.registrado) {
+              registrados++;
+              totalRegistrado += gasto.monto || 0;
+            } else {
+              pendientes++;
+              totalPendiente += gasto.monto || 0;
+            }
+          });
+
+          log('---', 'info');
+          log('📊 RESUMEN:', 'success');
+          log(`   ⏳ Pendientes: ${pendientes} gastos ($${totalPendiente.toLocaleString('es-AR')})`, 'info');
+          log(`   ✅ Registrados: ${registrados} gastos ($${totalRegistrado.toLocaleString('es-AR')})`, 'info');
+          log(`   💵 Total general: $${(totalPendiente + totalRegistrado).toLocaleString('es-AR')}`, 'info');
+        }
+
+        log('---', 'info');
+        log('✅ Verificación completada', 'success');
+      } catch (error) {
+        log(`❌ Error al verificar datos: ${error.message}`, 'error');
+      }
+    }
+
+    // ==================== LIMPIAR LOGS ====================
+    /**
+     * Limpia el contenedor de logs en pantalla
+     */
+    function limpiarLogs() {
+      logContainer.innerHTML = '';
+      log('🗑️ Logs limpiados', 'info');
+    }
+
+    // ==================== NOTAS DE USO ====================
+    // 
+    // Este archivo es temporal y solo se usa para inicializar datos
+    // 
+    // PASOS:
+    // 1. Abrir este archivo en navegador: inicializar-datos-demo.html
+    // 2. Click en "1️⃣ Crear Configuración"
+    // 3. Esperar mensaje de éxito
+    // 4. Click en "2️⃣ Crear Gastos de Ejemplo"
+    // 5. Esperar que se creen los 8 gastos
+    // 6. Click en "3️⃣ Verificar Datos" para confirmar
+    // 7. Cerrar este archivo (ya no es necesario)
+    //
+    // IMPORTANTE:
+    // - Este archivo se conecta a gestor-de-gastos-demo
+    // - Los datos creados son de ejemplo y públicos
+    // - Puedes volver a ejecutar esto para resetear datos
+  </script>
+</body>
+</html>
