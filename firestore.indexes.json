@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "gastos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eliminado", "order": "ASCENDING" },
+        { "fieldPath": "fechaCreacion", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
