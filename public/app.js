@@ -535,13 +535,16 @@ function configurarEventListeners() {
           throw new Error('Firebase no está inicializado');
         }
 
+        const observaciones = document.getElementById('observaciones').value.trim();
         const gasto = {
           descripcion: document.getElementById('descripcion').value,
           monto: parseFloat(document.getElementById('monto').value),
           fecha: document.getElementById('fecha').value,
           categoria: document.getElementById('categoria').value,
           comprobanteAdjunto: document.getElementById('comprobante').checked,
+          observaciones: observaciones || '',
           registrado: false,
+          eliminado: false,
           creadoPor: usuarioActual,
           fechaCreacion: firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -594,13 +597,8 @@ async function toggleRegistrado(id, nuevoEstado) {
   }
 }
 
-// Eliminar gasto
+// Eliminar gasto (soft delete con fecha)
 async function eliminarGasto(id) {
-  if (!esAdmin) {
-    mostrarNotificacion('❌ Solo el administrador puede eliminar gastos', 'error');
-    return;
-  }
-
   const btnEliminar = document.querySelector(`button[onclick="eliminarGasto('${id}')"]`);
   if (!btnEliminar) return;
 
@@ -609,9 +607,14 @@ async function eliminarGasto(id) {
     btnEliminar.textContent = 'Eliminando...';
 
     try {
-      await db.collection('gastos').doc(id).delete();
+      // Soft delete: marcar como eliminado en lugar de borrar
+      await db.collection('gastos').doc(id).update({
+        eliminado: true,
+        fechaEliminacion: firebase.firestore.FieldValue.serverTimestamp(),
+        eliminadoPor: usuarioActual
+      });
       mostrarNotificacion('✅ Gasto eliminado correctamente', 'success');
-      await cargarGastosSeparados();
+      await cargarGastos();
     } catch (error) {
       console.error('Error al eliminar gasto:', error);
       mostrarNotificacion('❌ Error al eliminar: ' + error.message, 'error');
@@ -620,16 +623,92 @@ async function eliminarGasto(id) {
     }
   } else {
     btnEliminar.textContent = '✓ Confirmar';
-    btnEliminar.classList.remove('bg-red-500', 'hover:bg-red-600');
+    btnEliminar.classList.remove('bg-red-600', 'hover:bg-red-700');
     btnEliminar.classList.add('bg-orange-500', 'hover:bg-orange-600');
 
     setTimeout(() => {
       if (btnEliminar.textContent.includes('Confirmar')) {
         btnEliminar.textContent = '🗑️ Eliminar';
-        btnEliminar.classList.remove('bg-orange-600', 'hover:bg-orange-700');
+        btnEliminar.classList.remove('bg-orange-500', 'hover:bg-orange-600');
         btnEliminar.classList.add('bg-red-600', 'hover:bg-red-700');
       }
     }, 3000);
+  }
+}
+
+// Editar gasto
+async function editarGasto(id) {
+  try {
+    const gastoDoc = await db.collection('gastos').doc(id).get();
+    if (!gastoDoc.exists) {
+      mostrarNotificacion('❌ Gasto no encontrado', 'error');
+      return;
+    }
+
+    const gasto = gastoDoc.data();
+    
+    // Rellenar el formulario con los datos del gasto
+    document.getElementById('descripcion').value = gasto.descripcion || '';
+    document.getElementById('monto').value = gasto.monto || 0;
+    document.getElementById('fecha').value = gasto.fecha || '';
+    document.getElementById('categoria').value = gasto.categoria || '';
+    document.getElementById('comprobante').checked = gasto.comprobanteAdjunto || false;
+    document.getElementById('observaciones').value = gasto.observaciones || '';
+    
+    // Cambiar el título del modal
+    document.getElementById('modal-title').innerHTML = '<span class="mr-2 lg:mr-3 text-xl lg:text-3xl">✏️</span>Editar Gasto';
+    
+    // Abrir el modal
+    document.getElementById('modal-gasto').classList.remove('hidden');
+    
+    // Cambiar el comportamiento del botón guardar para actualizar en lugar de crear
+    const formGasto = document.getElementById('form-gasto');
+    const btnGuardar = document.getElementById('btn-guardar');
+    
+    // Remover event listeners anteriores clonando el formulario
+    const nuevoForm = formGasto.cloneNode(true);
+    formGasto.parentNode.replaceChild(nuevoForm, formGasto);
+    
+    // Agregar nuevo event listener para actualizar
+    nuevoForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const btnGuardarActual = document.getElementById('btn-guardar');
+      const textoOriginal = btnGuardarActual.innerHTML;
+      btnGuardarActual.disabled = true;
+      btnGuardarActual.innerHTML = '⏳ Actualizando...';
+      
+      try {
+        const observaciones = document.getElementById('observaciones').value.trim();
+        const datosActualizados = {
+          descripcion: document.getElementById('descripcion').value,
+          monto: parseFloat(document.getElementById('monto').value),
+          fecha: document.getElementById('fecha').value,
+          categoria: document.getElementById('categoria').value,
+          comprobanteAdjunto: document.getElementById('comprobante').checked,
+          observaciones: observaciones || '',
+          fechaEdicion: firebase.firestore.FieldValue.serverTimestamp(),
+          editadoPor: usuarioActual
+        };
+        
+        await db.collection('gastos').doc(id).update(datosActualizados);
+        mostrarNotificacion('✅ Gasto actualizado correctamente', 'success');
+        
+        cerrarModal();
+        await cargarGastos();
+        
+        // Restaurar el comportamiento original del formulario
+        configurarEventListeners();
+      } catch (error) {
+        console.error('Error al actualizar gasto:', error);
+        mostrarNotificacion('❌ Error al actualizar: ' + error.message, 'error');
+        btnGuardarActual.disabled = false;
+        btnGuardarActual.innerHTML = textoOriginal;
+      }
+    });
+  } catch (error) {
+    console.error('Error al cargar gasto para editar:', error);
+    mostrarNotificacion('❌ Error al cargar el gasto', 'error');
   }
 }
 
@@ -756,8 +835,32 @@ function crearTarjetaGasto(gasto) {
     ? '<span class="inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-bold bg-green-900 text-green-300 border border-green-700 whitespace-nowrap">✓ REGISTRADO</span>'
     : '<span class="inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-300 border border-gray-600 whitespace-nowrap">⏳ PENDIENTE</span>';
 
+  // Mostrar observaciones si existen
+  const observacionesHTML = gasto.observaciones ? `
+    <div class="mt-3 p-3 bg-gray-700 rounded-lg border border-gray-600">
+      <p class="text-xs lg:text-sm text-gray-300"><strong class="text-blue-400">📋 Observaciones:</strong> ${gasto.observaciones}</p>
+    </div>
+  ` : '';
+
+  // Mostrar información de fechas de modificación/eliminación si existen
+  let infoFechas = '';
+  if (gasto.fechaEdicion) {
+    const fechaEdit = gasto.fechaEdicion.toDate ? gasto.fechaEdicion.toDate() : new Date(gasto.fechaEdicion);
+    infoFechas += `<span class="text-xs text-yellow-400">✏️ Editado: ${fechaEdit.toLocaleString('es-AR')}</span>`;
+  }
+  if (gasto.fechaEliminacion) {
+    const fechaElim = gasto.fechaEliminacion.toDate ? gasto.fechaEliminacion.toDate() : new Date(gasto.fechaEliminacion);
+    infoFechas += `<span class="text-xs text-red-400 ml-2">🗑️ Eliminado: ${fechaElim.toLocaleString('es-AR')}</span>`;
+  }
+  const infoFechasHTML = infoFechas ? `<div class="mt-2">${infoFechas}</div>` : '';
+
+  // Determinar si el gasto fue eliminado (soft delete)
+  const esEliminado = gasto.eliminado === true;
+  const claseEliminado = esEliminado ? 'opacity-60 border-red-500' : '';
+  const marcaEliminado = esEliminado ? '<span class="inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-bold bg-red-900 text-red-300 border border-red-700 whitespace-nowrap ml-2">🗑️ ELIMINADO</span>' : '';
+
   return `
-    <div class="card-dark rounded-2xl p-4 lg:p-6 hover:border-2 hover:border-orange-500 transition-all">
+    <div class="card-dark rounded-2xl p-4 lg:p-6 hover:border-2 hover:border-orange-500 transition-all ${claseEliminado}">
       <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
         <div class="flex-1 min-w-0">
           <div class="flex flex-wrap items-center gap-2 mb-3">
@@ -766,9 +869,12 @@ function crearTarjetaGasto(gasto) {
             </span>
             <span class="text-xs lg:text-sm text-gray-400 whitespace-nowrap">📅 ${gasto.fecha}</span>
             ${estadoRegistro}
+            ${marcaEliminado}
           </div>
           <h4 class="text-base lg:text-xl font-bold text-white mb-2 break-words">${gasto.descripcion}</h4>
           <p class="text-xs lg:text-sm text-gray-400">${comprobanteIcon}</p>
+          ${observacionesHTML}
+          ${infoFechasHTML}
         </div>
         <div class="flex-shrink-0 text-left lg:text-right">
           <p class="text-2xl lg:text-3xl font-bold text-orange-400">$${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
@@ -776,18 +882,26 @@ function crearTarjetaGasto(gasto) {
         </div>
       </div>
 
-      ${esAdmin ? `
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pt-4 border-t border-gray-700">
+      ${!esEliminado ? `
+      <div class="flex flex-col gap-3 pt-4 border-t border-gray-700">
+        ${esAdmin ? `
         <label class="flex items-center cursor-pointer">
           <input type="checkbox" ${gasto.registrado ? 'checked' : ''} 
             onchange="toggleRegistrado('${gasto.id}', this.checked)"
             class="w-5 h-5 rounded border-2 border-gray-600 bg-gray-700 text-orange-500 focus:ring-2 focus:ring-orange-500 flex-shrink-0">
           <span class="ml-2 text-sm lg:text-base text-white font-semibold">Marcar como registrado</span>
         </label>
-        <button onclick="eliminarGasto('${gasto.id}')" data-id="${gasto.id}" 
-          class="w-full lg:w-auto bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-semibold transition-colors text-sm lg:text-base">
-          🗑️ Eliminar
-        </button>
+        ` : ''}
+        <div class="flex flex-col lg:flex-row gap-2">
+          <button onclick="editarGasto('${gasto.id}')" 
+            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-semibold transition-colors text-sm lg:text-base">
+            ✏️ Editar
+          </button>
+          <button onclick="eliminarGasto('${gasto.id}')" data-id="${gasto.id}" 
+            class="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-semibold transition-colors text-sm lg:text-base">
+            🗑️ Eliminar
+          </button>
+        </div>
       </div>
       ` : ''}
     </div>
