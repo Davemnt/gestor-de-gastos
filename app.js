@@ -1471,40 +1471,124 @@ async function mostrarPanelAdmin() {
   const modal = document.getElementById('modal-admin');
   modal.classList.remove('hidden');
   
-  // Limpiar campos para que estén vacíos
-  document.getElementById('nuevo-presupuesto-total').value = '';
-  document.getElementById('nuevo-presupuesto-viaticos').value = '';
-  document.getElementById('nuevo-pin-usuario').value = '';
-  document.getElementById('nuevo-pin-admin').value = '';
+  // Limpiar campos para que estén vacíos (con validación)
+  const presupuestoTotal = document.getElementById('nuevo-presupuesto-total');
+  const presupuestoViaticos = document.getElementById('nuevo-presupuesto-viaticos');
+  const emailRecuperacion = document.getElementById('nuevo-email-recuperacion');
+  const pinAdmin = document.getElementById('nuevo-pin-admin');
+  const pinActual = document.getElementById('pin-actual-admin');
+  
+  if (presupuestoTotal) presupuestoTotal.value = '';
+  if (presupuestoViaticos) presupuestoViaticos.value = '';
+  if (emailRecuperacion) emailRecuperacion.value = '';
+  if (pinAdmin) pinAdmin.value = '';
+  if (pinActual) pinActual.value = '';
+  
+  // Cargar y mostrar configuración actual
+  await cargarConfiguracionActual();
+}
+
+// Función para cargar y mostrar configuración actual enmascarada
+async function cargarConfiguracionActual() {
+  try {
+    const configDoc = await db.collection('configuracion').doc('sistema').get();
+    if (configDoc.exists) {
+      const config = configDoc.data();
+      
+      // Mostrar email enmascarado
+      const emailDisplay = document.getElementById('email-actual-display');
+      if (emailDisplay) {
+        if (config.emailRecuperacion) {
+          // Enmascarar email: ej. mo****@hotmail.com
+          const email = config.emailRecuperacion;
+          const [local, domain] = email.split('@');
+          const maskedLocal = local.length > 2 ? local.substring(0, 2) + '****' : '****';
+          emailDisplay.textContent = `${maskedLocal}@${domain}`;
+          emailDisplay.classList.remove('text-gray-500');
+          emailDisplay.classList.add('text-blue-200');
+        } else {
+          emailDisplay.textContent = 'No configurado';
+          emailDisplay.classList.add('text-gray-500');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error al cargar configuración actual:', error);
+  }
 }
 
 async function actualizarPresupuestos() {
   const inputPresupuesto = document.getElementById('nuevo-presupuesto-total').value;
   const inputViaticos = document.getElementById('nuevo-presupuesto-viaticos').value;
+  const modoActualizacion = document.querySelector('input[name="modo-actualizacion"]:checked')?.value || 'reemplazar';
+  const acumularSaldo = document.getElementById('acumular-saldo-sobrante')?.checked || false;
   
-  if (!inputPresupuesto || !inputViaticos) {
-    mostrarNotificacion('⚠️ Debes ingresar ambos valores', 'error');
+  // Validar que al menos un campo esté completo
+  if (!inputPresupuesto && !inputViaticos) {
+    mostrarNotificacion('⚠️ Debes ingresar al menos un valor para actualizar', 'error');
     return;
   }
   
-  const presupuestoTotal = parseFloat(inputPresupuesto);
-  const presupuestoViaticos = parseFloat(inputViaticos);
-  
-  if (presupuestoTotal < 0 || presupuestoViaticos < 0) {
+  // Validar valores no negativos
+  if ((inputPresupuesto && parseFloat(inputPresupuesto) < 0) || (inputViaticos && parseFloat(inputViaticos) < 0)) {
     mostrarNotificacion('⚠️ Los valores no pueden ser negativos', 'error');
     return;
   }
   
   try {
-    await db.collection('configuracion').doc('sistema').update({
-      presupuestoTotal: presupuestoTotal,
-      presupuestoViaticos: presupuestoViaticos,
-      fechaActualizacion: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    const updates = {};
     
-    mostrarNotificacion('✅ Presupuestos actualizados correctamente', 'success');
-    document.getElementById('modal-admin').classList.add('hidden');
-    await cargarDatos();
+    // Obtener configuración actual si el modo es "sumar"
+    let configActual = {};
+    if (modoActualizacion === 'sumar') {
+      const configDoc = await db.collection('configuracion').doc('sistema').get();
+      configActual = configDoc.data() || {};
+    }
+    
+    // Actualizar solo los campos completados
+    if (inputPresupuesto) {
+      const nuevoValor = parseFloat(inputPresupuesto);
+      if (modoActualizacion === 'sumar') {
+        updates.presupuestoTotal = (configActual.presupuestoTotal || 0) + nuevoValor;
+      } else {
+        updates.presupuestoTotal = nuevoValor;
+      }
+    }
+    
+    if (inputViaticos) {
+      const nuevoValor = parseFloat(inputViaticos);
+      if (modoActualizacion === 'sumar') {
+        updates.presupuestoViaticos = (configActual.presupuestoViaticos || 0) + nuevoValor;
+      } else {
+        updates.presupuestoViaticos = nuevoValor;
+      }
+    }
+    
+    // Guardar configuración de acumulación
+    updates.acumularSaldoSobrante = acumularSaldo;
+    updates.fechaActualizacion = firebase.firestore.FieldValue.serverTimestamp();
+    
+    await db.collection('configuracion').doc('sistema').update(updates);
+    
+    // Construir mensaje de éxito personalizado
+    let mensaje = '✅ ';
+    if (inputPresupuesto && inputViaticos) {
+      mensaje += 'Ambos presupuestos actualizados correctamente';
+    } else if (inputPresupuesto) {
+      mensaje += 'Presupuesto total actualizado correctamente';
+    } else {
+      mensaje += 'Presupuesto de viáticos actualizado correctamente';
+    }
+    
+    mostrarNotificacion(mensaje, 'success');
+    
+    // Limpiar campos
+    document.getElementById('nuevo-presupuesto-total').value = '';
+    document.getElementById('nuevo-presupuesto-viaticos').value = '';
+    
+    await cargarPresupuestos();
+    await calcularGastos();
+    await calcularEstadisticasDashboard();
     
   } catch (error) {
     console.error('Error al actualizar presupuestos:', error);
@@ -1556,24 +1640,33 @@ async function actualizarPINs() {
   }
 }
 
-// Actualizar seguridad completa (email + PINs)
+// Actualizar seguridad completa (email + PIN Admin)
 async function actualizarSeguridadCompleta() {
-  const emailRecuperacion = document.getElementById('nuevo-email-recuperacion').value;
-  const pinUsuario = document.getElementById('nuevo-pin-usuario').value;
-  const pinAdmin = document.getElementById('nuevo-pin-admin').value;
+  const pinActual = document.getElementById('pin-actual-admin')?.value;
+  const emailRecuperacion = document.getElementById('nuevo-email-recuperacion')?.value;
+  const pinNuevo = document.getElementById('nuevo-pin-admin')?.value;
   
-  if (pinUsuario && pinUsuario.length < 4) {
-    mostrarNotificacion('❌ El PIN de usuario debe tener al menos 4 caracteres', 'error');
+  // Validar que se ingresó el PIN actual
+  if (!pinActual || pinActual.trim() === '') {
+    mostrarNotificacion('❌ Debes ingresar tu PIN actual de administrador', 'error');
     return;
   }
   
-  if (pinAdmin && pinAdmin.length < 4) {
-    mostrarNotificacion('❌ El PIN de administrador debe tener al menos 4 caracteres', 'error');
+  // Verificar que hay al menos un cambio
+  if (!emailRecuperacion && !pinNuevo) {
+    mostrarNotificacion('⚠️ Debes ingresar al menos un cambio (email o nuevo PIN)', 'error');
     return;
   }
   
-  if (pinUsuario && pinAdmin && pinUsuario === pinAdmin) {
-    mostrarNotificacion('❌ Los PINs no pueden ser iguales', 'error');
+  // Validar nuevo PIN si se proporciona
+  if (pinNuevo && pinNuevo.length < 4) {
+    mostrarNotificacion('❌ El nuevo PIN debe tener al menos 4 caracteres', 'error');
+    return;
+  }
+  
+  // Validar que el nuevo PIN sea diferente al actual
+  if (pinNuevo && pinNuevo === pinActual) {
+    mostrarNotificacion('❌ El nuevo PIN debe ser diferente al actual', 'error');
     return;
   }
   
@@ -1585,30 +1678,45 @@ async function actualizarSeguridadCompleta() {
   }
   
   try {
-    const updates = {};
-    if (emailRecuperacion) updates.emailRecuperacion = emailRecuperacion;
-    if (pinUsuario) updates.pinUsuario = pinUsuario;
-    if (pinAdmin) updates.pinAdmin = pinAdmin;
+    // Verificar PIN actual
+    const configDoc = await db.collection('configuracion').doc('sistema').get();
+    const config = configDoc.data();
     
-    if (Object.keys(updates).length === 0) {
-      mostrarNotificacion('⚠️ No hay cambios para actualizar', 'error');
+    if (config.pinAdmin !== pinActual) {
+      mostrarNotificacion('❌ El PIN actual es incorrecto', 'error');
       return;
     }
+    
+    // Preparar actualizaciones
+    const updates = {};
+    if (emailRecuperacion) updates.emailRecuperacion = emailRecuperacion;
+    if (pinNuevo) updates.pinAdmin = pinNuevo;
     
     updates.fechaActualizacion = firebase.firestore.FieldValue.serverTimestamp();
     
     await db.collection('configuracion').doc('sistema').update(updates);
     
-    let mensaje = '✅ Configuración actualizada: ';
-    if (emailRecuperacion) mensaje += 'Email ';
-    if (pinUsuario) mensaje += 'PIN Usuario ';
-    if (pinAdmin) mensaje += 'PIN Admin';
+    let mensaje = '✅ Configuración de seguridad actualizada exitosamente';
+    const cambios = [];
+    if (emailRecuperacion) cambios.push('Email de recuperación');
+    if (pinNuevo) cambios.push('PIN de administrador');
+    
+    if (cambios.length > 0) {
+      mensaje += ': ' + cambios.join(' y ');
+    }
     
     mostrarNotificacion(mensaje, 'success');
     
-    document.getElementById('nuevo-email-recuperacion').value = '';
-    document.getElementById('nuevo-pin-usuario').value = '';
-    document.getElementById('nuevo-pin-admin').value = '';
+    // Limpiar todos los campos
+    const pinActualInput = document.getElementById('pin-actual-admin');
+    const emailInput = document.getElementById('nuevo-email-recuperacion');
+    const pinInput = document.getElementById('nuevo-pin-admin');
+    if (pinActualInput) pinActualInput.value = '';
+    if (emailInput) emailInput.value = '';
+    if (pinInput) pinInput.value = '';
+    
+    // Recargar configuración actual para mostrar cambios
+    await cargarConfiguracionActual();
     
   } catch (error) {
     console.error('Error al actualizar seguridad:', error);

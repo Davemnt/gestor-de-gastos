@@ -19,6 +19,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ Firebase inicializado correctamente');
     console.log('📂 Firestore conectado:', db);
     
+    // Verificar si hay sesión guardada
+    const sesionGuardada = localStorage.getItem('sesionActiva');
+    if (sesionGuardada === 'true') {
+      esAdmin = localStorage.getItem('esAdmin') === 'true';
+      usuarioActual = localStorage.getItem('usuarioActual');
+      
+      if (usuarioActual) {
+        console.log('🔐 Sesión restaurada:', usuarioActual);
+        document.getElementById('pin-screen').classList.add('hidden');
+        
+        if (esAdmin) {
+          document.getElementById('btn-panel-admin').classList.remove('hidden');
+          const btnAdminMobile = document.getElementById('btn-panel-admin-mobile');
+          if (btnAdminMobile) btnAdminMobile.classList.remove('hidden');
+          document.getElementById('user-role-badge').innerHTML = '👤 Administrador';
+        } else {
+          document.getElementById('user-role-badge').innerHTML = '👤 Usuario';
+        }
+        
+        await cargarPresupuestos();
+        await cargarGastosSeparados();
+      }
+    }
+    
     // Probar conexión con Firestore
     await db.collection('test').doc('connection').set({
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
@@ -161,6 +185,12 @@ async function validarPIN() {
     if (pin === config.pinAdmin) {
       esAdmin = true;
       usuarioActual = 'Administrador';
+      
+      // Guardar sesión en localStorage
+      localStorage.setItem('sesionActiva', 'true');
+      localStorage.setItem('esAdmin', 'true');
+      localStorage.setItem('usuarioActual', usuarioActual);
+      
       document.getElementById('pin-screen').classList.add('hidden');
       document.getElementById('user-role-badge').innerHTML = '<span class="bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-bold mr-2">👑 ADMIN</span>';
       document.getElementById('btn-panel-admin').classList.remove('hidden');
@@ -173,6 +203,12 @@ async function validarPIN() {
     } else if (pin === config.pinUsuario) {
       esAdmin = false;
       usuarioActual = 'Usuario';
+      
+      // Guardar sesión en localStorage
+      localStorage.setItem('sesionActiva', 'true');
+      localStorage.setItem('esAdmin', 'false');
+      localStorage.setItem('usuarioActual', usuarioActual);
+      
       document.getElementById('pin-screen').classList.add('hidden');
       document.getElementById('user-role-badge').innerHTML = '<span class="bg-blue-500 text-white px-2 py-1 rounded-lg text-xs font-bold mr-2">👤 USUARIO</span>';
       loginBtn.innerHTML = '🔑 Verificar PIN';
@@ -193,15 +229,24 @@ async function validarPIN() {
 }
 
 // Permitir Enter para login
-document.getElementById('pin-input').addEventListener('keypress', function(e) {
+document.getElementById('pin-input')?.addEventListener('keypress', function(e) {
   if (e.key === "Enter") validarPIN();
 });
 
+// Exponer funciones globales para uso en HTML inline handlers
+window.validarPIN = validarPIN;
+window.togglePinVisibility = togglePinVisibility;
+
 // Cerrar sesión
-document.getElementById('btn-cerrar-sesion').addEventListener('click', () => {
+document.getElementById('btn-cerrar-sesion')?.addEventListener('click', () => {
   esAdmin = false;
   usuarioActual = null;
   categoriaActual = 'todos';
+  
+  // Limpiar sesión del localStorage
+  localStorage.removeItem('sesionActiva');
+  localStorage.removeItem('esAdmin');
+  localStorage.removeItem('usuarioActual');
   
   // Resetear UI
   document.getElementById('pin-screen').classList.remove('hidden');
@@ -234,6 +279,8 @@ document.getElementById('btn-cerrar-panel')?.addEventListener('click', () => {
 async function cargarDatos() {
   await cargarPresupuestos();
   await cargarGastos();
+  await cargarGastosSeparados();
+  await calcularEstadisticasDashboard();
 }
 
 async function cargarPresupuestos() {
@@ -244,11 +291,13 @@ async function cargarPresupuestos() {
       
       // Actualizar presupuesto total
       const presupuestoTotal = config.presupuestoTotal || 0;
-      document.getElementById('presupuesto-total').textContent = `$${presupuestoTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      const presupuestoTotalEl = document.getElementById('presupuesto-total');
+      if (presupuestoTotalEl) {
+        presupuestoTotalEl.textContent = `$${presupuestoTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      }
       
-      // Actualizar presupuesto viáticos
+      // Actualizar presupuesto viáticos (mostrado en el saldo disponible)
       const presupuestoViaticos = config.presupuestoViaticos || 0;
-      document.getElementById('presupuesto-viaticos').textContent = `$${presupuestoViaticos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
       
       // Calcular gastos
       await calcularGastos();
@@ -258,6 +307,7 @@ async function cargarPresupuestos() {
   }
 }
 
+// ==================== CÁLCULO DE KPIs Y MÉTRICAS ====================
 async function calcularGastos() {
   try {
     const configDoc = await db.collection('configuracion').doc('sistema').get();
@@ -265,7 +315,11 @@ async function calcularGastos() {
     const presupuestoTotal = config.presupuestoTotal || 0;
     const presupuestoViaticos = config.presupuestoViaticos || 0;
 
-    const gastosSnapshot = await db.collection('gastos').get();
+    // Obtener todos los gastos no eliminados
+    const gastosSnapshot = await db.collection('gastos')
+      .where('eliminado', '==', false)
+      .get();
+    
     let totalPresupuesto = 0;
     let totalViaticos = 0;
 
@@ -278,30 +332,399 @@ async function calcularGastos() {
       }
     });
 
-    // Actualizar Presupuesto Total
-    document.getElementById('total-gastado').textContent = `$${totalPresupuesto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    // Total combinado de todos los gastos
+    const totalGastos = totalPresupuesto + totalViaticos;
+
+    // ==================== ACTUALIZAR KPI: TOTAL GASTADO ====================
+    const totalGastadoEl = document.getElementById('total-gastado');
+    if (totalGastadoEl) {
+      totalGastadoEl.textContent = `-$${totalGastos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      // Colorear según estado
+      totalGastadoEl.className = totalGastos === 0 ? 'text-3xl lg:text-4xl font-bold text-gray-400' : 'text-3xl lg:text-4xl font-bold text-red-500';
+    }
     
+    // ==================== ACTUALIZAR KPI: PRESUPUESTO DISPONIBLE ====================
     const disponiblePresupuesto = presupuestoTotal - totalPresupuesto;
-    document.getElementById('presupuesto-disponible').textContent = `$${disponiblePresupuesto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    const presupuestoDisponibleEl = document.getElementById('presupuesto-disponible');
+    if (presupuestoDisponibleEl) {
+      presupuestoDisponibleEl.textContent = `$${disponiblePresupuesto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      // Colorear según estado
+      if (disponiblePresupuesto < 0) {
+        presupuestoDisponibleEl.className = 'text-3xl lg:text-4xl font-bold text-red-600';
+      } else if (disponiblePresupuesto < presupuestoTotal * 0.2) {
+        presupuestoDisponibleEl.className = 'text-3xl lg:text-4xl font-bold text-yellow-500';
+      } else {
+        presupuestoDisponibleEl.className = 'text-3xl lg:text-4xl font-bold text-green-500';
+      }
+    }
 
-    // Barra de progreso presupuesto
+    // ==================== ACTUALIZAR PORCENTAJE DE EJECUCIÓN ====================
     const porcentajePresupuesto = presupuestoTotal > 0 ? (totalPresupuesto / presupuestoTotal) * 100 : 0;
-    document.getElementById('porcentaje-usado').textContent = `${porcentajePresupuesto.toFixed(1)}%`;
-    document.getElementById('barra-progreso').style.width = `${Math.min(porcentajePresupuesto, 100)}%`;
-
-    // Actualizar Viáticos
-    document.getElementById('viaticos-gastados').textContent = `$${totalViaticos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    const porcentajeUsadoEl = document.getElementById('porcentaje-usado');
+    const barraProgresoEl = document.getElementById('barra-progreso');
     
-    const viaticosDisponibles = presupuestoViaticos - totalViaticos;
-    document.getElementById('viaticos-disponibles').textContent = `$${viaticosDisponibles.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    if (porcentajeUsadoEl) {
+      porcentajeUsadoEl.textContent = `${porcentajePresupuesto.toFixed(1)}%`;
+    }
+    
+    if (barraProgresoEl) {
+      barraProgresoEl.style.width = `${Math.min(porcentajePresupuesto, 100)}%`;
+      // Colorear barra según nivel de ejecución
+      if (porcentajePresupuesto >= 100) {
+        barraProgresoEl.className = 'progress-bar h-full bg-red-600 rounded-full';
+      } else if (porcentajePresupuesto >= 80) {
+        barraProgresoEl.className = 'progress-bar h-full bg-yellow-500 rounded-full';
+      } else {
+        barraProgresoEl.className = 'progress-bar h-full bg-green-500 rounded-full';
+      }
+    }
 
-    // Barra de progreso viáticos
+    // ==================== ACTUALIZAR KPI: VIÁTICOS ====================
+    const viaticosDisponibles = presupuestoViaticos - totalViaticos;
+    const viaticosDisponibleEl = document.getElementById('viaticos-disponible');
+    if (viaticosDisponibleEl) {
+      viaticosDisponibleEl.textContent = `$${viaticosDisponibles.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      // Colorear según estado
+      if (viaticosDisponibles < 0) {
+        viaticosDisponibleEl.className = 'text-3xl lg:text-4xl font-bold text-red-600';
+      } else if (viaticosDisponibles < presupuestoViaticos * 0.2) {
+        viaticosDisponibleEl.className = 'text-3xl lg:text-4xl font-bold text-yellow-500';
+      } else {
+        viaticosDisponibleEl.className = 'text-3xl lg:text-4xl font-bold text-pink-500';
+      }
+    }
+
+    // Actualizar elementos secundarios de viáticos
+    const viaticosGastadosEl = document.getElementById('viaticos-gastados');
+    if (viaticosGastadosEl) {
+      viaticosGastadosEl.textContent = `$${totalViaticos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+
+    // Porcentaje de viáticos
     const porcentajeViaticos = presupuestoViaticos > 0 ? (totalViaticos / presupuestoViaticos) * 100 : 0;
-    document.getElementById('porcentaje-viaticos').textContent = `${porcentajeViaticos.toFixed(1)}%`;
-    document.getElementById('barra-viaticos').style.width = `${Math.min(porcentajeViaticos, 100)}%`;
+    const porcentajeViaticosEl = document.getElementById('porcentaje-viaticos');
+    const barraViaticosEl = document.getElementById('barra-viaticos');
+    
+    if (porcentajeViaticosEl) {
+      porcentajeViaticosEl.textContent = `${porcentajeViaticos.toFixed(1)}%`;
+    }
+    
+    if (barraViaticosEl) {
+      barraViaticosEl.style.width = `${Math.min(porcentajeViaticos, 100)}%`;
+      // Colorear barra según nivel de ejecución
+      if (porcentajeViaticos >= 100) {
+        barraViaticosEl.className = 'progress-bar h-full bg-red-600 rounded-full';
+      } else if (porcentajeViaticos >= 80) {
+        barraViaticosEl.className = 'progress-bar h-full bg-yellow-500 rounded-full';
+      } else {
+        barraViaticosEl.className = 'progress-bar h-full bg-pink-500 rounded-full';
+      }
+    }
+
+    // ==================== ALERTAS VISUALES ====================
+    // Mostrar alerta si se supera el 80% del presupuesto
+    if (porcentajePresupuesto >= 80 && porcentajePresupuesto < 100) {
+      console.warn(`⚠️ Presupuesto al ${porcentajePresupuesto.toFixed(1)}% de ejecución`);
+    } else if (porcentajePresupuesto >= 100) {
+      console.error(`🚨 Presupuesto excedido: ${porcentajePresupuesto.toFixed(1)}%`);
+    }
+
+    if (porcentajeViaticos >= 80 && porcentajeViaticos < 100) {
+      console.warn(`⚠️ Viáticos al ${porcentajeViaticos.toFixed(1)}% de ejecución`);
+    } else if (porcentajeViaticos >= 100) {
+      console.error(`🚨 Viáticos excedidos: ${porcentajeViaticos.toFixed(1)}%`);
+    }
 
   } catch (error) {
     console.error('Error al calcular gastos:', error);
+  }
+}
+
+// ==================== ESTADÍSTICAS DEL DASHBOARD ====================
+async function calcularEstadisticasDashboard() {
+  try {
+    const gastosSnapshot = await db.collection('gastos')
+      .where('eliminado', '==', false)
+      .get();
+    
+    const gastos = [];
+    gastosSnapshot.forEach(doc => {
+      gastos.push({ id: doc.id, ...doc.data() });
+    });
+
+    console.log(`📊 Dashboard: calculando estadísticas para ${gastos.length} gastos`);
+
+    // Calcular gastos por organización
+    await calcularGastosPorOrganizacion(gastos);
+    
+    // Calcular evolución temporal
+    await calcularEvolucionGastos(gastos);
+
+    // Validar coherencia de datos
+    validarCoherenciaKPIs(gastos);
+    
+  } catch (error) {
+    console.error('Error al calcular estadísticas del dashboard:', error);
+  }
+}
+
+// ==================== VALIDACIÓN DE COHERENCIA ====================
+function validarCoherenciaKPIs(gastos) {
+  // Calcular totales desde los gastos
+  let totalPresupuestoGastos = 0;
+  let totalViaticosGastos = 0;
+
+  gastos.forEach(gasto => {
+    if (gasto.categoria === 'presupuesto') {
+      totalPresupuestoGastos += gasto.monto || 0;
+    } else if (gasto.categoria === 'viaticos') {
+      totalViaticosGastos += gasto.monto || 0;
+    }
+  });
+
+  const totalGastosCalculado = totalPresupuestoGastos + totalViaticosGastos;
+
+  // Obtener el valor mostrado en el KPI
+  const totalGastadoEl = document.getElementById('total-gastado');
+  const totalMostrado = totalGastadoEl ? 
+    parseFloat(totalGastadoEl.textContent.replace(/[^0-9,]/g, '').replace(',', '.')) : 0;
+
+  // Validar coherencia (con margen de 0.01 por redondeos)
+  if (Math.abs(totalGastosCalculado - totalMostrado) > 0.01) {
+    console.warn(`⚠️ Inconsistencia detectada: 
+      Total calculado: $${totalGastosCalculado.toFixed(2)}
+      Total mostrado en KPI: $${totalMostrado.toFixed(2)}`);
+  } else {
+    console.log(`✅ Coherencia validada: todos los números coinciden`);
+  }
+}
+
+// ==================== CALCULAR GASTOS POR ORGANIZACIÓN ====================
+async function calcularGastosPorOrganizacion(gastos) {
+  const organizaciones = {
+    'hombres-mujeres-jovenes': { nombre: 'Hombres y mujeres jóvenes', total: 0, color: '#10b981' },
+    'primaria': { nombre: 'Primaria', total: 0, color: '#f59e0b' },
+    'sociedad-socorro': { nombre: 'Sociedad de socorro', total: 0, color: '#3b82f6' },
+    'escuela-dominical': { nombre: 'Escuela dominical', total: 0, color: '#06b6d4' },
+    'quorum-elderes': { nombre: 'Quórum de Elderes', total: 0, color: '#8b5cf6' },
+    'gastos-presupuesto': { nombre: 'Gastos de Presupuesto', total: 0, color: '#f97316' },
+    'adultos-solteros': { nombre: 'Adultos solteros', total: 0, color: '#ef4444' },
+    'viajes-aprobados': { nombre: 'Viajes aprobados', total: 0, color: '#ec4899' }
+  };
+
+  // Acumular gastos por organización
+  gastos.forEach(gasto => {
+    const org = gasto.organizacion || 'gastos-presupuesto';
+    if (organizaciones[org]) {
+      organizaciones[org].total += gasto.monto || 0;
+    }
+  });
+
+  // Calcular total y validar coherencia
+  const totalGastos = Object.values(organizaciones).reduce((sum, org) => sum + org.total, 0);
+  
+  // Actualizar total en el chart (debe coincidir con el KPI de gastos)
+  const totalElement = document.getElementById('total-gastos-chart');
+  if (totalElement) {
+    if (totalGastos === 0) {
+      totalElement.textContent = 'Sin movimientos';
+      totalElement.className = 'text-3xl lg:text-4xl font-bold text-gray-400';
+    } else {
+      totalElement.textContent = `$${totalGastos.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+      totalElement.className = 'text-3xl lg:text-4xl font-bold text-sky-600';
+    }
+  }
+
+  // Ordenar organizaciones de mayor a menor gasto
+  const organizacionesOrdenadas = Object.entries(organizaciones)
+    .sort(([, a], [, b]) => b.total - a.total)
+    .filter(([, org]) => org.total > 0); // Solo mostrar las que tienen gastos
+
+  // Actualizar lista de organizaciones con porcentajes
+  const listaOrg = document.getElementById('lista-organizaciones');
+  if (listaOrg) {
+    if (organizacionesOrdenadas.length === 0) {
+      listaOrg.innerHTML = `
+        <div class="text-center py-4 text-gray-400">
+          <p class="text-sm">📊 Sin gastos por organización</p>
+          <p class="text-xs mt-1">Los gastos aparecerán aquí cuando se registren</p>
+        </div>
+      `;
+    } else {
+      listaOrg.innerHTML = organizacionesOrdenadas
+        .map(([key, org]) => {
+          const porcentaje = totalGastos > 0 ? (org.total / totalGastos * 100).toFixed(1) : 0;
+          return `
+            <div class="flex items-center justify-between text-sm lg:text-base py-1">
+              <div class="flex items-center space-x-2 flex-1 min-w-0">
+                <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: ${org.color}"></span>
+                <span class="text-gray-700 truncate">${org.nombre}</span>
+              </div>
+              <div class="text-right ml-2 flex-shrink-0">
+                <span class="font-bold text-gray-900">$${org.total.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                <span class="text-xs text-gray-500 ml-1">(${porcentaje}%)</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+    }
+  }
+
+  // Actualizar gráfico de dona
+  await actualizarGraficoDona(organizaciones, totalGastos);
+}
+
+// Actualizar gráfico de dona
+async function actualizarGraficoDona(organizaciones, total) {
+  const chartDona = document.getElementById('chart-dona');
+  if (!chartDona) return;
+
+  const radius = 70;
+  const circumference = 2 * Math.PI * radius;
+  let currentOffset = 0;
+
+  // Limpiar círculos anteriores excepto el de fondo
+  const circles = chartDona.querySelectorAll('circle');
+  circles.forEach((circle, index) => {
+    if (index > 0) circle.remove();
+  });
+
+  // Crear segmentos del gráfico
+  Object.values(organizaciones).forEach(org => {
+    if (org.total > 0) {
+      const percentage = (org.total / total) * 100;
+      const dashLength = (percentage / 100) * circumference;
+      
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', '100');
+      circle.setAttribute('cy', '100');
+      circle.setAttribute('r', radius);
+      circle.setAttribute('fill', 'none');
+      circle.setAttribute('stroke', org.color);
+      circle.setAttribute('stroke-width', '30');
+      circle.setAttribute('stroke-dasharray', `${dashLength} ${circumference}`);
+      circle.setAttribute('stroke-dashoffset', -currentOffset);
+      
+      chartDona.appendChild(circle);
+      currentOffset += dashLength;
+    }
+  });
+}
+
+// ==================== CALCULAR EVOLUCIÓN TEMPORAL DE GASTOS ====================
+async function calcularEvolucionGastos(gastos) {
+  const mesesGastos = Array(12).fill(0);
+  const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  // Acumular gastos por mes
+  gastos.forEach(gasto => {
+    if (gasto.fecha) {
+      const fecha = new Date(gasto.fecha);
+      const mes = fecha.getMonth();
+      mesesGastos[mes] += gasto.monto || 0;
+    }
+  });
+
+  // Calcular total del año para validar coherencia
+  const totalAnual = mesesGastos.reduce((sum, gasto) => sum + gasto, 0);
+  console.log(`📊 Total anual calculado en evolución: $${totalAnual.toLocaleString('es-AR')}`);
+
+  // Calcular gastos por trimestre para móviles
+  const trimestresGastos = [
+    mesesGastos[0] + mesesGastos[1] + mesesGastos[2],  // Q1: Ene-Mar
+    mesesGastos[3] + mesesGastos[4] + mesesGastos[5],  // Q2: Abr-Jun
+    mesesGastos[6] + mesesGastos[7] + mesesGastos[8],  // Q3: Jul-Sep
+    mesesGastos[9] + mesesGastos[10] + mesesGastos[11] // Q4: Oct-Dic
+  ];
+
+  // Obtener presupuesto total como referencia del eje Y
+  let presupuestoTotal = 0;
+  try {
+    const configDoc = await db.collection('configuracion').doc('sistema').get();
+    if (configDoc.exists) {
+      const config = configDoc.data();
+      presupuestoTotal = config.presupuestoTotal || 0;
+    }
+  } catch (error) {
+    console.error('Error al obtener presupuesto para gráfico:', error);
+  }
+
+  // Actualizar gráfico de MESES (Desktop/Tablet)
+  const chartMeses = document.getElementById('chart-evolucion-meses');
+  if (chartMeses) {
+    const barrasMeses = chartMeses.querySelectorAll('[data-mes]');
+    actualizarBarras(barrasMeses, mesesGastos, nombresMeses, presupuestoTotal, 'mes');
+  }
+
+  // Actualizar gráfico de TRIMESTRES (Móvil)
+  const chartTrimestres = document.getElementById('chart-evolucion-trimestres');
+  if (chartTrimestres) {
+    const barrasTrimestres = chartTrimestres.querySelectorAll('[data-trimestre]');
+    const nombresTrimestres = ['Q1 (Ene-Mar)', 'Q2 (Abr-Jun)', 'Q3 (Jul-Sep)', 'Q4 (Oct-Dic)'];
+    actualizarBarras(barrasTrimestres, trimestresGastos, nombresTrimestres, presupuestoTotal * 3, 'trimestre');
+  }
+}
+
+// Función auxiliar para actualizar barras (meses o trimestres)
+function actualizarBarras(barras, datos, nombres, presupuestoRef, tipo) {
+  if (!barras || barras.length === 0) return;
+  
+  // Ajustar alturas mínimas según el tipo
+  const alturaMinSinDatos = tipo === 'trimestre' ? 8 : 4;
+  const alturaMinConDatos = tipo === 'trimestre' ? 12 : 8;
+  const minHeightPx = tipo === 'trimestre' ? '10px' : '6px';
+
+  if (presupuestoRef === 0) {
+    // Sin presupuesto configurado: usar escala relativa
+    console.warn(`⚠️ Gráfico ${tipo}: presupuesto no configurado, usando escala comparativa`);
+    const maxGasto = Math.max(...datos, 1);
+    
+    barras.forEach((barra, index) => {
+      const gasto = datos[index];
+      const altura = gasto > 0 ? Math.max(alturaMinConDatos, (gasto / maxGasto) * 100) : alturaMinSinDatos;
+      const color = gasto > 0 ? '#3b82f6' : '#e5e7eb';
+      
+      barra.style.height = `${altura}%`;
+      barra.style.minHeight = minHeightPx;
+      barra.style.backgroundColor = color;
+      barra.title = gasto === 0 
+        ? `${nombres[index]} '26: Sin movimientos` 
+        : `${nombres[index]} '26: $${gasto.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})} (comparativo)`;
+    });
+  } else {
+    // Con presupuesto: usar como referencia absoluta
+    console.log(`✅ Gráfico ${tipo}: usando presupuesto $${presupuestoRef.toLocaleString('es-AR')} como referencia`);
+    
+    barras.forEach((barra, index) => {
+      const gasto = datos[index];
+      
+      if (gasto === 0) {
+        barra.style.height = `${alturaMinSinDatos}%`;
+        barra.style.minHeight = minHeightPx;
+        barra.style.backgroundColor = '#e5e7eb';
+        barra.title = `${nombres[index]} '26: Sin movimientos`;
+      } else {
+        const porcentajePresupuesto = (gasto / presupuestoRef) * 100;
+        const altura = Math.max(alturaMinConDatos, Math.min(100, porcentajePresupuesto));
+        
+        // Color según nivel de gasto
+        let color = '#3b82f6';
+        if (porcentajePresupuesto >= 80) {
+          color = '#ef4444';
+        } else if (porcentajePresupuesto >= 50) {
+          color = '#f59e0b';
+        } else if (porcentajePresupuesto >= 30) {
+          color = '#3b82f6';
+        } else {
+          color = '#10b981';
+        }
+        
+        barra.style.height = `${altura}%`;
+        barra.style.minHeight = minHeightPx;
+        barra.style.backgroundColor = color;
+        barra.title = `${nombres[index]} '26: $${gasto.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})} (${porcentajePresupuesto.toFixed(1)}% del presupuesto)`;
+      }
+    });
   }
 }
 
@@ -322,7 +745,7 @@ async function cargarGastos() {
 }
 
 // ==================== PANEL DE ADMINISTRADOR ====================
-document.getElementById('btn-panel-admin').addEventListener('click', async () => {
+document.getElementById('btn-panel-admin')?.addEventListener('click', async () => {
   if (!esAdmin) {
     mostrarNotificacion('❌ No tienes permisos de administrador', 'error');
     return;
@@ -352,7 +775,7 @@ function cerrarModal() {
 }
 
 // Guardar presupuesto
-document.getElementById('form-editar-presupuesto').addEventListener('submit', async (e) => {
+document.getElementById('form-editar-presupuesto')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   
   const nuevoPresupuesto = parseFloat(document.getElementById('admin-presupuesto').value);
@@ -372,7 +795,7 @@ document.getElementById('form-editar-presupuesto').addEventListener('submit', as
 });
 
 // Guardar viáticos
-document.getElementById('form-editar-viaticos').addEventListener('submit', async (e) => {
+document.getElementById('form-editar-viaticos')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   
   const nuevosViaticos = parseFloat(document.getElementById('admin-viaticos').value);
@@ -392,7 +815,7 @@ document.getElementById('form-editar-viaticos').addEventListener('submit', async
 });
 
 // Cambiar PINs
-document.getElementById('form-cambiar-pins').addEventListener('submit', async (e) => {
+document.getElementById('form-cambiar-pins')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   
   const nuevoUsuario = document.getElementById('admin-pin-usuario').value;
@@ -427,7 +850,7 @@ document.getElementById('form-cambiar-pins').addEventListener('submit', async (e
 let editandoId = null;
 let archivoTemporal = null;
 
-document.getElementById('btn-nuevo-gasto').addEventListener('click', () => {
+document.getElementById('btn-nuevo-gasto')?.addEventListener('click', () => {
   abrirModalGasto();
 });
 
@@ -470,32 +893,34 @@ function cerrarModalGasto() {
 const dragArea = document.getElementById('drag-area');
 const fileInput = document.getElementById('gasto-archivo');
 
-dragArea.addEventListener('click', () => fileInput.click());
+if (dragArea && fileInput) {
+  dragArea.addEventListener('click', () => fileInput.click());
 
-dragArea.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dragArea.classList.add('drag-over');
-});
+  dragArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dragArea.classList.add('drag-over');
+  });
 
-dragArea.addEventListener('dragleave', () => {
-  dragArea.classList.remove('drag-over');
-});
+  dragArea.addEventListener('dragleave', () => {
+    dragArea.classList.remove('drag-over');
+  });
 
-dragArea.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dragArea.classList.remove('drag-over');
-  const files = e.dataTransfer.files;
-  if (files.length > 0) {
-    fileInput.files = files;
-    mostrarPreviewArchivo(files[0]);
-  }
-});
+  dragArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragArea.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      fileInput.files = files;
+      mostrarPreviewArchivo(files[0]);
+    }
+  });
 
-fileInput.addEventListener('change', (e) => {
-  if (e.target.files.length > 0) {
-    mostrarPreviewArchivo(e.target.files[0]);
-  }
-});
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+      mostrarPreviewArchivo(e.target.files[0]);
+    }
+  });
+}
 
 function mostrarPreviewArchivo(file) {
   archivoTemporal = file.name;
@@ -536,11 +961,13 @@ function configurarEventListeners() {
         }
 
         const observaciones = document.getElementById('observaciones').value.trim();
+        const organizacion = document.getElementById('organizacion')?.value || 'presupuesto';
         const gasto = {
           descripcion: document.getElementById('descripcion').value,
           monto: parseFloat(document.getElementById('monto').value),
           fecha: document.getElementById('fecha').value,
           categoria: document.getElementById('categoria').value,
+          organizacion: organizacion,
           comprobanteAdjunto: document.getElementById('comprobante').checked,
           observaciones: observaciones || '',
           registrado: false,
@@ -597,6 +1024,36 @@ async function toggleRegistrado(id, nuevoEstado) {
   }
 }
 
+// Marcar gasto como reportado (checkbox en pendientes)
+async function marcarComoReportado(id) {
+  if (!esAdmin) {
+    mostrarNotificacion('❌ Solo el administrador puede marcar gastos como reportados', 'error');
+    return;
+  }
+
+  try {
+    await db.collection('gastos').doc(id).update({
+      registrado: true,
+      fechaRegistro: firebase.firestore.FieldValue.serverTimestamp(),
+      registradoPor: usuarioActual
+    });
+
+    mostrarNotificacion('✅ Gasto marcado como reportado y movido al historial', 'success');
+    
+    // Recargar gastos separados para actualizar ambas secciones
+    await cargarGastosSeparados();
+    await calcularGastos();
+    await calcularEstadisticasDashboard();
+
+  } catch (error) {
+    console.error('Error al marcar como reportado:', error);
+    mostrarNotificacion('❌ Error al marcar el gasto: ' + error.message, 'error');
+  }
+}
+
+// Exponer función globalmente
+window.marcarComoReportado = marcarComoReportado;
+
 // Eliminar gasto (soft delete con fecha)
 async function eliminarGasto(id) {
   const btnEliminar = document.querySelector(`button[onclick="eliminarGasto('${id}')"]`);
@@ -614,7 +1071,7 @@ async function eliminarGasto(id) {
         eliminadoPor: usuarioActual
       });
       mostrarNotificacion('✅ Gasto eliminado correctamente', 'success');
-      await cargarGastos();
+      await cargarGastosSeparados();
     } catch (error) {
       console.error('Error al eliminar gasto:', error);
       mostrarNotificacion('❌ Error al eliminar: ' + error.message, 'error');
@@ -652,6 +1109,9 @@ async function editarGasto(id) {
     document.getElementById('monto').value = gasto.monto || 0;
     document.getElementById('fecha').value = gasto.fecha || '';
     document.getElementById('categoria').value = gasto.categoria || '';
+    if (document.getElementById('organizacion')) {
+      document.getElementById('organizacion').value = gasto.organizacion || '';
+    }
     document.getElementById('comprobante').checked = gasto.comprobanteAdjunto || false;
     document.getElementById('observaciones').value = gasto.observaciones || '';
     
@@ -680,11 +1140,13 @@ async function editarGasto(id) {
       
       try {
         const observaciones = document.getElementById('observaciones').value.trim();
+        const organizacion = document.getElementById('organizacion')?.value || 'gastos-presupuesto';
         const datosActualizados = {
           descripcion: document.getElementById('descripcion').value,
           monto: parseFloat(document.getElementById('monto').value),
           fecha: document.getElementById('fecha').value,
           categoria: document.getElementById('categoria').value,
+          organizacion: organizacion,
           comprobanteAdjunto: document.getElementById('comprobante').checked,
           observaciones: observaciones || '',
           fechaEdicion: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1009,40 +1471,124 @@ async function mostrarPanelAdmin() {
   const modal = document.getElementById('modal-admin');
   modal.classList.remove('hidden');
   
-  // Limpiar campos para que estén vacíos
-  document.getElementById('nuevo-presupuesto-total').value = '';
-  document.getElementById('nuevo-presupuesto-viaticos').value = '';
-  document.getElementById('nuevo-pin-usuario').value = '';
-  document.getElementById('nuevo-pin-admin').value = '';
+  // Limpiar campos para que estén vacíos (con validación)
+  const presupuestoTotal = document.getElementById('nuevo-presupuesto-total');
+  const presupuestoViaticos = document.getElementById('nuevo-presupuesto-viaticos');
+  const emailRecuperacion = document.getElementById('nuevo-email-recuperacion');
+  const pinAdmin = document.getElementById('nuevo-pin-admin');
+  const pinActual = document.getElementById('pin-actual-admin');
+  
+  if (presupuestoTotal) presupuestoTotal.value = '';
+  if (presupuestoViaticos) presupuestoViaticos.value = '';
+  if (emailRecuperacion) emailRecuperacion.value = '';
+  if (pinAdmin) pinAdmin.value = '';
+  if (pinActual) pinActual.value = '';
+  
+  // Cargar y mostrar configuración actual
+  await cargarConfiguracionActual();
+}
+
+// Función para cargar y mostrar configuración actual enmascarada
+async function cargarConfiguracionActual() {
+  try {
+    const configDoc = await db.collection('configuracion').doc('sistema').get();
+    if (configDoc.exists) {
+      const config = configDoc.data();
+      
+      // Mostrar email enmascarado
+      const emailDisplay = document.getElementById('email-actual-display');
+      if (emailDisplay) {
+        if (config.emailRecuperacion) {
+          // Enmascarar email: ej. mo****@hotmail.com
+          const email = config.emailRecuperacion;
+          const [local, domain] = email.split('@');
+          const maskedLocal = local.length > 2 ? local.substring(0, 2) + '****' : '****';
+          emailDisplay.textContent = `${maskedLocal}@${domain}`;
+          emailDisplay.classList.remove('text-gray-500');
+          emailDisplay.classList.add('text-blue-200');
+        } else {
+          emailDisplay.textContent = 'No configurado';
+          emailDisplay.classList.add('text-gray-500');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error al cargar configuración actual:', error);
+  }
 }
 
 async function actualizarPresupuestos() {
   const inputPresupuesto = document.getElementById('nuevo-presupuesto-total').value;
   const inputViaticos = document.getElementById('nuevo-presupuesto-viaticos').value;
+  const modoActualizacion = document.querySelector('input[name="modo-actualizacion"]:checked')?.value || 'reemplazar';
+  const acumularSaldo = document.getElementById('acumular-saldo-sobrante')?.checked || false;
   
-  if (!inputPresupuesto || !inputViaticos) {
-    mostrarNotificacion('⚠️ Debes ingresar ambos valores', 'error');
+  // Validar que al menos un campo esté completo
+  if (!inputPresupuesto && !inputViaticos) {
+    mostrarNotificacion('⚠️ Debes ingresar al menos un valor para actualizar', 'error');
     return;
   }
   
-  const presupuestoTotal = parseFloat(inputPresupuesto);
-  const presupuestoViaticos = parseFloat(inputViaticos);
-  
-  if (presupuestoTotal < 0 || presupuestoViaticos < 0) {
+  // Validar valores no negativos
+  if ((inputPresupuesto && parseFloat(inputPresupuesto) < 0) || (inputViaticos && parseFloat(inputViaticos) < 0)) {
     mostrarNotificacion('⚠️ Los valores no pueden ser negativos', 'error');
     return;
   }
   
   try {
-    await db.collection('configuracion').doc('sistema').update({
-      presupuestoTotal: presupuestoTotal,
-      presupuestoViaticos: presupuestoViaticos,
-      fechaActualizacion: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    const updates = {};
     
-    mostrarNotificacion('✅ Presupuestos actualizados correctamente', 'success');
-    document.getElementById('modal-admin').classList.add('hidden');
-    await cargarDatos();
+    // Obtener configuración actual si el modo es "sumar"
+    let configActual = {};
+    if (modoActualizacion === 'sumar') {
+      const configDoc = await db.collection('configuracion').doc('sistema').get();
+      configActual = configDoc.data() || {};
+    }
+    
+    // Actualizar solo los campos completados
+    if (inputPresupuesto) {
+      const nuevoValor = parseFloat(inputPresupuesto);
+      if (modoActualizacion === 'sumar') {
+        updates.presupuestoTotal = (configActual.presupuestoTotal || 0) + nuevoValor;
+      } else {
+        updates.presupuestoTotal = nuevoValor;
+      }
+    }
+    
+    if (inputViaticos) {
+      const nuevoValor = parseFloat(inputViaticos);
+      if (modoActualizacion === 'sumar') {
+        updates.presupuestoViaticos = (configActual.presupuestoViaticos || 0) + nuevoValor;
+      } else {
+        updates.presupuestoViaticos = nuevoValor;
+      }
+    }
+    
+    // Guardar configuración de acumulación
+    updates.acumularSaldoSobrante = acumularSaldo;
+    updates.fechaActualizacion = firebase.firestore.FieldValue.serverTimestamp();
+    
+    await db.collection('configuracion').doc('sistema').update(updates);
+    
+    // Construir mensaje de éxito personalizado
+    let mensaje = '✅ ';
+    if (inputPresupuesto && inputViaticos) {
+      mensaje += 'Ambos presupuestos actualizados correctamente';
+    } else if (inputPresupuesto) {
+      mensaje += 'Presupuesto total actualizado correctamente';
+    } else {
+      mensaje += 'Presupuesto de viáticos actualizado correctamente';
+    }
+    
+    mostrarNotificacion(mensaje, 'success');
+    
+    // Limpiar campos
+    document.getElementById('nuevo-presupuesto-total').value = '';
+    document.getElementById('nuevo-presupuesto-viaticos').value = '';
+    
+    await cargarPresupuestos();
+    await calcularGastos();
+    await calcularEstadisticasDashboard();
     
   } catch (error) {
     console.error('Error al actualizar presupuestos:', error);
@@ -1094,24 +1640,33 @@ async function actualizarPINs() {
   }
 }
 
-// Actualizar seguridad completa (email + PINs)
+// Actualizar seguridad completa (email + PIN Admin)
 async function actualizarSeguridadCompleta() {
-  const emailRecuperacion = document.getElementById('nuevo-email-recuperacion').value;
-  const pinUsuario = document.getElementById('nuevo-pin-usuario').value;
-  const pinAdmin = document.getElementById('nuevo-pin-admin').value;
+  const pinActual = document.getElementById('pin-actual-admin')?.value;
+  const emailRecuperacion = document.getElementById('nuevo-email-recuperacion')?.value;
+  const pinNuevo = document.getElementById('nuevo-pin-admin')?.value;
   
-  if (pinUsuario && pinUsuario.length < 4) {
-    mostrarNotificacion('❌ El PIN de usuario debe tener al menos 4 caracteres', 'error');
+  // Validar que se ingresó el PIN actual
+  if (!pinActual || pinActual.trim() === '') {
+    mostrarNotificacion('❌ Debes ingresar tu PIN actual de administrador', 'error');
     return;
   }
   
-  if (pinAdmin && pinAdmin.length < 4) {
-    mostrarNotificacion('❌ El PIN de administrador debe tener al menos 4 caracteres', 'error');
+  // Verificar que hay al menos un cambio
+  if (!emailRecuperacion && !pinNuevo) {
+    mostrarNotificacion('⚠️ Debes ingresar al menos un cambio (email o nuevo PIN)', 'error');
     return;
   }
   
-  if (pinUsuario && pinAdmin && pinUsuario === pinAdmin) {
-    mostrarNotificacion('❌ Los PINs no pueden ser iguales', 'error');
+  // Validar nuevo PIN si se proporciona
+  if (pinNuevo && pinNuevo.length < 4) {
+    mostrarNotificacion('❌ El nuevo PIN debe tener al menos 4 caracteres', 'error');
+    return;
+  }
+  
+  // Validar que el nuevo PIN sea diferente al actual
+  if (pinNuevo && pinNuevo === pinActual) {
+    mostrarNotificacion('❌ El nuevo PIN debe ser diferente al actual', 'error');
     return;
   }
   
@@ -1123,30 +1678,45 @@ async function actualizarSeguridadCompleta() {
   }
   
   try {
-    const updates = {};
-    if (emailRecuperacion) updates.emailRecuperacion = emailRecuperacion;
-    if (pinUsuario) updates.pinUsuario = pinUsuario;
-    if (pinAdmin) updates.pinAdmin = pinAdmin;
+    // Verificar PIN actual
+    const configDoc = await db.collection('configuracion').doc('sistema').get();
+    const config = configDoc.data();
     
-    if (Object.keys(updates).length === 0) {
-      mostrarNotificacion('⚠️ No hay cambios para actualizar', 'error');
+    if (config.pinAdmin !== pinActual) {
+      mostrarNotificacion('❌ El PIN actual es incorrecto', 'error');
       return;
     }
+    
+    // Preparar actualizaciones
+    const updates = {};
+    if (emailRecuperacion) updates.emailRecuperacion = emailRecuperacion;
+    if (pinNuevo) updates.pinAdmin = pinNuevo;
     
     updates.fechaActualizacion = firebase.firestore.FieldValue.serverTimestamp();
     
     await db.collection('configuracion').doc('sistema').update(updates);
     
-    let mensaje = '✅ Configuración actualizada: ';
-    if (emailRecuperacion) mensaje += 'Email ';
-    if (pinUsuario) mensaje += 'PIN Usuario ';
-    if (pinAdmin) mensaje += 'PIN Admin';
+    let mensaje = '✅ Configuración de seguridad actualizada exitosamente';
+    const cambios = [];
+    if (emailRecuperacion) cambios.push('Email de recuperación');
+    if (pinNuevo) cambios.push('PIN de administrador');
+    
+    if (cambios.length > 0) {
+      mensaje += ': ' + cambios.join(' y ');
+    }
     
     mostrarNotificacion(mensaje, 'success');
     
-    document.getElementById('nuevo-email-recuperacion').value = '';
-    document.getElementById('nuevo-pin-usuario').value = '';
-    document.getElementById('nuevo-pin-admin').value = '';
+    // Limpiar todos los campos
+    const pinActualInput = document.getElementById('pin-actual-admin');
+    const emailInput = document.getElementById('nuevo-email-recuperacion');
+    const pinInput = document.getElementById('nuevo-pin-admin');
+    if (pinActualInput) pinActualInput.value = '';
+    if (emailInput) emailInput.value = '';
+    if (pinInput) pinInput.value = '';
+    
+    // Recargar configuración actual para mostrar cambios
+    await cargarConfiguracionActual();
     
   } catch (error) {
     console.error('Error al actualizar seguridad:', error);
@@ -1222,9 +1792,10 @@ async function solicitarRecuperacionCuenta() {
 function iniciarEscuchaEnTiempoReal() {
   db.collection('configuracion').doc('sistema').onSnapshot((doc) => {
     if (doc.exists) {
-      console.log(' Actualizaci�n en tiempo real detectada');
+      console.log('🔄 Actualización en tiempo real detectada');
       cargarPresupuestos();
       calcularGastos();
+      calcularEstadisticasDashboard();
     }
   });
   
@@ -1232,6 +1803,7 @@ function iniciarEscuchaEnTiempoReal() {
     console.log('📊 Gastos actualizados en tiempo real');
     cargarGastosSeparados();
     calcularGastos();
+    calcularEstadisticasDashboard();
   });
 }
 
@@ -1247,11 +1819,18 @@ async function cargarGastosSeparados() {
       return;
     }
     
-    const gastosSnapshot = await db.collection('gastos').orderBy('fechaCreacion', 'desc').get();
+    // Obtener todos los gastos y filtrar en el cliente para evitar índice compuesto
+    const gastosSnapshot = await db.collection('gastos')
+      .orderBy('fechaCreacion', 'desc')
+      .get();
     let todosgastos = [];
     
     gastosSnapshot.forEach(doc => {
-      todosgastos.push({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      // Filtrar gastos no eliminados
+      if (!data.eliminado) {
+        todosgastos.push({ id: doc.id, ...data });
+      }
     });
 
     console.log(`✅ ${todosgastos.length} gastos cargados en total`);
@@ -1521,52 +2100,64 @@ function crearTarjetaGastoPendiente(gasto) {
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
   
   const comprobanteIcon = gasto.comprobanteAdjunto 
-    ? '<span class="text-green-600 text-xs lg:text-sm font-semibold">✓ Comprobante adjunto</span>' 
-    : '<span class="text-red-600 text-xs lg:text-sm font-semibold">✗ Sin comprobante</span>';
+    ? '<span class="text-green-600 text-xs lg:text-sm font-semibold flex items-center gap-1"><svg class="w-3 h-3 lg:w-4 lg:h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>Con comprobante</span>' 
+    : '<span class="text-gray-400 text-xs lg:text-sm font-medium flex items-center gap-1"><svg class="w-3 h-3 lg:w-4 lg:h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>Sin comprobante</span>';
 
-  const checkboxHtml = esAdmin ? `
-    <div class="flex items-center">
-      <label class="flex items-center cursor-pointer hover:bg-green-50 px-3 py-2 rounded-lg transition-colors">
-        <input type="checkbox" ${gasto.registrado ? 'checked' : ''} 
-          onchange="toggleRegistrado('${gasto.id}', this.checked)"
-          class="mr-2 w-5 h-5 text-green-600 rounded focus:ring-2 focus:ring-green-500">
-        <span class="text-sm lg:text-base font-semibold text-gray-700">Marcar como registrado</span>
-      </label>
-    </div>
-  ` : '';
+  const checkboxHtml = gasto.reportado ? '' : `
+    <label class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-3 rounded-lg transition-all">
+      <input type="checkbox" 
+        onchange="marcarComoReportado('${gasto.id}')"
+        class="w-5 h-5 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer">
+      <span class="text-sm lg:text-base font-medium text-gray-700">Marcar como reportado</span>
+    </label>
+  `;
 
   const eliminarBtn = esAdmin ? `
     <button onclick="eliminarGasto('${gasto.id}')" 
-      class="bg-red-500 hover:bg-red-600 text-white px-4 lg:px-6 py-2 lg:py-3 rounded-xl font-semibold transition-all hover:scale-105 text-sm lg:text-base">
-      🗑️ Eliminar
+      class="bg-red-500 hover:bg-red-600 text-white px-4 lg:px-6 py-2.5 lg:py-3 rounded-xl font-semibold transition-all hover:scale-105 text-sm lg:text-base w-full flex items-center justify-center gap-2">
+      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+      Eliminar
     </button>
   ` : '';
 
   return `
-    <div class="bg-white border-2 border-gray-200 rounded-xl p-4 hover:shadow-xl transition-all hover:border-sky-400 flex flex-col h-full">
-      <div class="flex items-center gap-2 mb-3">
-        <span class="px-2 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-300">
-          ⏳ PENDIENTE
+    <div class="bg-white border-2 border-gray-200 rounded-2xl p-5 lg:p-6 hover:shadow-2xl transition-all hover:border-sky-400 flex flex-col h-full">
+      <!-- Header con badges -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <span class="px-3 py-1.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-300 flex items-center gap-1">
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path></svg>
+          PENDIENTE
         </span>
-        <span class="px-2 py-1 rounded-full text-xs font-bold bg-${cat.color}-100 text-${cat.color}-800 border border-${cat.color}-300">
+        <span class="px-3 py-1.5 rounded-full text-xs font-bold bg-${cat.color}-100 text-${cat.color}-800 border border-${cat.color}-300">
           ${cat.emoji} ${cat.label}
         </span>
       </div>
       
-      <p class="text-base font-bold text-gray-800 mb-2 line-clamp-2">${gasto.descripcion}</p>
+      <!-- Descripción -->
+      <h4 class="text-lg lg:text-xl font-bold text-gray-900 mb-4 line-clamp-2 leading-tight">${gasto.descripcion}</h4>
       
-      <p class="text-2xl font-bold text-sky-600 mb-3">
-        $${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-      </p>
-      
-      <p class="text-xs text-gray-600 mb-3">📅 ${new Date(gasto.fecha).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
-      
-      <div class="flex items-center gap-3 text-xs text-gray-600 border-t border-gray-200 pt-3 mt-auto">
-        ${comprobanteIcon}
+      <!-- Monto destacado con mejor espaciado -->
+      <div class="mb-5 pb-4 border-b border-gray-100">
+        <p class="text-2xl lg:text-3xl font-extrabold text-sky-600 mb-2 leading-none tracking-tight numero-grande">
+          $${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+        </p>
+        <p class="text-xs text-gray-500 font-medium uppercase tracking-wide">Monto del gasto</p>
       </div>
       
+      <!-- Información adicional con iconos -->
+      <div class="flex-1 space-y-3 mb-4">
+        <div class="flex items-center gap-2 text-sm text-gray-700">
+          <svg class="w-5 h-5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"></path></svg>
+          <span class="font-medium">${new Date(gasto.fecha).toLocaleDateString('es-ES', { weekday: 'short', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          ${comprobanteIcon}
+        </div>
+      </div>
+      
+      <!-- Acciones -->
       ${checkboxHtml || eliminarBtn ? `
-        <div class="flex flex-col gap-2 mt-3 pt-3 border-t border-gray-200">
+        <div class="flex flex-col gap-3 pt-4 border-t-2 border-gray-200">
           ${checkboxHtml}
           ${eliminarBtn}
         </div>
@@ -1596,29 +2187,35 @@ function crearTarjetaGastoReportado(gasto) {
   ` : '';
 
   return `
-    <div class="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-xl p-3 lg:p-4 hover:shadow-lg transition-all">
-      <div class="flex justify-between items-start gap-3">
-        <div class="flex-1 min-w-0">
-          <div class="flex flex-wrap items-center gap-2 mb-2">
-            <span class="px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-300 flex-shrink-0">
-              ✅ REPORTADO
-            </span>
-            <span class="px-2 py-1 rounded-full text-xs font-bold bg-${cat.color}-100 text-${cat.color}-800 border border-${cat.color}-300 flex-shrink-0">
-              ${cat.emoji} ${cat.label}
-            </span>
-          </div>
-          <p class="text-sm lg:text-base font-bold text-gray-800 mb-1 truncate">${gasto.descripcion}</p>
-          <div class="flex flex-wrap items-center gap-2 lg:gap-3 text-xs text-gray-600">
-            <span>📅 ${new Date(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
-            ${comprobanteIcon}
-          </div>
+    <div class="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-xl transition-all">
+      <!-- Header con badges -->
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <span class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-300 flex-shrink-0">
+          ✅ REPORTADO
+        </span>
+        <span class="px-3 py-1 rounded-full text-xs font-bold bg-${cat.color}-100 text-${cat.color}-800 border border-${cat.color}-300 flex-shrink-0">
+          ${cat.emoji} ${cat.label}
+        </span>
+      </div>
+      
+      <!-- Contenido principal -->
+      <div class="mb-3">
+        <h4 class="text-sm lg:text-base font-bold text-gray-900 mb-2 line-clamp-2">${gasto.descripcion}</h4>
+        <p class="text-2xl lg:text-3xl font-bold text-sky-600 mb-2">
+          $${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+        </p>
+      </div>
+      
+      <!-- Footer con información y acción -->
+      <div class="flex justify-between items-center pt-3 border-t border-gray-200">
+        <div class="flex flex-col gap-1">
+          <span class="text-xs text-gray-600 flex items-center gap-1">
+            <span>📅</span>
+            <span>${new Date(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+          </span>
+          <div class="text-xs">${comprobanteIcon}</div>
         </div>
-        <div class="text-right flex items-center gap-2">
-          <p class="text-base lg:text-xl font-bold text-sky-600 whitespace-nowrap">
-            $${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-          </p>
-          ${eliminarBtn}
-        </div>
+        ${eliminarBtn ? `<div>${eliminarBtn}</div>` : ''}
       </div>
     </div>
   `;
@@ -1683,3 +2280,4 @@ function cambiarVistaHistorial(vista) {
 
 // La función cargarGastos() ahora usa el sistema separado
 // Se mantiene la referencia original para compatibilidad
+// ==================== INICIALIZACIÓN DE FIREBASE ====================

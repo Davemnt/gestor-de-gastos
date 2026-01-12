@@ -1443,18 +1443,18 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">Presupuesto Total (ARS)</label>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Presupuesto Total (ARS) <span class="text-gray-500 text-xs font-normal">(opcional)</span></label>
             <input type="number" id="nuevo-presupuesto-total" step="0.01" min="0" 
               class="input-dark w-full rounded-lg px-3 py-2 text-sm bg-white border border-gray-300 placeholder-gray-400 text-black"
-              placeholder="Ingresa el monto en pesos">
+              placeholder="Deja vacío si no deseas modificar">
             <p class="text-xs text-gray-400 mt-1.5">Presupuesto trimestral para gastos generales</p>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">Presupuesto de Viáticos (ARS)</label>
+            <label class="block text-sm font-medium text-gray-300 mb-2">Presupuesto de Viáticos (ARS) <span class="text-gray-500 text-xs font-normal">(opcional)</span></label>
             <input type="number" id="nuevo-presupuesto-viaticos" step="0.01" min="0" 
               class="input-dark w-full rounded-lg px-3 py-2 text-sm bg-white border border-gray-300 placeholder-gray-400 text-black"
-              placeholder="Ingresa el monto en pesos">
+              placeholder="Deja vacío si no deseas modificar">
             <p class="text-xs text-gray-400 mt-1.5">Presupuesto independiente para viajes aprobados</p>
           </div>
 
@@ -1486,19 +1486,54 @@
             Configuración de Seguridad
           </h4>
 
+          <!-- Información Actual -->
+          <div class="bg-blue-900/30 border border-blue-700/50 rounded-lg p-3">
+            <p class="text-xs font-semibold text-blue-300 mb-2">📋 Configuración Actual</p>
+            <div class="space-y-1 text-xs text-blue-200">
+              <p>Email: <span id="email-actual-display" class="font-mono">No configurado</span></p>
+            </div>
+          </div>
+
+          <!-- Alerta de Seguridad -->
+          <div class="bg-amber-900/30 border border-amber-700/50 rounded-lg p-3">
+            <p class="text-xs text-amber-300 leading-relaxed">
+              <strong>⚠️ Importante:</strong> Por seguridad, debes ingresar tu PIN actual de administrador para realizar cambios.
+            </p>
+          </div>
+
+          <!-- PIN Actual (Requerido) -->
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">Email de Recuperación</label>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              PIN Actual de Administrador <span class="text-red-400">*</span>
+            </label>
+            <input type="password" id="pin-actual-admin" 
+              class="input-dark w-full rounded-lg px-3 py-2 text-sm bg-white border border-gray-300 placeholder-gray-400 text-black"
+              placeholder="Ingresa tu PIN actual para confirmar cambios"
+              required>
+            <p class="text-xs text-gray-400 mt-2">Requerido para verificar tu identidad</p>
+          </div>
+
+          <hr class="border-gray-700">
+
+          <!-- Nuevos Valores -->
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              Nuevo Email de Recuperación <span class="text-gray-500 text-xs font-normal">(opcional)</span>
+            </label>
             <input type="email" id="nuevo-email-recuperacion" 
               class="input-dark w-full rounded-lg px-3 py-2 text-sm bg-white border border-gray-300 placeholder-gray-400 text-black"
-              placeholder="Email para recuperar cuenta">
-            <p class="text-xs text-gray-400 mt-2">Ingresa un email válido para recuperar el acceso a tu cuenta</p>
+              placeholder="Dejar vacío para mantener el actual">
+            <p class="text-xs text-gray-400 mt-2">Email válido para recuperar el acceso a tu cuenta</p>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-300 mb-2">PIN de Administrador</label>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              Nuevo PIN de Administrador <span class="text-gray-500 text-xs font-normal">(opcional)</span>
+            </label>
             <input type="password" id="nuevo-pin-admin" 
               class="input-dark w-full rounded-lg px-3 py-2 text-sm bg-white border border-gray-300 placeholder-gray-400 text-black"
-              placeholder="Nuevo PIN de administrador">
+              placeholder="Dejar vacío para mantener el actual">
+            <p class="text-xs text-gray-400 mt-2">Mínimo 4 caracteres</p>
           </div>
 
           <button onclick="actualizarSeguridadCompleta()" 
