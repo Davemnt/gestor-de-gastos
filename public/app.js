@@ -684,9 +684,16 @@ function actualizarBarras(barras, datos, nombres, presupuestoRef, tipo) {
       const altura = gasto > 0 ? Math.max(alturaMinConDatos, (gasto / maxGasto) * 100) : alturaMinSinDatos;
       const color = gasto > 0 ? '#3b82f6' : '#e5e7eb';
       
-      barra.style.height = `${altura}%`;
-      barra.style.minHeight = minHeightPx;
-      barra.style.backgroundColor = color;
+      // Asegurar que la transición esté habilitada
+      barra.style.transition = 'all 0.5s ease-out';
+      
+      // Usar setTimeout para forzar la animación
+      setTimeout(() => {
+        barra.style.height = `${altura}%`;
+        barra.style.minHeight = minHeightPx;
+        barra.style.backgroundColor = color;
+      }, 50 * index); // Delay escalonado para efecto cascada
+      
       barra.title = gasto === 0 
         ? `${nombres[index]} '26: Sin movimientos` 
         : `${nombres[index]} '26: $${gasto.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})} (comparativo)`;
@@ -698,10 +705,16 @@ function actualizarBarras(barras, datos, nombres, presupuestoRef, tipo) {
     barras.forEach((barra, index) => {
       const gasto = datos[index];
       
+      // Asegurar que la transición esté habilitada
+      barra.style.transition = 'all 0.5s ease-out';
+      
       if (gasto === 0) {
-        barra.style.height = `${alturaMinSinDatos}%`;
-        barra.style.minHeight = minHeightPx;
-        barra.style.backgroundColor = '#e5e7eb';
+        setTimeout(() => {
+          barra.style.height = `${alturaMinSinDatos}%`;
+          barra.style.minHeight = minHeightPx;
+          barra.style.backgroundColor = '#e5e7eb';
+        }, 50 * index);
+        
         barra.title = `${nombres[index]} '26: Sin movimientos`;
       } else {
         const porcentajePresupuesto = (gasto / presupuestoRef) * 100;
@@ -719,10 +732,13 @@ function actualizarBarras(barras, datos, nombres, presupuestoRef, tipo) {
           color = '#10b981';
         }
         
-        barra.style.height = `${altura}%`;
-        barra.style.minHeight = minHeightPx;
-        barra.style.backgroundColor = color;
-        barra.title = `${nombres[index]} '26: $${gasto.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})} (${porcentajePresupuesto.toFixed(1)}% del presupuesto)`;
+        setTimeout(() => {
+          barra.style.height = `${altura}%`;
+          barra.style.minHeight = minHeightPx;
+          barra.style.backgroundColor = color;
+        }, 50 * index); // Delay escalonado para efecto cascada
+        
+        barra.title = `${nombres[index]} '26: $${gasto.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDiges: 0})} (${porcentajePresupuesto.toFixed(1)}% del presupuesto)`;
       }
     });
   }
