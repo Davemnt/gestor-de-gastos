@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sistema de Control de Gastos - Administración</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
@@ -13,6 +19,7 @@
   <style>
     /* ==================== VARIABLES CSS ==================== */
     :root {
+      /* Tema Claro (Default) */
       --primary-color: #3b82f6; /* Azul moderno */
       --secondary-color: #64748b; /* Gris slate */
       --accent-color: #8b5cf6; /* Púrpura */
@@ -26,15 +33,51 @@
       --success-green: #10b981;
       --warning-yellow: #f59e0b;
       --danger-red: #ef4444;
+
+      /* Colores adicionales para modo claro */
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --input-bg: #f8fafc;
+      --input-border: #e2e8f0;
+      --input-focus-bg: #ffffff;
+      --btn-hover-bg: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+
+    /* Tema Oscuro */
+    [data-theme="dark"] {
+      --primary-color: #3b82f6;
+      --secondary-color: #94a3b8;
+      --accent-color: #a78bfa;
+      --primary-gray: #cbd5e1;
+      --light-gray: #64748b;
+      --bg-gray: #0f172a; /* Fondo principal oscuro */
+      --surface-gray: #1e293b; /* Fondo de tarjetas */
+      --border-gray: #334155; /* Bordes oscuros */
+      --text-dark: #f1f5f9; /* Texto principal claro */
+      --text-secondary: #cbd5e1; /* Texto secundario claro */
+      
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --input-bg: #0f172a;
+      --input-border: #334155;
+      --input-focus-bg: #1e293b;
+      --btn-hover-bg: #334155;
+      --text-muted: #64748b;
+
+      /* Resetear colores de Tailwind hardcodeados */
+      --tw-text-opacity: 1;
+      --tw-bg-opacity: 1;
     }
 
     /* ==================== FUENTES Y LAYOUT ==================== */
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-      background: #f8fafc;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+      background: var(--bg-gray);
       color: var(--text-dark);
       font-size: 15px;
       line-height: 1.6;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
     /* ==================== COMPONENTES ==================== */
@@ -57,36 +100,506 @@
     }
 
     .card-dark {
-      background: var(--surface-gray);
-      border: 1px solid var(--border-gray);
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      transition: all 0.2s ease;
+      transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.2s ease;
       border-radius: 16px;
+      overflow: hidden;
     }
 
     .card-dark:hover {
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      border-color: var(--primary-color);
+    }
+
+    [data-theme="dark"] .card-dark:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      border-color: var(--primary-color);
+    }
+
+    /* Clases de utilidad para montos responsivos */
+    .amount-display {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      word-break: break-word;
+      hyphens: auto;
+    }
+
+    /* Ajuste automático de tamaño de fuente para montos grandes */
+    @media (max-width: 1024px) {
+      .amount-display {
+        font-size: clamp(1rem, 4vw, 1.5rem);
+      }
     }
 
     .input-dark {
-      background: #f8fafc;
-      border: 1.5px solid var(--border-gray);
+      background: var(--input-bg);
+      border: 1.5px solid var(--input-border);
       color: var(--text-dark);
-      transition: all 0.2s ease;
+      transition: none;
       min-height: 44px;
       border-radius: 10px;
       font-size: 15px;
     }
 
     .input-dark:focus {
-      background: #ffffff;
+      background: var(--input-focus-bg);
       border-color: var(--primary-color);
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
       outline: none;
     }
 
     .input-dark::placeholder {
-      color: var(--light-gray);
+      color: var(--text-muted);
+    }
+
+    /* Adaptaciones para elementos específicos en modo oscuro */
+    [data-theme="dark"] .bg-white {
+      background-color: var(--surface-gray) !important;
+      color: var(--text-dark);
+    }
+    
+    /* Formularios modo claro - Sin transiciones para respuesta inmediata */
+    input[type="date"],
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea {
+        transition: none !important;
+        backface-visibility: hidden;
+        -webkit-font-smoothing: antialiased;
+        transform: translateZ(0);
+    }
+    
+    input[type="date"]:focus,
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    select:focus,
+    textarea:focus {
+        transition: none !important;
+    }
+    
+    /* Optimizar renderizado de options */
+    select option {
+        transition: none !important;
+        backface-visibility: hidden;
+    }
+    
+    [data-theme="dark"] .bg-gray-50 {
+      background-color: var(--bg-gray) !important;
+    }
+
+    [data-theme="dark"] .bg-gray-100 {
+      background-color: #334155 !important;
+      color: #e2e8f0 !important;
+    }
+
+    [data-theme="dark"] .text-gray-900 {
+      color: #f8fafc !important;
+    }
+
+    [data-theme="dark"] .text-gray-800 {
+      color: #f1f5f9 !important;
+    }
+
+    [data-theme="dark"] .text-gray-700 {
+      color: #e2e8f0 !important;
+    }
+
+    [data-theme="dark"] .text-gray-600 {
+      color: #cbd5e1 !important;
+    }
+
+    [data-theme="dark"] .text-gray-500 {
+      color: #94a3b8 !important;
+    }
+    
+    [data-theme="dark"] .text-gray-400 {
+      color: #64748b !important;
+    }
+
+    [data-theme="dark"] .border-gray-100,
+    [data-theme="dark"] .border-gray-200,
+    [data-theme="dark"] .border-gray-300 {
+      border-color: var(--border-gray) !important;
+    }
+
+    /* Mejorar contraste de badges en modo oscuro */
+    [data-theme="dark"] .bg-blue-50 {
+      background-color: rgba(59, 130, 246, 0.2) !important;
+      color: #60a5fa !important;
+    }
+    
+    [data-theme="dark"] .bg-red-50 {
+      background-color: rgba(239, 68, 68, 0.2) !important;
+      color: #f87171 !important;
+    }
+
+    [data-theme="dark"] .bg-green-50 {
+      background-color: rgba(16, 185, 129, 0.2) !important;
+      color: #34d399 !important;
+    }
+
+    [data-theme="dark"] .bg-purple-50 {
+      background-color: rgba(139, 92, 246, 0.2) !important;
+      color: #a78bfa !important;
+    }
+
+    [data-theme="dark"] .bg-yellow-100 {
+      background-color: rgba(245, 158, 11, 0.2) !important;
+      color: #fbbf24 !important;
+    }
+
+    [data-theme="dark"] .bg-green-100 {
+        background-color: rgba(16, 185, 129, 0.2) !important;
+        color: #34d399 !important;
+    }
+    
+    [data-theme="dark"] .bg-orange-100 {
+        background-color: rgba(249, 115, 22, 0.2) !important;
+        color: #fb923c !important;
+    }
+    
+    [data-theme="dark"] .mobile-menu {
+        background: #0f172a; /* Slate 900 for drawer */
+        border-left: 1px solid #1e293b;
+    }
+
+    [data-theme="dark"] header.bg-white {
+        background-color: var(--surface-gray) !important;
+        border-color: var(--border-gray) !important;
+    }
+    
+    [data-theme="dark"] .shadow-sm, [data-theme="dark"] .shadow-md {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Sidebar Dark Mode */
+    [data-theme="dark"] aside {
+        background-color: #0f172a !important;
+        border-color: #1e293b !important;
+    }
+    
+    [data-theme="dark"] aside .bg-white {
+        background-color: #0f172a !important;
+    }
+    
+    [data-theme="dark"] aside .border-gray-100 {
+        border-color: #1e293b !important;
+    }
+    
+    [data-theme="dark"] aside h1 {
+        color: #f1f5f9 !important;
+    }
+    
+    /* Usuario Activo Card - Dark Mode */
+    [data-theme="dark"] .bg-gradient-to-br.from-blue-50 {
+        background: linear-gradient(to bottom right, rgba(59, 130, 246, 0.15), rgba(99, 102, 241, 0.15)) !important;
+        border-color: rgba(59, 130, 246, 0.3) !important;
+    }
+    
+    [data-theme="dark"] .text-blue-600 {
+        color: #60a5fa !important;
+    }
+    
+    [data-theme="dark"] aside .text-gray-500,
+    [data-theme="dark"] aside .text-gray-600 {
+        color: #cbd5e1 !important;
+    }
+    
+    [data-theme="dark"] aside .text-gray-400 {
+        color: #94a3b8 !important;
+    }
+    
+    /* Botones del sidebar en modo oscuro */
+    [data-theme="dark"] aside button.hover\:bg-gray-100:hover {
+        background-color: #1e293b !important;
+    }
+    
+    [data-theme="dark"] aside .bg-blue-600 {
+        background-color: #2563eb !important;
+    }
+    
+    [data-theme="dark"] aside .bg-blue-600:hover {
+        background-color: #1d4ed8 !important;
+    }
+    
+    /* Botón cerrar sesión en modo oscuro */
+    [data-theme="dark"] aside .text-red-600 {
+        color: #f87171 !important;
+    }
+    
+    [data-theme="dark"] aside .hover\:bg-red-50:hover {
+        background-color: rgba(239, 68, 68, 0.1) !important;
+    }
+    
+    /* Separadores y borders adicionales en sidebar */
+    [data-theme="dark"] aside .border-gray-200 {
+        border-color: #1e293b !important;
+    }
+    
+    [data-theme="dark"] aside .text-gray-700 {
+        color: #e2e8f0 !important;
+    }
+    
+    /* Badge y elementos especiales */
+    [data-theme="dark"] .bg-red-500 {
+        background-color: #dc2626 !important;
+        box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+    }
+
+    /* Modal Fixes for Dark Mode */
+    [data-theme="dark"] .bg-white.rounded-2xl {
+        background-color: var(--surface-gray) !important;
+    }
+    
+    /* Formularios en modo oscuro - Optimizados sin transiciones */
+    [data-theme="dark"] input[type="date"],
+    [data-theme="dark"] input[type="text"],
+    [data-theme="dark"] input[type="number"],
+    [data-theme="dark"] select,
+    [data-theme="dark"] textarea {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+        color: #f1f5f9 !important;
+        transition: none !important;
+        will-change: auto;
+        backface-visibility: hidden;
+        -webkit-font-smoothing: antialiased;
+        transform: translateZ(0);
+    }
+    
+    [data-theme="dark"] input[type="date"]:hover,
+    [data-theme="dark"] input[type="text"]:hover,
+    [data-theme="dark"] input[type="number"]:hover,
+    [data-theme="dark"] select:hover,
+    [data-theme="dark"] textarea:hover {
+        background-color: #0f172a !important;
+        border-color: #475569 !important;
+        transition: none !important;
+    }
+    
+    [data-theme="dark"] input[type="date"]:focus,
+    [data-theme="dark"] input[type="text"]:focus,
+    [data-theme="dark"] input[type="number"]:focus,
+    [data-theme="dark"] select:focus,
+    [data-theme="dark"] textarea:focus {
+        background-color: #0f172a !important;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+        transition: none !important;
+    }
+    
+    /* Placeholders en modo oscuro */
+    [data-theme="dark"] input::placeholder,
+    [data-theme="dark"] textarea::placeholder {
+        color: #64748b !important;
+    }
+    
+    /* Labels en modo oscuro */
+    [data-theme="dark"] label {
+        color: #cbd5e1 !important;
+    }
+    
+    /* Options en select modo oscuro */
+    [data-theme="dark"] select option {
+        background-color: #1e293b !important;
+        color: #f1f5f9 !important;
+        transition: none !important;
+        backface-visibility: hidden;
+    }
+    
+    /* Optimizar date picker nativo - Modo Oscuro */
+    [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(1);
+        cursor: pointer;
+        opacity: 1;
+    }
+    
+    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit {
+        color: #f1f5f9 !important;
+    }
+    
+    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+        color: #f1f5f9 !important;
+    }
+    
+    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit-text {
+        color: #94a3b8 !important;
+    }
+    
+    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit-month-field,
+    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit-day-field,
+    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit-year-field {
+        color: #f1f5f9 !important;
+    }
+    
+    /* Date picker en modo claro */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+        cursor: pointer;
+        opacity: 1;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit {
+        color: #111827 !important;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+        color: #111827 !important;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-text {
+        color: #6b7280 !important;
+    }
+    
+    input[type="date"]::-webkit-datetime-edit-month-field,
+    input[type="date"]::-webkit-datetime-edit-day-field,
+    input[type="date"]::-webkit-datetime-edit-year-field {
+        color: #111827 !important;
+    }
+    
+    /* Checkbox en modo oscuro */
+    [data-theme="dark"] input[type="checkbox"] {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+    }
+    
+    [data-theme="dark"] input[type="checkbox"]:checked {
+        background-color: #3b82f6 !important;
+        border-color: #3b82f6 !important;
+    }
+    
+    /* Símbolos y textos especiales en inputs */
+    [data-theme="dark"] .absolute.left-3 {
+        color: #94a3b8 !important;
+    }
+    
+    /* Botones del modal en oscuro */
+    [data-theme="dark"] button.hover\:bg-gray-100:not(.btn-primary):hover {
+        background-color: #1e293b !important;
+    }
+    
+    [data-theme="dark"] .text-gray-600:not(.btn-primary) {
+        color: #cbd5e1 !important;
+    }
+    
+    [data-theme="dark"] .hover\:text-gray-800:hover {
+        color: #f1f5f9 !important;
+    }
+    
+    /* T\u00edtulos de modal en oscuro */
+    [data-theme="dark"] #modal-title {
+        color: #f1f5f9 !important;
+    }
+    
+    /* Iconos SVG en labels del formulario */
+    [data-theme="dark"] label svg {
+        opacity: 0.9;
+    }
+    
+    /* Mejorar botones de cerrar modal */
+    [data-theme="dark"] .bg-gray-100.text-gray-500 {
+        background-color: #1e293b !important;
+        color: #cbd5e1 !important;
+    }
+    
+    [data-theme="dark"] .bg-gray-100.text-gray-500:hover {
+        background-color: #334155 !important;
+        color: #f1f5f9 !important;
+    }
+    
+    /* Optimizar color del borde inferior del header */
+    [data-theme="dark"] .border-b.border-gray-100 {
+        border-color: #1e293b !important;
+    }
+
+    [data-theme="dark"] .bg-gradient-to-r.from-gray-50 {
+        from { background-color: var(--border-gray); } 
+        to { background-color: var(--surface-gray); }
+        background-image: linear-gradient(to right, var(--border-gray), var(--surface-gray)) !important;
+    }
+    
+    /* Scrollbar Dark */
+    [data-theme="dark"] ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    
+    [data-theme="dark"] ::-webkit-scrollbar-thumb {
+      background: #334155;
+    }
+    
+    [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    
+    /* Pin Screen - Dark Mode */
+    [data-theme="dark"] #pin-screen {
+      background: linear-gradient(to bottom right, #0f172a, #1e293b) !important;
+    }
+    
+    [data-theme="dark"] #pin-screen .card-dark {
+      background-color: #1e293b !important;
+      border-color: #334155 !important;
+    }
+    
+    [data-theme="dark"] #pin-screen h2 {
+      color: #f1f5f9 !important;
+    }
+    
+    [data-theme="dark"] #pin-screen p {
+      color: #cbd5e1 !important;
+    }
+    
+    [data-theme="dark"] #pin-screen .text-blue-600 {
+      color: #60a5fa !important;
+    }
+    
+    [data-theme="dark"] #pin-screen .hover\:text-blue-800:hover {
+      color: #93c5fd !important;
+    }
+    
+    [data-theme="dark"] #pin-screen input {
+      background-color: #0f172a !important;
+      border-color: #334155 !important;
+      color: #f1f5f9 !important;
+    }
+    
+    [data-theme="dark"] #pin-screen #pin-error {
+      background-color: rgba(239, 68, 68, 0.2) !important;
+      border-color: rgba(239, 68, 68, 0.4) !important;
+    }
+    
+    [data-theme="dark"] #pin-screen #pin-error p {
+      color: #fca5a5 !important;
+    }
+    
+    [data-theme="dark"] #pin-screen .text-gray-500 {
+      color: #94a3b8 !important;
+    }
+    
+    [data-theme="dark"] #pin-screen svg {
+      color: #94a3b8 !important;
+    }
+    
+    [data-theme="dark"] #pin-screen .border-gray-100 {
+      border-color: #334155 !important;
+    }
+    
+    /* Botón de tema */
+    .theme-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: var(--text-date);
+    }
+    
+    .theme-toggle:hover {
+        background-color: var(--btn-hover-bg);
     }
 
     /* Ocultar iconos nativos de revelado/auto-completado de contraseñas en navegadores */
@@ -113,21 +626,45 @@
     /* Ajustes responsive para textos de montos */
     @media (max-width: 640px) {
       .text-3xl, .text-4xl {
-        font-size: 1.75rem !important;
+        font-size: 1.5rem !important;
         line-height: 1.2 !important;
       }
       
       .text-2xl {
-        font-size: 1.5rem !important;
+        font-size: 1.25rem !important;
+        line-height: 1.25 !important;
+      }
+      
+      .text-xl {
+        font-size: 1.125rem !important;
       }
       
       /* Mejorar legibilidad de texto pequeño en móviles */
       .text-xs {
-        font-size: 0.75rem !important;
+        font-size: 0.7rem !important;
       }
       
       .text-sm {
-        font-size: 0.875rem !important;
+        font-size: 0.8rem !important;
+      }
+
+      /* Reducir padding en cards para móviles */
+      .card-dark {
+        padding: 0.875rem !important;
+      }
+    }
+
+    @media (min-width: 641px) and (max-width: 1024px) {
+      .text-3xl {
+        font-size: 1.75rem !important;
+      }
+      
+      .text-2xl {
+        font-size: 1.375rem !important;
+      }
+      
+      .text-xl {
+        font-size: 1.125rem !important;
       }
     }
     
@@ -254,6 +791,10 @@
       background: #1f2937;
       border-radius: 2px;
       transition: all 0.3s ease;
+    }
+
+    [data-theme="dark"] .hamburger span {
+      background: #f1f5f9;
     }
     
     .hamburger.active span:nth-child(1) {
@@ -899,149 +1440,216 @@
   </div>
 
   <!-- ==================== APLICACIÓN PRINCIPAL ==================== -->
-  <div id="app" class="min-h-full pb-8">
+  <div id="app" class="flex h-screen overflow-hidden bg-gray-50">
     
-    <!-- Header Profesional -->
-    <header class="bg-white border-b border-gray-100 sticky top-0 z-40">
-      <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
-        <div class="flex justify-between items-center gap-3">
-          
-          <!-- Logo y Título -->
-          <div class="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
-            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-500 flex items-center justify-center text-base sm:text-xl flex-shrink-0">
-              💼
-            </div>
-            <div class="flex-1 min-w-0">
-              <h1 id="company-name" class="text-sm sm:text-lg lg:text-xl font-semibold text-gray-900 truncate">Control de Gastos Estaca Aldo Bonzi</h1>
-              <p id="welcome-message" class="text-gray-500 text-xs sm:text-sm hidden sm:block">
-                <span id="user-role-badge" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 mr-2"></span>
-                <span class="hidden md:inline">Panel de Administración</span>
-              </p>
-            </div>
-          </div>
-
-          <!-- Botón Hamburguesa (móvil) -->
-          <button class="hamburger" onclick="toggleMobileMenu()" aria-label="Menú" type="button">
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
-
-          <!-- Botones de Acción (desktop) -->
-          <div class="desktop-buttons flex space-x-2">
-            <button id="btn-panel-admin" class="hidden bg-slate-100 text-slate-700 font-medium px-4 py-2 rounded-lg hover:bg-slate-200 transition-all text-sm"> 
-              ⚙️ Configuración 
-            </button>
-            <button id="btn-nuevo-gasto" class="btn-primary text-white font-medium px-4 py-2 rounded-lg text-sm"> 
-              + Nuevo Gasto 
-            </button>
-            <button id="btn-cerrar-sesion" class="bg-white border border-gray-200 text-gray-700 font-medium px-4 py-2 rounded-lg hover:bg-gray-50 transition-all text-sm"> 
-              Salir 
-            </button>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <!-- Menú Móvil -->
-    <div class="mobile-menu-overlay" onclick="toggleMobileMenu()"></div>
-    <div class="mobile-menu">
-      <div class="flex justify-between items-center mb-8">
-        <h3 class="text-xl font-bold text-white">Menú</h3>
-        <button onclick="toggleMobileMenu()" class="text-gray-400 hover:text-white text-2xl">✕</button>
-      </div>
+    <!-- Sidebar / Panel Lateral -->
+    <aside class="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-20 shadow-sm transition-all duration-300">
       
-      <div class="space-y-3">
-        <button id="btn-nuevo-gasto-mobile" class="w-full btn-primary text-white font-bold px-4 py-3 rounded-xl text-left flex items-center" onclick="toggleMobileMenu()"> 
-          <span class="mr-3">➕</span> Nuevo Gasto 
+      <!-- Logo Sidebar -->
+      <div class="h-16 flex items-center px-6 border-b border-gray-100 bg-white">
+        <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white mr-3 shadow-md">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </div>
+        <h1 class="text-lg font-bold text-gray-800 tracking-tight">Gestor Gastos</h1>
+      </div>
+
+      <!-- Contenido Sidebar -->
+      <div class="flex-1 overflow-y-auto py-6 px-4 space-y-1">
+        
+        <!-- Info Usuario -->
+        <div class="mb-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 shadow-sm">
+           <div class="flex items-center justify-between mb-3">
+             <div class="flex items-center">
+               <div class="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></div>
+               <p class="text-xs text-blue-600 font-bold uppercase tracking-wider">Usuario Activo</p>
+             </div>
+           </div>
+           <div class="flex flex-col space-y-2">
+             <span id="user-role-badge" class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-red-500 text-white w-fit shadow-sm">
+               🛡️ ADMIN
+             </span>
+             <div id="sidebar-user-name-placeholder" class="text-sm font-medium text-gray-700">Sesión iniciada</div>
+           </div>
+        </div>
+
+        <!-- Navegación -->
+        <div class="mb-3">
+          <p class="px-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Menu Principal</p>
+        </div>
+        
+        <!-- Dashboard / Nuevo Gasto -->
+        <button id="btn-nuevo-gasto" class="w-full flex items-center px-4 py-3 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-sm hover:shadow-md transition-all group mb-4">
+          <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          Nuevo Gasto
         </button>
-        <button id="btn-panel-admin-mobile" class="hidden w-full bg-gradient-to-r from-red-600 to-red-700 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center" onclick="toggleMobileMenu()"> 
-          <span class="mr-3">⚙️</span> Panel Admin 
+        
+        <!-- Sistema Section -->
+        <div class="mt-6 mb-3 pt-4 border-t border-gray-200">
+          <p class="px-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Sistema</p>
+        </div>
+        
+        <button id="btn-panel-admin" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-100 group transition-colors text-left hidden mb-2">
+           <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+           Configuración
         </button>
-        <button id="btn-cerrar-sesion-mobile" class="w-full bg-gradient-to-r from-gray-600 to-gray-700 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center" onclick="toggleMobileMenu()"> 
-          <span class="mr-3">🚪</span> Salir 
+
+        <!-- Toggle Dark Mode Button (Desktop) -->
+        <button onclick="toggleTheme()" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-100 group transition-colors text-left">
+           <span id="theme-icon-desktop" class="mr-3 text-xl">🌙</span>
+           <span id="theme-text-desktop" class="font-medium">Modo Oscuro</span>
+        </button>
+
+      </div>
+
+      <!-- Footer Sidebar -->
+      <div class="p-4 border-t border-gray-100">
+        <button id="btn-cerrar-sesion" class="flex items-center w-full px-4 py-3 text-sm font-medium text-red-600 rounded-xl hover:bg-red-50 transition-colors">
+          <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+          Cerrar Sesión
         </button>
       </div>
-    </div>
+    </aside>
 
-    <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
-    <main class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Content Wrapper -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+        <!-- Mobile Header -->
+        <header class="bg-white border-b border-gray-200 md:hidden flex items-center justify-between p-4 z-20 shadow-sm relative sticky top-0">
+            <div class="flex items-center">
+               <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white mr-3 shadow-sm">
+                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+               </div>
+               <span class="font-bold text-gray-800 tracking-tight">Gestor Gastos</span>
+            </div>
+            <!-- Botón Hamburguesa (móvil) -->
+            <button class="hamburger" onclick="toggleMobileMenu()" aria-label="Menú" type="button">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </header>
+
+        <!-- Menú Móvil (Adaptado a drawer style) -->
+        <div class="mobile-menu-overlay" onclick="toggleMobileMenu()"></div>
+        <div class="mobile-menu bg-gray-900">
+            <div class="flex justify-between items-center mb-8 p-4 border-b border-gray-800">
+                <div class="flex items-center">
+                    <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white mr-3">
+                        💼
+                    </div>
+                    <h3 class="text-lg font-bold text-white">Menú</h3>
+                </div>
+                <!-- Reuse hamburger class for close logic if needed, or simple button -->
+                <button onclick="toggleMobileMenu()" class="text-gray-400 hover:text-white text-2xl">✕</button>
+            </div>
+          
+            <div class="space-y-3 px-4">
+                <button id="btn-nuevo-gasto-mobile" class="w-full btn-primary text-white font-bold px-4 py-3 rounded-xl text-left flex items-center shadow-lg" onclick="toggleMobileMenu()"> 
+                <span class="mr-3">➕</span> Nuevo Gasto 
+                </button>
+                <button id="btn-panel-admin-mobile" class="hidden w-full bg-slate-800 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center border border-slate-700" onclick="toggleMobileMenu()"> 
+                <span class="mr-3">⚙️</span> Configuración 
+                </button>
+                <!-- Toggle Dark Mode Button (Mobile) -->
+                <button onclick="toggleTheme()" class="w-full bg-slate-800 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center border border-slate-700 hover:bg-slate-700 transition-colors"> 
+                  <span id="theme-icon-mobile" class="mr-3 text-lg">🌙</span> 
+                  <span id="theme-text-mobile">Modo Oscuro</span> 
+                </button>
+                <button id="btn-cerrar-sesion-mobile" class="w-full bg-red-900/50 text-red-100 font-bold px-4 py-3 rounded-xl text-left flex items-center border border-red-900 hover:bg-red-900 transition-colors" onclick="toggleMobileMenu()"> 
+                <span class="mr-3">🚪</span> Salir 
+                </button>
+            </div>
+
+            <!-- Mobile User Info -->
+            <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-800 bg-gray-900">
+                 <p class="text-xs text-gray-500 text-center">Sesión iniciada</p>
+            </div>
+        </div>
+
+        <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
+        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-4 sm:p-6 lg:p-8">
       
       <!-- Resumen de Presupuestos - Estilo Dashboard -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 lg:mb-8">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 xl:gap-5 mb-5 lg:mb-7">
         
-        <!-- Saldo (Presupuesto Total) -->
-        <div class="card-dark p-4 sm:p-5 lg:p-6">
-          <div class="mb-3 lg:mb-4">
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-gray-600 mb-1">Saldo Presupuesto</p>
-              <div class="group relative">
-                <svg class="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <div class="hidden group-hover:block absolute right-0 top-6 w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-xl z-10">
-                  Presupuesto trimestral para gastos generales (independiente de viáticos)
-                </div>
+        <!-- Saldo y Gastos (Presupuesto Total y Gastado) -->
+        <div class="card-dark p-4 lg:p-5 transition-all duration-200 hover:shadow-md border border-gray-100">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                  <svg class="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              </div>
+              <div>
+                <p class="text-xs lg:text-sm font-semibold text-gray-700 leading-tight">Presupuesto</p>
+                <p class="text-[10px] lg:text-xs text-blue-500 font-medium">Trimestral</p>
               </div>
             </div>
-            <p class="text-xs text-gray-400">1 ene 2026 - 31 mar 2026</p>
+            <button onclick="resetearTotalGastado()" title="Resetear contador" class="w-7 h-7 lg:w-8 lg:h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors">
+              <svg class="w-3.5 h-3.5 lg:w-4 lg:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            </button>
           </div>
-          <div>
-            <p class="text-3xl lg:text-4xl font-bold text-gray-900" id="presupuesto-total">$0,00</p>
-          </div>
-        </div>
-
-        <!-- Gastos (Total Gastado) -->
-        <div class="card-dark p-4 sm:p-5 lg:p-6">
-          <div class="mb-3 lg:mb-4">
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-gray-600 mb-1">Gastos</p>
-              <div class="group relative">
-                <svg class="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <div class="hidden group-hover:block absolute right-0 top-6 w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-xl z-10">
-                  Total gastado acumulativo durante todo el año (descuenta del saldo trimestre a trimestre)
-                </div>
-              </div>
+          <div class="space-y-2 text-center">
+            <div>
+              <p class="text-xs text-gray-500 mb-1">Total</p>
+              <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="presupuesto-total">$0,00</p>
             </div>
-            <p class="text-xs text-gray-400">1 ene 2026 - 31 Dic 2026</p>
+            <div class="border-t border-gray-200 pt-2">
+              <p class="text-xs text-gray-500 mb-1">Gastado</p>
+              <p class="text-base lg:text-lg xl:text-xl font-bold text-red-500 leading-tight" id="total-gastado">-$0,00</p>
+            </div>
           </div>
-          <div>
-            <p class="text-3xl lg:text-4xl font-bold text-red-500" id="total-gastado">-$0,00</p>
-          </div>
+           <p class="text-[10px] lg:text-xs text-gray-400 mt-2 lg:mt-3 text-center" id="periodo-total-gastado">1 ene - 31 mar 2026</p>
         </div>
 
         <!-- Ingresos (Disponible) -->
-        <div class="card-dark p-4 sm:p-5 lg:p-6">
-          <div class="mb-3 lg:mb-4">
-            <p class="text-sm font-medium text-gray-600 mb-1">Disponible</p>
-            <p class="text-xs text-gray-400">1 ene 2026 - 31 mar 2026</p>
+        <div class="card-dark p-4 lg:p-5 transition-all duration-200 hover:shadow-md border border-gray-100">
+          <div class="flex items-center justify-center mb-3">
+            <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600 mr-2 lg:mr-3">
+                <svg class="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <div>
+              <p class="text-xs lg:text-sm font-semibold text-gray-700 leading-tight">Disponible Actual</p>
+              <p class="text-[10px] lg:text-xs text-green-500 font-medium">General</p>
+            </div>
           </div>
-          <div>
-            <p class="text-3xl lg:text-4xl font-bold text-green-500" id="presupuesto-disponible">$0,00</p>
+          <div class="text-center">
+            <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="presupuesto-disponible">$0,00</p>
           </div>
+           <p class="text-xs text-gray-400 mt-3 text-center">Restante del trimestre</p>
         </div>
 
         <!-- Viáticos (Disponible) -->
-        <div class="card-dark p-4 sm:p-5 lg:p-6">
-          <div class="mb-3 lg:mb-4">
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-gray-600 mb-1">Saldo Viáticos (Disponible)</p>
-              <div class="group relative">
-                <svg class="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <div class="hidden group-hover:block absolute right-0 top-6 w-48 bg-gray-900 text-white text-xs rounded-lg p-2 shadow-xl z-10">
-                  Presupuesto independiente exclusivo para viajes aprobados (no afecta el saldo principal)
-                </div>
-              </div>
+        <div class="card-dark p-4 lg:p-5 transition-all duration-200 hover:shadow-md border border-gray-100">
+          <div class="flex items-center justify-center mb-3">
+            <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 mr-2 lg:mr-3">
+                <svg class="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m3-4h1m-1 4h1m-1 4h1m-1 4h1"></path></svg>
             </div>
-            <p class="text-xs text-gray-400">Saldo asignado para viáticos</p>
+            <div>
+              <p class="text-xs lg:text-sm font-semibold text-gray-700 leading-tight">Fondo Viáticos</p>
+              <p class="text-[10px] lg:text-xs text-purple-500 font-medium">Viajes</p>
+            </div>
           </div>
-          <div>
-            <p class="text-3xl lg:text-4xl font-bold text-pink-500" id="viaticos-disponible">$0,00</p>
+          <div class="text-center">
+            <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="viaticos-disponible">$0,00</p>
           </div>
+           <p class="text-xs text-gray-400 mt-3 text-center">Saldo exclusivo viajes</p>
+        </div>
+
+        <!-- Viáticos Gastados -->
+        <div class="card-dark p-4 lg:p-5 transition-all duration-200 hover:shadow-md border border-gray-100">
+          <div class="flex items-center justify-center mb-3">
+            <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600 mr-2 lg:mr-3">
+                <svg class="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+            </div>
+            <div>
+              <p class="text-xs lg:text-sm font-semibold text-gray-700 leading-tight">Viáticos Gastados</p>
+              <p class="text-[10px] lg:text-xs text-orange-500 font-medium">Viajes</p>
+            </div>
+          </div>
+          <div class="text-center">
+            <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="viaticos-gastados-kpi">$0,00</p>
+          </div>
+           <p class="text-xs mt-3 text-center"><span class="text-gray-500">Quedan:</span> <span class="font-semibold text-green-600" id="viaticos-restantes-texto">$0,00</span></p>
         </div>
       </div>
 
@@ -1053,8 +1661,8 @@
         <div class="card-dark p-4 lg:p-5">
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 lg:mb-3 gap-2">
             <div>
-              <h3 class="text-base lg:text-lg font-semibold text-gray-900">Evolución de los gastos</h3>
-              <p class="text-xs text-gray-400 mt-0.5">Altura relativa al presupuesto total</p>
+              <h3 class="text-sm lg:text-base font-semibold text-gray-900 leading-tight">Evolución de los gastos</h3>
+              <p class="text-[10px] lg:text-xs text-gray-400 mt-0.5">Altura relativa al presupuesto total</p>
             </div>
             <div class="flex items-center gap-2 text-xs text-gray-500">
               <span class="flex items-center gap-1">
@@ -1120,10 +1728,14 @@
 
         <!-- Gastos por Organización -->
         <div class="card-dark p-4 lg:p-5">
-          <div class="flex items-center justify-between mb-2 lg:mb-3">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 lg:mb-4 gap-2">
             <div>
-              <h3 class="text-base lg:text-lg font-semibold text-gray-900">Gastos por Organización</h3>
-              <p class="text-xs text-gray-400 mt-0.5">1 ene 2026 - 31 dic 2026</p>
+              <h3 class="text-sm lg:text-base font-semibold text-gray-900 leading-tight">Gastos por Organización</h3>
+              <p class="text-[10px] lg:text-xs text-gray-400 mt-0.5">1 ene 2026 - 31 dic 2026</p>
+            </div>
+            <div class="text-left sm:text-right">
+              <p class="text-xs text-gray-500 mb-0.5">Total</p>
+              <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="total-gastos-chart">$0</p>
             </div>
           </div>
           <div class="flex flex-col sm:flex-row items-center justify-center gap-4 lg:gap-5">
@@ -1133,12 +1745,6 @@
                   <!-- Las secciones se generarán dinámicamente -->
                   <circle cx="100" cy="100" r="70" fill="none" stroke="#e5e7eb" stroke-width="30"></circle>
                 </svg>
-              <div class="absolute inset-0 flex items-center justify-center">
-                <div class="text-center">
-                  <p class="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900" id="total-gastos-chart">$0</p>
-                  <p class="text-xs text-gray-500">Total</p>
-                </div>
-              </div>
             </div>
             <!-- Lista de organizaciones -->
             <div class="w-full flex-1">
@@ -1222,13 +1828,13 @@
             <div id="contenido-pendientes" class="transition-all duration-300">
               <!-- Filtros de Categoría para Pendientes -->
               <div class="flex space-x-1.5 mb-3 overflow-x-auto pb-1">
-                <button onclick="filtrarPendientesPorCategoria('todos')" id="cat-pendientes-todos" class="filtro-btn btn-primary px-2.5 py-1 rounded-lg font-medium whitespace-nowrap text-xs">
+                <button onclick="filtrarPendientesPorCategoria('todos')" id="cat-pendientes-todos" class="filtro-btn btn-primary px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium whitespace-nowrap text-xs lg:text-sm transition-all">
                   Todos
                 </button>
-                <button onclick="filtrarPendientesPorCategoria('presupuesto')" id="cat-pendientes-presupuesto" class="filtro-btn bg-gray-100 text-gray-700 px-2.5 py-1 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs">
+                <button onclick="filtrarPendientesPorCategoria('presupuesto')" id="cat-pendientes-presupuesto" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
                   Presupuesto
                 </button>
-                <button onclick="filtrarPendientesPorCategoria('viaticos')" id="cat-pendientes-viaticos" class="filtro-btn bg-gray-100 text-gray-700 px-2.5 py-1 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs">
+                <button onclick="filtrarPendientesPorCategoria('viaticos')" id="cat-pendientes-viaticos" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
                   Viáticos
                 </button>
               </div>
@@ -1258,28 +1864,28 @@
               <!-- Filtros de Visualización -->
               <div class="flex space-x-1.5 mb-2 border-b border-gray-200 overflow-x-auto pb-1">
                 <button onclick="cambiarVistaHistorial('mes')" id="vista-mes" 
-                  class="tab-btn px-2.5 py-1 font-medium text-gray-900 border-b-2 border-blue-500 transition-all whitespace-nowrap text-xs">
+                  class="tab-btn px-3 py-2 lg:px-4 lg:py-2.5 font-semibold text-gray-800 border-b-2 border-sky-500 transition-all whitespace-nowrap text-xs lg:text-sm">
                   Mes
                 </button>
                 <button onclick="cambiarVistaHistorial('trimestre')" id="vista-trimestre"
-                  class="tab-btn px-2.5 py-1 font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-900 transition-all whitespace-nowrap text-xs">
+                  class="tab-btn px-3 py-2 lg:px-4 lg:py-2.5 font-semibold text-gray-500 border-b-2 border-transparent hover:text-gray-800 transition-all whitespace-nowrap text-xs lg:text-sm">
                   Trimestre
                 </button>
                 <button onclick="cambiarVistaHistorial('anio')" id="vista-anio"
-                  class="tab-btn px-2.5 py-1 font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-900 transition-all whitespace-nowrap text-xs">
+                  class="tab-btn px-3 py-2 lg:px-4 lg:py-2.5 font-semibold text-gray-500 border-b-2 border-transparent hover:text-gray-800 transition-all whitespace-nowrap text-xs lg:text-sm">
                   Año
                 </button>
               </div>
 
               <!-- Filtros de Categoría para Reportados -->
               <div class="flex space-x-1.5 mb-4 overflow-x-auto pb-1">
-                <button onclick="filtrarReportadosPorCategoria('todos')" id="cat-reportados-todos" class="filtro-btn btn-primary px-2.5 py-1 rounded-lg font-medium whitespace-nowrap text-xs">
+                <button onclick="filtrarReportadosPorCategoria('todos')" id="cat-reportados-todos" class="filtro-btn btn-primary px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium whitespace-nowrap text-xs lg:text-sm transition-all">
                   Todos
                 </button>
-                <button onclick="filtrarReportadosPorCategoria('presupuesto')" id="cat-reportados-presupuesto" class="filtro-btn bg-gray-100 text-gray-700 px-2.5 py-1 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs">
+                <button onclick="filtrarReportadosPorCategoria('presupuesto')" id="cat-reportados-presupuesto" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
                   Presupuesto
                 </button>
-                <button onclick="filtrarReportadosPorCategoria('viaticos')" id="cat-reportados-viaticos" class="filtro-btn bg-pink-50 text-pink-700 px-2.5 py-1 rounded-lg font-medium hover:bg-pink-100 transition-all whitespace-nowrap text-xs">
+                <button onclick="filtrarReportadosPorCategoria('viaticos')" id="cat-reportados-viaticos" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
                   Viáticos
                 </button>
               </div>
@@ -1296,57 +1902,59 @@
         </div>
       </div>
     </main>
+    </div>
   </div>
 
   <!-- ==================== MODAL NUEVO GASTO ==================== -->
-  <div id="modal-gasto" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50 p-4">
-    <div class="card-dark rounded-3xl p-6 lg:p-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+  <div id="modal-gasto" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div class="card-dark rounded-2xl p-5 lg:p-8 w-full max-w-4xl max-h-[95vh] overflow-y-auto shadow-2xl">
       
-      <div class="flex justify-between items-center mb-6 lg:mb-8">
-        <h3 id="modal-title" class="text-xl lg:text-3xl font-bold text-white flex items-center gap-3">
-          <span class="w-10 h-10 lg:w-12 lg:h-12 rounded-md bg-gradient-to-br from-sky-600 to-blue-500 flex items-center justify-center shadow-sm">
-            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      <div class="flex justify-between items-center mb-5 pb-4 border-b border-gray-100">
+        <h3 id="modal-title" class="text-xl lg:text-2xl font-bold text-gray-800 flex items-center gap-3">
+          <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-200">
+            <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </span>
           <span>Nuevo Gasto</span>
         </h3>
-        <button onclick="cerrarModal()" aria-label="Cerrar" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-gray-300 hover:bg-gray-700 hover:text-white transition-colors">
+        <button onclick="cerrarModal()" class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
 
-      <form id="form-gasto" class="space-y-4 lg:space-y-8">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-8">
+      <form id="form-gasto" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
           
-          <div>
-            <label class="block text-sm lg:text-base font-semibold text-gray-300 mb-2 lg:mb-3 flex items-center gap-2">
-              <svg class="w-4 h-4 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line></svg>
-              <span>Fecha</span>
+          <!-- Fila 1: Fecha, Categoría, Organización -->
+          <div class="md:col-span-3">
+            <label class="block text-sm font-bold text-gray-700 mb-1.5 flex items-center gap-2">
+              <svg class="w-4 h-4 text-sky-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line></svg>
+              Fecha
             </label>
             <input type="date" id="fecha" required 
-              class="w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg bg-white text-black border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-100">
+              class="w-full rounded-lg px-3 py-2.5 text-sm font-medium bg-gray-50 border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:bg-white cursor-pointer">
           </div>
 
-          <div>
-            <label class="block text-sm lg:text-base font-semibold text-gray-300 mb-2 lg:mb-3 flex items-center gap-2">
-              <svg class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7h18"></path><rect x="3" y="7" width="18" height="13" rx="2"></rect></svg>
-              <span>Categoría</span>
+          <div class="md:col-span-4">
+            <label class="block text-sm font-bold text-gray-700 mb-1.5 flex items-center gap-2">
+              <svg class="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18"></path><rect x="3" y="7" width="18" height="13" rx="2"></rect></svg>
+              Categoría
             </label>
             <select id="categoria" required 
-              class="w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg bg-white text-black border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-100">
-              <option value="">Seleccionar categoría</option>
+              class="w-full rounded-lg px-3 py-2.5 text-sm font-medium bg-gray-50 border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:bg-white cursor-pointer">
+              <option value="">Seleccionar...</option>
               <option value="presupuesto">💰 Presupuesto</option>
               <option value="viaticos">🚗 Viáticos</option>
             </select>
           </div>
 
-          <div>
-            <label class="block text-sm lg:text-base font-semibold text-gray-300 mb-2 lg:mb-3 flex items-center gap-2">
-              <svg class="w-4 h-4 text-violet-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 10l9-7 9 7"></path><path d="M21 21H3v-8"></path></svg>
-              <span>Organización</span>
+          <div class="md:col-span-5">
+            <label class="block text-sm font-bold text-gray-700 mb-1.5 flex items-center gap-2">
+              <svg class="w-4 h-4 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7"></path><path d="M21 21H3v-8"></path></svg>
+              Organización
             </label>
             <select id="organizacion" required 
-              class="w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg bg-white text-black border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-100">
-              <option value="">Seleccionar organización</option>
+              class="w-full rounded-lg px-3 py-2.5 text-sm font-medium bg-gray-50 border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:bg-white cursor-pointer">
+              <option value="">Seleccionar...</option>
               <option value="hombres-mujeres-jovenes">Hombres y mujeres jóvenes</option>
               <option value="primaria">Primaria</option>
               <option value="sociedad-socorro">Sociedad de socorro</option>
@@ -1358,56 +1966,108 @@
             </select>
           </div>
 
-          <div class="md:col-span-2">
-            <label class="block text-sm lg:text-base font-semibold text-gray-300 mb-2 lg:mb-3 flex items-center gap-2">
-              <svg class="w-4 h-4 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11"></path><path d="M7 10h8"></path></svg>
-              <span>Descripción</span>
+          <!-- Fila 2: Descripción y Monto -->
+          <div class="md:col-span-8">
+            <label class="block text-sm font-bold text-gray-700 mb-1.5 flex items-center gap-2">
+              <svg class="w-4 h-4 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h11"></path><path d="M7 10h8"></path></svg>
+              Descripción
             </label>
             <input type="text" id="descripcion" required 
-              class="w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg bg-white text-black border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
-              placeholder="Descripción del gasto">
+              class="w-full rounded-lg px-3 py-2.5 text-sm font-medium bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:bg-white"
+              placeholder="Ej: Reforma de salón...">
           </div>
 
-          <div class="md:col-span-2">
-            <label class="block text-sm lg:text-base font-semibold text-gray-300 mb-2 lg:mb-3">Notas / Observaciones (opcional)</label>
-            <textarea id="observaciones" rows="3" 
-              class="w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-sm lg:text-base bg-white text-black border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
-              placeholder="Notas adicionales o contexto del gasto (opcional)"></textarea>
-          </div>
-
-          <div>
-            <label class="block text-sm lg:text-base font-semibold text-gray-300 mb-2 lg:mb-3 flex items-center gap-2">
-              <svg class="w-4 h-4 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 1v22"></path><circle cx="12" cy="12" r="8"></circle></svg>
-              <span>Monto (ARS)</span>
+          <div class="md:col-span-4">
+            <label class="block text-sm font-bold text-gray-700 mb-1.5 flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22"></path><circle cx="12" cy="12" r="8"></circle></svg>
+              Monto (ARS)
             </label>
-            <input type="number" id="monto" step="0.01" min="0" required 
-              class="w-full rounded-xl px-4 lg:px-6 py-3 lg:py-4 text-base lg:text-lg bg-white text-black border border-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-100"
-              placeholder="Ingresa el monto en pesos">
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
+              <input type="number" id="monto" step="0.01" min="0" required 
+                class="w-full rounded-lg pl-8 pr-3 py-2.5 text-sm font-bold text-gray-900 bg-gray-50 border border-gray-300 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:bg-white"
+                placeholder="0.00">
+            </div>
           </div>
 
-          <div class="flex items-center">
-            <label class="flex items-center cursor-pointer gap-3">
-              <input type="checkbox" id="comprobante" 
-                class="w-5 h-5 lg:w-6 lg:h-6 rounded border-2 border-gray-300 bg-white text-sky-500 focus:ring-2 focus:ring-sky-500">
-              <span class="text-sm lg:text-base font-semibold text-gray-700">¿Se adjuntó comprobante al grupo de finanzas?</span>
-            </label>
-          </div>
-        </div>
+          <!-- Opciones de comisión -->
+          <div class="md:col-span-12 flex flex-col sm:flex-row gap-4 mt-2 bg-purple-50 p-3 rounded-lg border border-purple-100">
+             <label class="flex items-center cursor-pointer gap-2 group">
+                <input type="checkbox" id="aplica-comision" 
+                  class="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                  onchange="toggleOpcionIncluyeComision()">
+                <div class="flex flex-col">
+                  <span class="text-sm font-bold text-gray-800 group-hover:text-purple-700 transition-colors">Aplica Comisión (6.99%)</span>
+                  <span class="text-xs text-gray-500">Marcar si es transferencia</span>
+                </div>
+              </label>
 
-        <!-- Botones de Acción -->
-        <div class="flex flex-col lg:flex-row lg:space-x-6 space-y-3 lg:space-y-0 pt-4">
-          <button type="submit" id="btn-guardar" 
-            class="flex-1 inline-flex items-center justify-center gap-3 bg-gradient-to-r from-sky-600 to-blue-500 text-white font-semibold py-3 lg:py-4 rounded-xl text-base lg:text-xl shadow-sm hover:from-sky-700 hover:to-blue-600 transition-all">
-            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7"></path><polyline points="7 10 12 15 17 10"></polyline></svg>
-            <span>Guardar Gasto</span>
-          </button>
-          <button type="button" onclick="cerrarModal()" 
-            class="flex-1 inline-flex items-center justify-center gap-3 bg-gray-800 text-white font-semibold py-3 lg:py-4 rounded-xl text-base lg:text-xl hover:bg-gray-700 transition-all">
-            <svg class="w-5 h-5 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            <span>Cancelar</span>
-          </button>
+              <label id="container-incluye-comision" class="hidden flex items-center cursor-pointer gap-2 group ml-0 sm:ml-4 border-l-0 sm:border-l-2 border-purple-200 pl-0 sm:pl-4">
+                <input type="checkbox" id="incluye-comision" 
+                  class="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer">
+                <div class="flex flex-col">
+                  <span class="text-sm font-medium text-gray-700 group-hover:text-purple-700 transition-colors">¿El monto YA incluye la comisión?</span>
+                  <span class="text-xs text-gray-500">Si marcas esto, se descontará del monto ingresado</span>
+                </div>
+              </label>
+          </div>
+
+          <!-- Fila 3: Notas -->
+          <div class="md:col-span-12">
+            <label class="block text-sm font-bold text-gray-700 mb-1.5">Notas / Observaciones</label>
+            <textarea id="observaciones" rows="2" 
+              class="w-full rounded-lg px-3 py-2.5 text-sm bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:bg-white resize-none"
+              placeholder="Detalles adicionales..."></textarea>
+          </div>
+          
+          <!-- Fila 4: Checkbox y Botones -->
+          <div class="md:col-span-12 flex flex-col md:flex-row items-center justify-between gap-4 pt-2 border-t border-gray-100 mt-2">
+            <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <label class="flex items-center cursor-pointer gap-2 group">
+                <input type="checkbox" id="comprobante" 
+                  class="w-5 h-5 rounded border-gray-300 text-sky-600 focus:ring-sky-500 cursor-pointer">
+                <span class="text-sm font-medium text-gray-700 group-hover:text-sky-700 transition-colors">Adjunté comprobante</span>
+              </label>
+              
+              <label class="flex items-center cursor-pointer gap-2 group">
+                <input type="checkbox" id="reembolsado" 
+                  class="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer">
+                <span class="text-sm font-medium text-gray-700 group-hover:text-green-700 transition-colors">✅ Reembolsado</span>
+              </label>
+            </div>
+
+            <div class="flex items-center gap-3 w-full md:w-auto">
+              <button type="button" onclick="cerrarModal()" 
+                class="flex-1 md:flex-none px-6 py-2.5 rounded-lg text-sm font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 transition-all border border-transparent">
+                Cancelar
+              </button>
+              <button type="submit" id="btn-guardar" 
+                class="flex-1 md:flex-none px-8 py-2.5 rounded-lg text-sm font-bold text-white bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                Guardar
+              </button>
+            </div>
+          </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL DETALLE GASTO ==================== -->
+  <div id="modal-detalle-gasto" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl transform transition-all scale-100 overflow-hidden">
+      <!-- Header -->
+      <div class="relative bg-gradient-to-r from-gray-50 to-white px-6 py-5 border-b border-gray-100">
+        <button onclick="cerrarModalDetalle()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:shadow-md transition-all z-10">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+        <h3 class="text-xl font-bold text-gray-800 pr-10">Detalle del Gasto</h3>
+      </div>
+      
+      <!-- Content -->
+      <div id="contenido-detalle-gasto" class="p-0">
+        <!-- Contenido dinámico aquí -->
+      </div>
     </div>
   </div>
 

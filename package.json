@@ -1,0 +1,13 @@
+{
+  "name": "gestor-gastos",
+  "version": "1.0.0",
+  "description": "Sistema de Control de Gastos - Administración",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server -p 8080 -c-1 -o",
+    "dev": "npx http-server -p 8080 -c-1 -o"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
