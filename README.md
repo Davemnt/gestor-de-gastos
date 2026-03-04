@@ -1,6 +1,10 @@
 #  Gestor de Gastos Corporativo
 
+**Copyright © 2026 Davemnt. Todos los derechos reservados.**
+
 Sistema profesional de gesti�n de gastos con control de presupuestos, autenticaci�n por PIN y monitoreo en tiempo real.
+
+> ⚖️ **AVISO LEGAL**: Este software es propiedad privada y está protegido por leyes de derechos de autor. El uso, copia, modificación o distribución no autorizados están prohibidos. Consulte el archivo [LICENSE](LICENSE) para más información.
 
 ## 🌐 Aplicaciones Desplegadas
 
@@ -352,15 +356,32 @@ Ver **SEGURIDAD.md** para m�s detalles.
 
 - **Documentaci�n**: Ver archivos .md en el proyecto
 - **Firebase Docs**: https://firebase.google.com/docs
+- **GitHub**: https://github.com/Davemnt/gestor-de-gastos
 
 ---
 
-##  Licencia
+## ⚖️ Propiedad Intelectual
 
-Este proyecto es de c�digo abierto y est� disponible bajo la licencia MIT.
+**Este software es propiedad privada y está completamente protegido.**
+
+### Derechos de Autor
+- **Copyright © 2026 Davemnt**
+- Todos los derechos reservados
+- Protegido por leyes de derechos de autor nacionales e internacionales
+
+### Licencia
+Este proyecto **NO es de código abierto**. Consulte el archivo [LICENSE](LICENSE) para los términos completos de uso.
+
+### Registro
+Para información sobre registro formal de propiedad intelectual, consulte:
+📄 [PROPIEDAD_INTELECTUAL.md](PROPIEDAD_INTELECTUAL.md)
+
+### Uso No Autorizado
+❌ Copia, modificación, distribución o uso comercial no autorizados están prohibidos  
+⚖️ Las violaciones serán perseguidas según la ley aplicable
 
 ---
 
-**Desarrollado con  para una gesti�n eficiente de gastos corporativos**
+**Desarrollado con  para una gestión eficiente de gastos corporativos**
 
-*Última actualización: Diciembre 1, 2025*
+*Última actualización: Marzo 4, 2026*

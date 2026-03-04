@@ -7,6 +7,14 @@ let categoriaPendientes = 'todos';
 let categoriaReportados = 'todos';
 let vistaHistorial = 'mes'; // 'mes', 'trimestre', 'anio'
 
+// ==================== FUNCIÓN HELPER PARA FECHAS ====================
+// Convierte una fecha en formato YYYY-MM-DD a Date object en hora local
+function parseFechaLocal(fechaString) {
+  if (!fechaString) return new Date();
+  const [year, month, day] = fechaString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
 // ==================== TEMA OSCURO / CLARO ====================
 function initTheme() {
   const savedTheme = localStorage.getItem('theme');
@@ -411,7 +419,7 @@ async function calcularGastos() {
 
     gastosSnapshot.forEach(doc => {
       const gasto = doc.data();
-      const fechaGasto = new Date(gasto.fecha);
+      const fechaGasto = parseFechaLocal(gasto.fecha);
       
       // Sumar para presupuesto y viáticos (todo el año)
       if (gasto.categoria === 'presupuesto') {
@@ -746,7 +754,7 @@ async function calcularEvolucionGastos(gastos) {
   // Acumular gastos por mes
   gastos.forEach(gasto => {
     if (gasto.fecha) {
-      const fecha = new Date(gasto.fecha);
+      const fecha = parseFechaLocal(gasto.fecha);
       const mes = fecha.getMonth();
       mesesGastos[mes] += gasto.monto || 0;
     }
@@ -1272,14 +1280,50 @@ async function toggleReembolso(id, nuevoEstado) {
 
 window.toggleReembolso = toggleReembolso;
 
+// Variable para trackear el botón de eliminar activo
+let botonEliminarActivo = null;
+let timeoutEliminar = null;
+let clickHandlerActivo = null;
+
+// Función para resetear el botón de eliminar
+function resetearBotonEliminar(btn) {
+  if (btn && btn.textContent.includes('Confirmar')) {
+    btn.innerHTML = '<span>🗑️</span> Eliminar';
+    btn.classList.remove('bg-orange-600', 'hover:bg-orange-700', 'text-white');
+    btn.classList.add('bg-red-900/40', 'text-red-400', 'hover:bg-red-900/60');
+    
+    // Remover el event listener si existe
+    if (clickHandlerActivo) {
+      document.removeEventListener('click', clickHandlerActivo);
+      clickHandlerActivo = null;
+    }
+  }
+}
+
 // Eliminar gasto (soft delete con fecha)
 async function eliminarGasto(id) {
   const btnEliminar = document.querySelector(`button[onclick="eliminarGasto('${id}')"]`);
   if (!btnEliminar) return;
+  
+  // Evitar que el click se propague
+  event.stopPropagation();
 
   if (btnEliminar.textContent.includes('Confirmar')) {
+    // Limpiar timeout y event listener
+    if (timeoutEliminar) {
+      clearTimeout(timeoutEliminar);
+      timeoutEliminar = null;
+    }
+    if (clickHandlerActivo) {
+      document.removeEventListener('click', clickHandlerActivo);
+      clickHandlerActivo = null;
+    }
+    
+    // Cambiar a rojo al confirmar
+    btnEliminar.classList.remove('bg-orange-600', 'hover:bg-orange-700');
+    btnEliminar.classList.add('bg-red-600', 'hover:bg-red-700', 'text-white');
     btnEliminar.disabled = true;
-    btnEliminar.textContent = 'Eliminando...';
+    btnEliminar.innerHTML = '<span>🗑️</span> Eliminando...';
 
     try {
       // Soft delete: marcar como eliminado en lugar de borrar
@@ -1289,27 +1333,66 @@ async function eliminarGasto(id) {
         eliminadoPor: usuarioActual
       });
       mostrarNotificacion('✅ Gasto eliminado correctamente', 'success');
+      botonEliminarActivo = null;
       await cargarGastosSeparados();
     } catch (error) {
       console.error('Error al eliminar gasto:', error);
       mostrarNotificacion('❌ Error al eliminar: ' + error.message, 'error');
       btnEliminar.disabled = false;
-      btnEliminar.textContent = '🗑️ Eliminar';
+      btnEliminar.innerHTML = '<span>🗑️</span> Eliminar';
+      btnEliminar.classList.remove('bg-red-600', 'hover:bg-red-700', 'text-white');
+      btnEliminar.classList.add('bg-red-900/40', 'text-red-400', 'hover:bg-red-900/60');
+      botonEliminarActivo = null;
     }
   } else {
-    btnEliminar.textContent = '✓ Confirmar';
-    btnEliminar.classList.remove('bg-red-600', 'hover:bg-red-700');
-    btnEliminar.classList.add('bg-orange-500', 'hover:bg-orange-600');
-
-    setTimeout(() => {
-      if (btnEliminar.textContent.includes('Confirmar')) {
-        btnEliminar.textContent = '🗑️ Eliminar';
-        btnEliminar.classList.remove('bg-orange-500', 'hover:bg-orange-600');
-        btnEliminar.classList.add('bg-red-600', 'hover:bg-red-700');
+    // Si hay otro botón activo, resetéarlo primero
+    if (botonEliminarActivo && botonEliminarActivo !== btnEliminar) {
+      resetearBotonEliminar(botonEliminarActivo);
+      if (timeoutEliminar) {
+        clearTimeout(timeoutEliminar);
+        timeoutEliminar = null;
       }
+    }
+    
+    // Cambiar a naranja para confirmar
+    btnEliminar.innerHTML = '<span>⚠️</span> Confirmar';
+    btnEliminar.classList.remove('bg-red-900/40', 'text-red-400', 'hover:bg-red-900/60');
+    btnEliminar.classList.add('bg-orange-600', 'hover:bg-orange-700', 'text-white');
+    botonEliminarActivo = btnEliminar;
+
+    // Timeout para resetear automáticamente después de 3 segundos
+    timeoutEliminar = setTimeout(() => {
+      if (btnEliminar && btnEliminar.textContent.includes('Confirmar')) {
+        resetearBotonEliminar(btnEliminar);
+        botonEliminarActivo = null;
+      }
+      timeoutEliminar = null;
     }, 3000);
+    
+    // Crear handler para clicks fuera del botón
+    clickHandlerActivo = function(e) {
+      // Si el click no fue en el botón de eliminar
+      if (!e.target.closest(`button[onclick*="eliminarGasto"]`)) {
+        resetearBotonEliminar(botonEliminarActivo);
+        botonEliminarActivo = null;
+        if (timeoutEliminar) {
+          clearTimeout(timeoutEliminar);
+          timeoutEliminar = null;
+        }
+        document.removeEventListener('click', clickHandlerActivo);
+        clickHandlerActivo = null;
+      }
+    };
+    
+    // Agregar el event listener después de un pequeño delay
+    setTimeout(() => {
+      document.addEventListener('click', clickHandlerActivo);
+    }, 100);
   }
 }
+
+// Exponer función globalmente
+window.eliminarGasto = eliminarGasto;
 
 // Resetear Total Gastado (eliminar gastos del trimestre actual)
 async function resetearTotalGastado() {
@@ -1339,7 +1422,7 @@ async function resetearTotalGastado() {
 
     gastosSnapshot.forEach(doc => {
       const gasto = doc.data();
-      const fechaGasto = new Date(gasto.fecha);
+      const fechaGasto = parseFechaLocal(gasto.fecha);
       
       if (fechaGasto >= inicioTrimestre && fechaGasto <= finTrimestre) {
         batch.update(doc.ref, {
@@ -1471,7 +1554,7 @@ async function cargarGastos() {
       return;
     }
     
-    const gastosSnapshot = await db.collection('gastos').orderBy('fechaCreacion', 'desc').get();
+    const gastosSnapshot = await db.collection('gastos').orderBy('fecha', 'desc').get();
     let gastos = [];
     
     gastosSnapshot.forEach(doc => {
@@ -1495,7 +1578,8 @@ async function cargarGastos() {
       console.log(`🔍 Filtrados por ${categoriaActual}: ${gastos.length} gastos`);
     }
 
-    renderGastos(gastos);
+    // Usar el nuevo sistema de gastos separados en lugar del antiguo
+    await cargarGastosSeparados();
   } catch (error) {
     console.error('❌ Error al cargar gastos:', error);
     mostrarNotificacion('❌ Error al cargar gastos: ' + error.message, 'error');
@@ -1507,7 +1591,7 @@ async function renderGastos(gastosArray = null) {
     let gastos = gastosArray;
     
     if (!gastos) {
-      const gastosSnapshot = await db.collection('gastos').orderBy('fechaCreacion', 'desc').get();
+      const gastosSnapshot = await db.collection('gastos').orderBy('fecha', 'desc').get();
       gastos = [];
       gastosSnapshot.forEach(doc => {
         gastos.push({ id: doc.id, ...doc.data() });
@@ -1515,6 +1599,12 @@ async function renderGastos(gastosArray = null) {
     }
 
     const container = document.getElementById('lista-gastos');
+    
+    // Verificar que el contenedor exista antes de intentar renderizar
+    if (!container) {
+      console.log('⚠️ El contenedor lista-gastos no existe. Usando sistema de gastos separados.');
+      return;
+    }
 
     if (gastos.length === 0) {
       container.innerHTML = `
@@ -1555,8 +1645,23 @@ function crearTarjetaGasto(gasto) {
     </div>
   ` : '';
 
+  // Verificar si el gasto está eliminado
+  const esEliminado = gasto.eliminado === true;
+  const claseEliminado = esEliminado ? 'opacity-60 border-red-500' : '';
+  const marcaEliminado = esEliminado ? '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-red-900 text-red-300 border border-red-700">🗑️ ELIMINADO</span>' : '';
+
   // Mostrar información de fechas de modificación/eliminación si existen
-  // ... (código existente omitido por brevedad en reemplazo)
+  let infoFechasHTML = '';
+  if (gasto.fechaModificacion || gasto.fechaEliminacion) {
+    infoFechasHTML = '<div class="mt-3 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs text-gray-500">';
+    if (gasto.fechaModificacion) {
+      infoFechasHTML += `<p>✏️ Modificado: ${gasto.fechaModificacion.toDate ? gasto.fechaModificacion.toDate().toLocaleDateString('es-ES') : 'N/A'}</p>`;
+    }
+    if (gasto.fechaEliminacion) {
+      infoFechasHTML += `<p>🗑️ Eliminado: ${gasto.fechaEliminacion.toDate ? gasto.fechaEliminacion.toDate().toLocaleDateString('es-ES') : 'N/A'} por ${gasto.eliminadoPor || 'Usuario'}</p>`;
+    }
+    infoFechasHTML += '</div>';
+  }
 
   // LOGICA DE VISUALIZACION DE MONTO CON COMISION
   let montoHtml = '';
@@ -2107,7 +2212,7 @@ async function cargarGastosSeparados() {
     
     // Obtener todos los gastos y filtrar en el cliente para evitar índice compuesto
     const gastosSnapshot = await db.collection('gastos')
-      .orderBy('fechaCreacion', 'desc')
+      .orderBy('fecha', 'desc')
       .get();
     let todosgastos = [];
     
@@ -2256,7 +2361,7 @@ function agruparPorMes(gastos) {
   const grupos = {};
   
   gastos.forEach(gasto => {
-    const fecha = new Date(gasto.fecha);
+    const fecha = parseFechaLocal(gasto.fecha);
     const mesAnio = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
     
     if (!grupos[mesAnio]) {
@@ -2279,7 +2384,7 @@ function agruparPorTrimestre(gastos) {
   const grupos = {};
   
   gastos.forEach(gasto => {
-    const fecha = new Date(gasto.fecha);
+    const fecha = parseFechaLocal(gasto.fecha);
     const anio = fecha.getFullYear();
     const mes = fecha.getMonth();
     const trimestre = Math.floor(mes / 3) + 1;
@@ -2307,7 +2412,7 @@ function agruparPorAnio(gastos) {
   const grupos = {};
   
   gastos.forEach(gasto => {
-    const fecha = new Date(gasto.fecha);
+    const fecha = parseFechaLocal(gasto.fecha);
     const anio = fecha.getFullYear().toString();
     
     if (!grupos[anio]) {
@@ -2448,7 +2553,7 @@ function crearTarjetaGastoPendiente(gasto) {
           
           <div class="flex items-center gap-3 text-xs text-gray-500 mt-2">
             <span class="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-              📅 ${new Date(gasto.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+              📅 ${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
             </span>
              ${gasto.observaciones ? `<span class="italic text-gray-400 max-w-[150px] truncate">📝 ${gasto.observaciones}</span>` : ''}
           </div>
@@ -2549,7 +2654,7 @@ function crearTarjetaGastoReportado(gasto) {
         <div class="flex flex-col gap-1">
           <span class="text-[10px] text-gray-600 flex items-center gap-1">
             <span>📅</span>
-            <span>${new Date(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+            <span>${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
           </span>
           <div class="text-[9px]">${comprobanteIcon}</div>
           <div class="text-[9px]">${reembolsoIcon}</div>
@@ -2637,7 +2742,7 @@ function mostrarDetalleGasto(gasto) {
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
   
   // Formatear fecha
-  const fecha = new Date(gasto.fecha).toLocaleDateString('es-ES', { 
+  const fecha = parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { 
     weekday: 'long', 
     year: 'numeric', 
     month: 'long', 

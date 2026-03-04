@@ -2257,7 +2257,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Establecer fecha actual
   const fechaInput = document.getElementById('fecha');
   if (fechaInput) {
-    fechaInput.valueAsDate = new Date();
+    const now = new Date();
+    const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    fechaInput.value = localDate;
   }
 
   // Configurar drag and drop
@@ -2320,16 +2322,18 @@ function setupMainButtons() {
     btnNuevoGasto.addEventListener('click', () => {
       document.getElementById('modal-gasto').classList.remove('hidden');
       // Establecer fecha actual por defecto
-      const hoy = new Date().toISOString().split('T')[0];
-      document.getElementById('fecha').value = hoy;
+      const now = new Date();
+      const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      document.getElementById('fecha').value = localDate;
     });
   }
 
   if (btnNuevoGastoMobile) {
     btnNuevoGastoMobile.addEventListener('click', () => {
       document.getElementById('modal-gasto').classList.remove('hidden');
-      const hoy = new Date().toISOString().split('T')[0];
-      document.getElementById('fecha').value = hoy;
+      const now = new Date();
+      const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+      document.getElementById('fecha').value = localDate;
     });
   }
 
@@ -2403,7 +2407,9 @@ function cerrarModal() {
   `;
   
   // Establecer fecha actual
-  document.getElementById('fecha').valueAsDate = new Date();
+  const now = new Date();
+  const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+  document.getElementById('fecha').value = localDate;
 }
 
 function cerrarModalAdmin() {

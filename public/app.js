@@ -1,3 +1,13 @@
+/**
+ * GESTOR DE GASTOS CORPORATIVO
+ * Copyright (c) 2026 Davemnt. Todos los derechos reservados.
+ * 
+ * Este código es propiedad privada y está protegido por leyes de derechos de autor.
+ * Uso no autorizado, copia, modificación o distribución están estrictamente prohibidos.
+ * 
+ * Para licencias o permisos: https://github.com/Davemnt/gestor-de-gastos
+ */
+
 // ==================== INICIALIZACIÓN DE FIREBASE ====================
 let db, storage, usuarioActual = null, esAdmin = false, categoriaActual = 'todos', estadoActual = 'todos';
 let editandoGastoId = null; // ID del gasto que se está editando
@@ -6,6 +16,14 @@ let editandoGastoId = null; // ID del gasto que se está editando
 let categoriaPendientes = 'todos';
 let categoriaReportados = 'todos';
 let vistaHistorial = 'mes'; // 'mes', 'trimestre', 'anio'
+
+// ==================== FUNCIÓN HELPER PARA FECHAS ====================
+// Convierte una fecha en formato YYYY-MM-DD a Date object en hora local
+function parseFechaLocal(fechaString) {
+  if (!fechaString) return new Date();
+  const [year, month, day] = fechaString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
 
 // ==================== TEMA OSCURO / CLARO ====================
 function initTheme() {
@@ -411,7 +429,7 @@ async function calcularGastos() {
 
     gastosSnapshot.forEach(doc => {
       const gasto = doc.data();
-      const fechaGasto = new Date(gasto.fecha);
+      const fechaGasto = parseFechaLocal(gasto.fecha);
       
       // Sumar para presupuesto y viáticos (todo el año)
       if (gasto.categoria === 'presupuesto') {
@@ -746,7 +764,7 @@ async function calcularEvolucionGastos(gastos) {
   // Acumular gastos por mes
   gastos.forEach(gasto => {
     if (gasto.fecha) {
-      const fecha = new Date(gasto.fecha);
+      const fecha = parseFechaLocal(gasto.fecha);
       const mes = fecha.getMonth();
       mesesGastos[mes] += gasto.monto || 0;
     }
@@ -1272,14 +1290,50 @@ async function toggleReembolso(id, nuevoEstado) {
 
 window.toggleReembolso = toggleReembolso;
 
+// Variable para trackear el botón de eliminar activo
+let botonEliminarActivo = null;
+let timeoutEliminar = null;
+let clickHandlerActivo = null;
+
+// Función para resetear el botón de eliminar
+function resetearBotonEliminar(btn) {
+  if (btn && btn.textContent.includes('Confirmar')) {
+    btn.innerHTML = '<span>🗑️</span> Eliminar';
+    btn.classList.remove('bg-orange-600', 'hover:bg-orange-700', 'text-white');
+    btn.classList.add('bg-red-900/40', 'text-red-400', 'hover:bg-red-900/60');
+    
+    // Remover el event listener si existe
+    if (clickHandlerActivo) {
+      document.removeEventListener('click', clickHandlerActivo);
+      clickHandlerActivo = null;
+    }
+  }
+}
+
 // Eliminar gasto (soft delete con fecha)
 async function eliminarGasto(id) {
   const btnEliminar = document.querySelector(`button[onclick="eliminarGasto('${id}')"]`);
   if (!btnEliminar) return;
+  
+  // Evitar que el click se propague
+  event.stopPropagation();
 
   if (btnEliminar.textContent.includes('Confirmar')) {
+    // Limpiar timeout y event listener
+    if (timeoutEliminar) {
+      clearTimeout(timeoutEliminar);
+      timeoutEliminar = null;
+    }
+    if (clickHandlerActivo) {
+      document.removeEventListener('click', clickHandlerActivo);
+      clickHandlerActivo = null;
+    }
+    
+    // Cambiar a rojo al confirmar
+    btnEliminar.classList.remove('bg-orange-600', 'hover:bg-orange-700');
+    btnEliminar.classList.add('bg-red-600', 'hover:bg-red-700', 'text-white');
     btnEliminar.disabled = true;
-    btnEliminar.textContent = 'Eliminando...';
+    btnEliminar.innerHTML = '<span>🗑️</span> Eliminando...';
 
     try {
       // Soft delete: marcar como eliminado en lugar de borrar
@@ -1289,27 +1343,66 @@ async function eliminarGasto(id) {
         eliminadoPor: usuarioActual
       });
       mostrarNotificacion('✅ Gasto eliminado correctamente', 'success');
+      botonEliminarActivo = null;
       await cargarGastosSeparados();
     } catch (error) {
       console.error('Error al eliminar gasto:', error);
       mostrarNotificacion('❌ Error al eliminar: ' + error.message, 'error');
       btnEliminar.disabled = false;
-      btnEliminar.textContent = '🗑️ Eliminar';
+      btnEliminar.innerHTML = '<span>🗑️</span> Eliminar';
+      btnEliminar.classList.remove('bg-red-600', 'hover:bg-red-700', 'text-white');
+      btnEliminar.classList.add('bg-red-900/40', 'text-red-400', 'hover:bg-red-900/60');
+      botonEliminarActivo = null;
     }
   } else {
-    btnEliminar.textContent = '✓ Confirmar';
-    btnEliminar.classList.remove('bg-red-600', 'hover:bg-red-700');
-    btnEliminar.classList.add('bg-orange-500', 'hover:bg-orange-600');
-
-    setTimeout(() => {
-      if (btnEliminar.textContent.includes('Confirmar')) {
-        btnEliminar.textContent = '🗑️ Eliminar';
-        btnEliminar.classList.remove('bg-orange-500', 'hover:bg-orange-600');
-        btnEliminar.classList.add('bg-red-600', 'hover:bg-red-700');
+    // Si hay otro botón activo, resetéarlo primero
+    if (botonEliminarActivo && botonEliminarActivo !== btnEliminar) {
+      resetearBotonEliminar(botonEliminarActivo);
+      if (timeoutEliminar) {
+        clearTimeout(timeoutEliminar);
+        timeoutEliminar = null;
       }
+    }
+    
+    // Cambiar a naranja para confirmar
+    btnEliminar.innerHTML = '<span>⚠️</span> Confirmar';
+    btnEliminar.classList.remove('bg-red-900/40', 'text-red-400', 'hover:bg-red-900/60');
+    btnEliminar.classList.add('bg-orange-600', 'hover:bg-orange-700', 'text-white');
+    botonEliminarActivo = btnEliminar;
+
+    // Timeout para resetear automáticamente después de 3 segundos
+    timeoutEliminar = setTimeout(() => {
+      if (btnEliminar && btnEliminar.textContent.includes('Confirmar')) {
+        resetearBotonEliminar(btnEliminar);
+        botonEliminarActivo = null;
+      }
+      timeoutEliminar = null;
     }, 3000);
+    
+    // Crear handler para clicks fuera del botón
+    clickHandlerActivo = function(e) {
+      // Si el click no fue en el botón de eliminar
+      if (!e.target.closest(`button[onclick*="eliminarGasto"]`)) {
+        resetearBotonEliminar(botonEliminarActivo);
+        botonEliminarActivo = null;
+        if (timeoutEliminar) {
+          clearTimeout(timeoutEliminar);
+          timeoutEliminar = null;
+        }
+        document.removeEventListener('click', clickHandlerActivo);
+        clickHandlerActivo = null;
+      }
+    };
+    
+    // Agregar el event listener después de un pequeño delay
+    setTimeout(() => {
+      document.addEventListener('click', clickHandlerActivo);
+    }, 100);
   }
 }
+
+// Exponer función globalmente
+window.eliminarGasto = eliminarGasto;
 
 // Resetear Total Gastado (eliminar gastos del trimestre actual)
 async function resetearTotalGastado() {
@@ -1339,7 +1432,7 @@ async function resetearTotalGastado() {
 
     gastosSnapshot.forEach(doc => {
       const gasto = doc.data();
-      const fechaGasto = new Date(gasto.fecha);
+      const fechaGasto = parseFechaLocal(gasto.fecha);
       
       if (fechaGasto >= inicioTrimestre && fechaGasto <= finTrimestre) {
         batch.update(doc.ref, {
@@ -1471,7 +1564,7 @@ async function cargarGastos() {
       return;
     }
     
-    const gastosSnapshot = await db.collection('gastos').orderBy('fechaCreacion', 'desc').get();
+    const gastosSnapshot = await db.collection('gastos').orderBy('fecha', 'desc').get();
     let gastos = [];
     
     gastosSnapshot.forEach(doc => {
@@ -1495,7 +1588,8 @@ async function cargarGastos() {
       console.log(`🔍 Filtrados por ${categoriaActual}: ${gastos.length} gastos`);
     }
 
-    renderGastos(gastos);
+    // Usar el nuevo sistema de gastos separados en lugar del antiguo
+    await cargarGastosSeparados();
   } catch (error) {
     console.error('❌ Error al cargar gastos:', error);
     mostrarNotificacion('❌ Error al cargar gastos: ' + error.message, 'error');
@@ -1507,7 +1601,7 @@ async function renderGastos(gastosArray = null) {
     let gastos = gastosArray;
     
     if (!gastos) {
-      const gastosSnapshot = await db.collection('gastos').orderBy('fechaCreacion', 'desc').get();
+      const gastosSnapshot = await db.collection('gastos').orderBy('fecha', 'desc').get();
       gastos = [];
       gastosSnapshot.forEach(doc => {
         gastos.push({ id: doc.id, ...doc.data() });
@@ -1515,6 +1609,12 @@ async function renderGastos(gastosArray = null) {
     }
 
     const container = document.getElementById('lista-gastos');
+    
+    // Verificar que el contenedor exista antes de intentar renderizar
+    if (!container) {
+      console.log('⚠️ El contenedor lista-gastos no existe. Usando sistema de gastos separados.');
+      return;
+    }
 
     if (gastos.length === 0) {
       container.innerHTML = `
@@ -1555,8 +1655,23 @@ function crearTarjetaGasto(gasto) {
     </div>
   ` : '';
 
+  // Verificar si el gasto está eliminado
+  const esEliminado = gasto.eliminado === true;
+  const claseEliminado = esEliminado ? 'opacity-60 border-red-500' : '';
+  const marcaEliminado = esEliminado ? '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-red-900 text-red-300 border border-red-700">🗑️ ELIMINADO</span>' : '';
+
   // Mostrar información de fechas de modificación/eliminación si existen
-  // ... (código existente omitido por brevedad en reemplazo)
+  let infoFechasHTML = '';
+  if (gasto.fechaModificacion || gasto.fechaEliminacion) {
+    infoFechasHTML = '<div class="mt-3 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs text-gray-500">';
+    if (gasto.fechaModificacion) {
+      infoFechasHTML += `<p>✏️ Modificado: ${gasto.fechaModificacion.toDate ? gasto.fechaModificacion.toDate().toLocaleDateString('es-ES') : 'N/A'}</p>`;
+    }
+    if (gasto.fechaEliminacion) {
+      infoFechasHTML += `<p>🗑️ Eliminado: ${gasto.fechaEliminacion.toDate ? gasto.fechaEliminacion.toDate().toLocaleDateString('es-ES') : 'N/A'} por ${gasto.eliminadoPor || 'Usuario'}</p>`;
+    }
+    infoFechasHTML += '</div>';
+  }
 
   // LOGICA DE VISUALIZACION DE MONTO CON COMISION
   let montoHtml = '';
@@ -2107,7 +2222,7 @@ async function cargarGastosSeparados() {
     
     // Obtener todos los gastos y filtrar en el cliente para evitar índice compuesto
     const gastosSnapshot = await db.collection('gastos')
-      .orderBy('fechaCreacion', 'desc')
+      .orderBy('fecha', 'desc')
       .get();
     let todosgastos = [];
     
@@ -2256,7 +2371,7 @@ function agruparPorMes(gastos) {
   const grupos = {};
   
   gastos.forEach(gasto => {
-    const fecha = new Date(gasto.fecha);
+    const fecha = parseFechaLocal(gasto.fecha);
     const mesAnio = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
     
     if (!grupos[mesAnio]) {
@@ -2279,7 +2394,7 @@ function agruparPorTrimestre(gastos) {
   const grupos = {};
   
   gastos.forEach(gasto => {
-    const fecha = new Date(gasto.fecha);
+    const fecha = parseFechaLocal(gasto.fecha);
     const anio = fecha.getFullYear();
     const mes = fecha.getMonth();
     const trimestre = Math.floor(mes / 3) + 1;
@@ -2307,7 +2422,7 @@ function agruparPorAnio(gastos) {
   const grupos = {};
   
   gastos.forEach(gasto => {
-    const fecha = new Date(gasto.fecha);
+    const fecha = parseFechaLocal(gasto.fecha);
     const anio = fecha.getFullYear().toString();
     
     if (!grupos[anio]) {
@@ -2398,13 +2513,18 @@ function crearTarjetaGastoPendiente(gasto) {
     </label>
   `;
 
-  // Botón de Reembolso
+  // Botón de Reembolso con fecha
+  let fechaReembolsoText = '';
+  if (gasto.reembolsado && gasto.fechaReembolso) {
+    const fechaReemb = gasto.fechaReembolso.toDate ? gasto.fechaReembolso.toDate() : new Date(gasto.fechaReembolso);
+    fechaReembolsoText = ` el ${fechaReemb.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`;
+  }
   const reembolsoBtn = `
     <button onclick="toggleReembolso('${gasto.id}', ${!gasto.reembolsado})" 
       class="w-full sm:w-auto justify-center ${gasto.reembolsado ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-700 border-orange-200'} border px-3 py-2 rounded-lg transition-all flex items-center gap-2 text-xs font-semibold shadow-sm hover:shadow-md" 
       title="${gasto.reembolsado ? 'Marcar como NO reembolsado' : 'Marcar como reembolsado'}">
       ${gasto.reembolsado ? '<span class="text-sm">✅</span>' : '<span class="text-sm">⏳</span>'}
-      <span>${gasto.reembolsado ? 'Reembolsado' : 'Pendiente'}</span>
+      <span>${gasto.reembolsado ? 'Reembolsado' : 'Pendiente'}${fechaReembolsoText}</span>
     </button>
   `;
 
@@ -2448,7 +2568,7 @@ function crearTarjetaGastoPendiente(gasto) {
           
           <div class="flex items-center gap-3 text-xs text-gray-500 mt-2">
             <span class="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-              📅 ${new Date(gasto.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+              📅 ${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
             </span>
              ${gasto.observaciones ? `<span class="italic text-gray-400 max-w-[150px] truncate">📝 ${gasto.observaciones}</span>` : ''}
           </div>
@@ -2496,9 +2616,18 @@ function crearTarjetaGastoReportado(gasto) {
     ? '<span class="text-green-600 text-xs lg:text-sm font-semibold">✓ Comprobante</span>' 
     : '<span class="text-red-600 text-xs lg:text-sm font-semibold">✗ Sin comprobante</span>';
 
+  // Reembolso con fecha
+  let reembolsoText = '⏳ Pendiente';
+  if (gasto.reembolsado) {
+    reembolsoText = '✅ Reembolsado';
+    if (gasto.fechaReembolso) {
+      const fechaReemb = gasto.fechaReembolso.toDate ? gasto.fechaReembolso.toDate() : new Date(gasto.fechaReembolso);
+      reembolsoText += ` (${fechaReemb.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })})`;
+    }
+  }
   const reembolsoIcon = gasto.reembolsado
-    ? '<span class="text-green-600 text-xs lg:text-sm font-semibold flex items-center gap-1">✅ Reembolsado</span>'
-    : '<span class="text-orange-600 text-xs lg:text-sm font-semibold flex items-center gap-1">⏳ Pendiente</span>';
+    ? `<span class="text-green-600 text-xs lg:text-sm font-semibold flex items-center gap-1">${reembolsoText}</span>`
+    : `<span class="text-orange-600 text-xs lg:text-sm font-semibold flex items-center gap-1">${reembolsoText}</span>`;
 
   const editarBtn = esAdmin ? `
     <button onclick="editarGasto('${gasto.id}')"  
@@ -2521,7 +2650,7 @@ function crearTarjetaGastoReportado(gasto) {
       <!-- Header con badges -->
       <div class="flex flex-wrap items-center gap-1.5 mb-2">
         <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 flex-shrink-0">
-          ✅ REPORTADO
+          ✅ REPORTADO${gasto.fechaRegistro ? ` (${(gasto.fechaRegistro.toDate ? gasto.fechaRegistro.toDate() : new Date(gasto.fechaRegistro)).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })})` : ''}
         </span>
         <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-100 text-${cat.color}-800 flex-shrink-0">
           ${cat.emoji} ${cat.label}
@@ -2549,7 +2678,7 @@ function crearTarjetaGastoReportado(gasto) {
         <div class="flex flex-col gap-1">
           <span class="text-[10px] text-gray-600 flex items-center gap-1">
             <span>📅</span>
-            <span>${new Date(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+            <span>${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
           </span>
           <div class="text-[9px]">${comprobanteIcon}</div>
           <div class="text-[9px]">${reembolsoIcon}</div>
@@ -2637,7 +2766,7 @@ function mostrarDetalleGasto(gasto) {
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
   
   // Formatear fecha
-  const fecha = new Date(gasto.fecha).toLocaleDateString('es-ES', { 
+  const fecha = parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { 
     weekday: 'long', 
     year: 'numeric', 
     month: 'long', 
@@ -2703,6 +2832,240 @@ function cerrarModalDetalle() {
   const modal = document.getElementById('modal-detalle-gasto');
   if (modal) modal.classList.add('hidden');
 }
+
+// ==================== GESTIÓN DE COMISIONES DE MERCADOLIBRE ====================
+// v1.0 - Panel de gestión de comisiones
+
+// Abrir modal de comisiones
+function mostrarModalComisiones() {
+  console.log('🔍 Abriendo modal de comisiones...');
+  const modal = document.getElementById('modal-comisiones');
+  if (modal) {
+    modal.classList.remove('hidden');
+    cargarComisiones();
+    console.log('✅ Modal de comisiones abierto');
+  } else {
+    console.error('❌ No se encontró el modal de comisiones');
+  }
+}
+
+// Cerrar modal de comisiones
+function cerrarModalComisiones() {
+  const modal = document.getElementById('modal-comisiones');
+  if (modal) modal.classList.add('hidden');
+}
+
+// Cargar comisiones desde Firebase
+async function cargarComisiones() {
+  console.log('📥 Cargando comisiones desde Firebase...');
+  try {
+    // Obtener todos los gastos y filtrar los que tienen comisión y NO están eliminados
+    const snapshot = await db.collection('gastos')
+      .orderBy('fecha', 'desc')
+      .get();
+
+    const comisiones = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(gasto => {
+        // Filtrar: debe tener comisión > 0 Y no estar eliminado
+        return gasto.comision && gasto.comision > 0 && !gasto.eliminado;
+      })
+      .sort((a, b) => {
+        // Ordenar por fecha descendente (más reciente primero)
+        const fechaA = parseFechaLocal(a.fecha);
+        const fechaB = parseFechaLocal(b.fecha);
+        return fechaB - fechaA;
+      });
+
+    console.log(`✅ Comisiones cargadas: ${comisiones.length}`);
+    renderComisiones(comisiones);
+    actualizarResumenComisiones(comisiones);
+
+  } catch (error) {
+    console.error('❌ Error al cargar comisiones:', error);
+    mostrarNotificacion('❌ Error al cargar las comisiones: ' + error.message, 'error');
+  }
+}
+
+// Renderizar lista de comisiones
+function renderComisiones(comisiones) {
+  const lista = document.getElementById('lista-comisiones');
+  
+  if (!lista) return;
+
+  if (comisiones.length === 0) {
+    lista.innerHTML = `
+      <div class="text-center modal-comisiones-empty py-8">
+        <span class="text-4xl mb-2 block">💳</span>
+        <p class="text-sm mb-1 font-medium">No hay comisiones registradas</p>
+        <p class="text-xs">Las comisiones de MercadoLibre aparecerán aquí</p>
+      </div>
+    `;
+    return;
+  }
+
+  lista.innerHTML = comisiones.map(comision => {
+    const fecha = parseFechaLocal(comision.fecha).toLocaleDateString('es-ES', { 
+      day: 'numeric', 
+      month: 'short',
+      year: 'numeric'
+    });
+
+    const informada = comision.comisionInformada || false;
+    const fechaInformada = comision.fechaComisionInformada 
+      ? (comision.fechaComisionInformada.toDate ? comision.fechaComisionInformada.toDate() : new Date(comision.fechaComisionInformada)).toLocaleDateString('es-ES', { 
+          day: 'numeric', 
+          month: 'short' 
+        })
+      : '';
+
+    return `
+      <div class="comision-item ${informada ? 'comision-item-informada' : ''} rounded-xl p-4 hover:shadow-md transition-all">
+        <div class="flex items-start gap-4">
+          ${!informada ? `
+            <input type="checkbox" 
+              class="comision-checkbox mt-1 w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 cursor-pointer" 
+              data-comision-id="${comision.id}"
+              data-comision-monto="${comision.comision}">
+          ` : `
+            <div class="mt-1 w-5 h-5 bg-green-500 rounded flex items-center justify-center">
+              <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+              </svg>
+            </div>
+          `}
+          
+          <div class="flex-1">
+            <div class="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <h4 class="comision-item-title text-sm font-bold mb-1">${comision.descripcion}</h4>
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                  <span class="flex items-center gap-1 comision-item-date">
+                    📅 ${fecha}
+                  </span>
+                  ${comision.organizacion ? `
+                    <span class="flex items-center gap-1 comision-item-date">
+                      🏢 ${comision.organizacion}
+                    </span>
+                  ` : ''}
+                </div>
+              </div>
+              <div class="text-right flex-shrink-0">
+                <p class="text-base font-bold text-purple-600 comision-item-amount">$${comision.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+                <p class="text-xs comision-item-label">Comisión ML</p>
+              </div>
+            </div>
+
+            ${comision.observaciones ? `
+              <p class="comision-item-note text-xs italic mt-2 p-2 rounded border-l-2">
+                📝 ${comision.observaciones}
+              </p>
+            ` : ''}
+
+            <div class="flex items-center gap-2 mt-3 pt-3 comision-item-footer">
+              <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold comision-badge ${
+                informada 
+                  ? 'comision-badge-informada' 
+                  : 'comision-badge-pendiente'
+              }">
+                ${informada ? '✅ Informada' : '⏳ Pendiente'}
+                ${informada && fechaInformada ? ` el ${fechaInformada}` : ''}
+              </span>
+              ${comision.monto ? `
+                <span class="text-xs comision-item-gasto-label">
+                  Gasto: $${comision.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}
+                </span>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Actualizar resumen de comisiones
+function actualizarResumenComisiones(comisiones) {
+  const total = comisiones.reduce((sum, c) => sum + (c.comision || 0), 0);
+  const pendientes = comisiones.filter(c => !c.comisionInformada);
+  const totalPendientes = pendientes.reduce((sum, c) => sum + (c.comision || 0), 0);
+  const informadas = comisiones.filter(c => c.comisionInformada);
+  const totalInformadas = informadas.reduce((sum, c) => sum + (c.comision || 0), 0);
+
+  const elemTotal = document.getElementById('total-comisiones');
+  const elemPendientes = document.getElementById('total-comisiones-pendientes');
+  const elemInformadas = document.getElementById('total-comisiones-informadas');
+
+  if (elemTotal) elemTotal.textContent = `$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+  if (elemPendientes) elemPendientes.textContent = `$${totalPendientes.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+  if (elemInformadas) elemInformadas.textContent = `$${totalInformadas.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+}
+
+// Seleccionar todas las comisiones pendientes
+function seleccionarTodasComisiones() {
+  const checkboxes = document.querySelectorAll('.comision-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = true;
+  });
+}
+
+// Deseleccionar todas las comisiones
+function deseleccionarTodasComisiones() {
+  const checkboxes = document.querySelectorAll('.comision-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = false;
+  });
+}
+
+// Marcar comisiones seleccionadas como informadas
+async function marcarComisionesComoInformadas() {
+  const checkboxes = document.querySelectorAll('.comision-checkbox:checked');
+  
+  if (checkboxes.length === 0) {
+    mostrarNotificacion('⚠️ Selecciona al menos una comisión para marcar como informada', 'warning');
+    return;
+  }
+
+  if (!confirm(`¿Marcar ${checkboxes.length} comisión(es) como informadas?`)) {
+    return;
+  }
+
+  try {
+    const batch = db.batch();
+    const ahora = firebase.firestore.FieldValue.serverTimestamp();
+
+    checkboxes.forEach(checkbox => {
+      const id = checkbox.getAttribute('data-comision-id');
+      const ref = db.collection('gastos').doc(id);
+      batch.update(ref, {
+        comisionInformada: true,
+        fechaComisionInformada: ahora,
+        informadaPor: usuarioActual
+      });
+    });
+
+    await batch.commit();
+    
+    mostrarNotificacion(`✅ ${checkboxes.length} comisión(es) marcadas como informadas`, 'success');
+    
+    // Recargar comisiones
+    await cargarComisiones();
+
+  } catch (error) {
+    console.error('Error al marcar comisiones:', error);
+    mostrarNotificacion('❌ Error al marcar las comisiones: ' + error.message, 'error');
+  }
+}
+
+// Exponer funciones globalmente
+window.mostrarModalComisiones = mostrarModalComisiones;
+window.cerrarModalComisiones = cerrarModalComisiones;
+window.seleccionarTodasComisiones = seleccionarTodasComisiones;
+window.deseleccionarTodasComisiones = deseleccionarTodasComisiones;
+window.marcarComisionesComoInformadas = marcarComisionesComoInformadas;
 
 // La función cargarGastos() ahora usa el sistema separado
 // Se mantiene la referencia original para compatibilidad
