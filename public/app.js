@@ -1,21 +1,99 @@
-/**
- * GESTOR DE GASTOS CORPORATIVO
- * Copyright (c) 2026 Davemnt. Todos los derechos reservados.
- * 
- * Este código es propiedad privada y está protegido por leyes de derechos de autor.
- * Uso no autorizado, copia, modificación o distribución están estrictamente prohibidos.
- * 
- * Para licencias o permisos: https://github.com/Davemnt/gestor-de-gastos
- */
-
 // ==================== INICIALIZACIÓN DE FIREBASE ====================
 let db, storage, usuarioActual = null, esAdmin = false, categoriaActual = 'todos', estadoActual = 'todos';
 let editandoGastoId = null; // ID del gasto que se está editando
+let gastoActualDetalle = null; // Gasto que se está visualizando en el modal de detalle
 
 // Variables globales para sistema de separación de gastos
 let categoriaPendientes = 'todos';
 let categoriaReportados = 'todos';
 let vistaHistorial = 'mes'; // 'mes', 'trimestre', 'anio'
+let pestanaComisionActiva = 'pendientes'; // Para el modal de comisiones
+
+// Organizaciones externas que no afectan presupuesto ni viáticos
+const ORGANIZACIONES_EXTERNAS = ['meetup', 'pfj', 'area'];
+
+// ==================== GESTIÓN DE INACTIVIDAD ====================
+let tiempoInactividad = null;
+const TIEMPO_INACTIVIDAD_MS = 10 * 60 * 1000; // 10 minutos de inactividad
+
+function resetearTiempoInactividad() {
+  if (tiempoInactividad) {
+    clearTimeout(tiempoInactividad);
+  }
+  
+  // Solo configurar el timeout si hay un usuario activo
+  if (usuarioActual) {
+    tiempoInactividad = setTimeout(() => {
+      console.log('⏱️ Sesión cerrada por inactividad');
+      alert('Tu sesión ha expirado por inactividad. Serás redirigido al inicio de sesión.');
+      cerrarSesion();
+    }, TIEMPO_INACTIVIDAD_MS);
+  }
+}
+
+// Eventos que resetean el temporizador de inactividad
+function configurarDeteccionInactividad() {
+  const eventos = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+  eventos.forEach(evento => {
+    document.addEventListener(evento, resetearTiempoInactividad, true);
+  });
+}
+
+// Función para cerrar sesión (puede ser llamada desde el timeout o manualmente)
+function cerrarSesion() {
+  esAdmin = false;
+  usuarioActual = null;
+  categoriaActual = 'todos';
+  
+  // Limpiar timeout de inactividad
+  if (tiempoInactividad) {
+    clearTimeout(tiempoInactividad);
+    tiempoInactividad = null;
+  }
+  
+  // Limpiar sesión del localStorage
+  localStorage.removeItem('sesionActiva');
+  localStorage.removeItem('esAdmin');
+  localStorage.removeItem('usuarioActual');
+  
+  // Resetear UI
+  document.getElementById('pin-screen').classList.remove('hidden');
+  document.getElementById('pin-input').value = '';
+  document.getElementById('btn-panel-admin')?.classList.add('hidden');
+  const btnAdminMobile = document.getElementById('btn-panel-admin-mobile');
+  if (btnAdminMobile) btnAdminMobile.classList.add('hidden');
+  document.getElementById('user-role-badge').innerHTML = '';
+  
+  // Resetear botón de login
+  const loginBtn = document.getElementById('login-btn');
+  if (loginBtn) {
+    loginBtn.innerHTML = '🔑 Verificar PIN';
+    loginBtn.disabled = false;
+  }
+  
+  // Limpiar listas
+  const listaGastos = document.getElementById('lista-gastos');
+  if (listaGastos) listaGastos.innerHTML = '';
+  
+  mostrarNotificacion('👋 Sesión cerrada', 'success');
+}
+
+// ==================== PERSISTENCIA DE ACORDEONES ====================
+function guardarEstadoAcordeon(acordeonId, estaExpandido) {
+  const estadosGuardados = JSON.parse(localStorage.getItem('estadosAcordeon') || '{}');
+  estadosGuardados[acordeonId] = estaExpandido;
+  localStorage.setItem('estadosAcordeon', JSON.stringify(estadosGuardados));
+}
+
+function obtenerEstadoAcordeon(acordeonId) {
+  const estadosGuardados = JSON.parse(localStorage.getItem('estadosAcordeon') || '{}');
+  // Por defecto, los acordeones están colapsados (false)
+  return estadosGuardados[acordeonId] === true;
+}
+
+function limpiarEstadosAcordeon() {
+  localStorage.removeItem('estadosAcordeon');
+}
 
 // ==================== FUNCIÓN HELPER PARA FECHAS ====================
 // Convierte una fecha en formato YYYY-MM-DD a Date object en hora local
@@ -90,6 +168,472 @@ window.addEventListener('pagehide', () => {
   localStorage.removeItem('usuarioActual');
 });
 
+// ==================== SISTEMA DE BÚSQUEDA Y FILTROS AVANZADOS ====================
+
+// Estado de filtros
+let filtrosActivos = {
+  texto: '',
+  fechaDesde: '',
+  fechaHasta: '',
+  categoria: '',
+  estado: '',
+  organizacion: ''
+};
+
+let gastosOriginales = []; // Cache de todos los gastos
+let gastosFiltrados = []; // Gastos después de aplicar filtros
+
+// Abrir modal de búsqueda avanzada
+function abrirBusquedaAvanzada() {
+  const modal = document.getElementById('modal-busqueda-avanzada');
+  if (modal) {
+    modal.classList.remove('hidden');
+    // Limpiar filtros previos al abrir
+    limpiarFiltros();
+  }
+}
+
+// Cerrar modal de búsqueda avanzada
+function cerrarBusquedaAvanzada() {
+  const modal = document.getElementById('modal-busqueda-avanzada');
+  if (modal) {
+    modal.classList.add('hidden');
+    // Limpiar filtros al cerrar
+    limpiarFiltros();
+  }
+}
+
+// Aplicar búsqueda avanzada
+async function aplicarBusquedaAvanzada() {
+  try {
+    // Leer valores de los filtros
+    filtrosActivos = {
+      texto: document.getElementById('busqueda-texto')?.value?.toLowerCase() || '',
+      fechaDesde: document.getElementById('filtro-fecha-desde')?.value || '',
+      fechaHasta: document.getElementById('filtro-fecha-hasta')?.value || '',
+      categoria: document.getElementById('filtro-categoria-avanzado')?.value || '',
+      estado: document.getElementById('filtro-estado-avanzado')?.value || '',
+      organizacion: document.getElementById('filtro-organizacion')?.value || ''
+    };
+
+    // Si no hay filtros activos, ocultar resultados
+    const hayFiltros = Object.values(filtrosActivos).some(v => v !== '');
+    
+    if (!hayFiltros) {
+      document.getElementById('resultados-busqueda-avanzada').classList.add('hidden');
+      actualizarChipsFiltros();
+      return;
+    }
+
+    // Obtener todos los gastos si no están en cache
+    if (gastosOriginales.length === 0) {
+      const gastosSnapshot = await db.collection('gastos').orderBy('fecha', 'desc').get();
+      gastosOriginales = [];
+      gastosSnapshot.forEach(doc => {
+        gastosOriginales.push({ id: doc.id, ...doc.data() });
+      });
+    }
+
+    // Aplicar filtros
+    gastosFiltrados = gastosOriginales.filter(gasto => {
+      // Filtro de texto (busca en descripción, categoría, organización, nro recibo)
+      if (filtrosActivos.texto) {
+        const textoGasto = `${gasto.descripcion} ${gasto.categoria} ${gasto.organizacion} ${gasto.nroRecibo || ''}`.toLowerCase();
+        if (!textoGasto.includes(filtrosActivos.texto)) return false;
+      }
+
+      // Filtro de fecha desde
+      if (filtrosActivos.fechaDesde && gasto.fecha < filtrosActivos.fechaDesde) {
+        return false;
+      }
+
+      // Filtro de fecha hasta
+      if (filtrosActivos.fechaHasta && gasto.fecha > filtrosActivos.fechaHasta) {
+        return false;
+      }
+
+      // Filtro de categoría
+      if (filtrosActivos.categoria && gasto.categoria !== filtrosActivos.categoria) {
+        return false;
+      }
+
+      // Filtro de estado
+      if (filtrosActivos.estado) {
+        if (filtrosActivos.estado === 'pendiente' && gasto.registrado) return false;
+        if (filtrosActivos.estado === 'registrado' && !gasto.registrado) return false;
+      }
+
+      // Filtro de organización
+      if (filtrosActivos.organizacion && gasto.organizacion !== filtrosActivos.organizacion) {
+        return false;
+      }
+
+      return true;
+    });
+
+    // Mostrar resultados
+    mostrarResultadosBusqueda();
+    actualizarChipsFiltros();
+
+  } catch (error) {
+    console.error('Error en búsqueda avanzada:', error);
+    mostrarNotificacion('❌ Error al aplicar filtros', 'error');
+  }
+}
+
+// Mostrar resultados de la búsqueda
+function mostrarResultadosBusqueda() {
+  const containerResultados = document.getElementById('resultados-busqueda-avanzada');
+  const countElement = document.getElementById('count-resultados');
+  const totalElement = document.getElementById('total-resultados');
+
+  if (gastosFiltrados.length === 0) {
+    containerResultados.classList.add('hidden');
+    return;
+  }
+
+  // Calcular total
+  const total = gastosFiltrados.reduce((sum, g) => sum + (parseFloat(g.monto) || 0), 0);
+
+  // Actualizar UI
+  countElement.textContent = gastosFiltrados.length;
+  totalElement.textContent = `$${total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  containerResultados.classList.remove('hidden');
+
+  // Renderizar gastos filtrados en las secciones correspondientes
+  renderizarGastosFiltrados();
+}
+
+// Renderizar gastos filtrados en las secciones
+function renderizarGastosFiltrados() {
+  // Separar pendientes y registrados
+  const pendientes = gastosFiltrados.filter(g => !g.registrado);
+  const registrados = gastosFiltrados.filter(g => g.registrado);
+
+  // Renderizar pendientes
+  const listaPendientes = document.getElementById('lista-gastos-pendientes');
+  if (listaPendientes) {
+    if (pendientes.length === 0) {
+      listaPendientes.innerHTML = `
+        <div class="text-center text-gray-400 py-8 col-span-full">
+          <span class="text-3xl mb-2 block">🔍</span>
+          <p class="text-xs lg:text-sm mb-1 font-medium">No hay pendientes con estos filtros</p>
+        </div>
+      `;
+    } else {
+      listaPendientes.innerHTML = pendientes.map(crearTarjetaPendiente).join('');
+    }
+  }
+
+  // Renderizar registrados (historial)
+  const listaReportados = document.getElementById('lista-gastos-reportados');
+  if (listaReportados) {
+    if (registrados.length === 0) {
+      listaReportados.innerHTML = `
+        <div class="text-center text-gray-400 py-8">
+          <span class="text-3xl mb-2 block">🔍</span>
+          <p class="text-xs lg:text-sm mb-1 font-medium">No hay registrados con estos filtros</p>
+        </div>
+      `;
+    } else {
+      listaReportados.innerHTML = registrados.map(crearTarjetaReportado).join('');
+    }
+  }
+}
+
+// Actualizar chips de filtros activos
+function actualizarChipsFiltros() {
+  const container = document.getElementById('filtros-activos');
+  if (!container) return;
+
+  const chips = [];
+
+  // Texto
+  if (filtrosActivos.texto) {
+    chips.push(`
+      <div class="flex items-center gap-1.5 bg-blue-100 text-blue-800 px-3 py-1.5 rounded-full text-xs font-medium">
+        <span>Texto: "${filtrosActivos.texto}"</span>
+        <button onclick="eliminarFiltro('texto')" class="hover:bg-blue-200 rounded-full p-0.5">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+    `);
+  }
+
+  // Fecha
+  if (filtrosActivos.fechaDesde || filtrosActivos.fechaHasta) {
+    const desde = filtrosActivos.fechaDesde || '...';
+    const hasta = filtrosActivos.fechaHasta || '...';
+    chips.push(`
+      <div class="flex items-center gap-1.5 bg-green-100 text-green-800 px-3 py-1.5 rounded-full text-xs font-medium">
+        <span>Fecha: ${desde} → ${hasta}</span>
+        <button onclick="eliminarFiltro('fecha')" class="hover:bg-green-200 rounded-full p-0.5">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+    `);
+  }
+
+  // Categoría
+  if (filtrosActivos.categoria) {
+    chips.push(`
+      <div class="flex items-center gap-1.5 bg-purple-100 text-purple-800 px-3 py-1.5 rounded-full text-xs font-medium">
+        <span>Categoría: ${filtrosActivos.categoria}</span>
+        <button onclick="eliminarFiltro('categoria')" class="hover:bg-purple-200 rounded-full p-0.5">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+    `);
+  }
+
+  // Estado
+  if (filtrosActivos.estado) {
+    const estadoText = filtrosActivos.estado === 'pendiente' ? 'Sin registrar' : 'Registrado';
+    chips.push(`
+      <div class="flex items-center gap-1.5 bg-orange-100 text-orange-800 px-3 py-1.5 rounded-full text-xs font-medium">
+        <span>Estado: ${estadoText}</span>
+        <button onclick="eliminarFiltro('estado')" class="hover:bg-orange-200 rounded-full p-0.5">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+    `);
+  }
+
+  // Organización
+  if (filtrosActivos.organizacion) {
+    chips.push(`
+      <div class="flex items-center gap-1.5 bg-indigo-100 text-indigo-800 px-3 py-1.5 rounded-full text-xs font-medium">
+        <span>Org: ${filtrosActivos.organizacion}</span>
+        <button onclick="eliminarFiltro('organizacion')" class="hover:bg-indigo-200 rounded-full p-0.5">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+    `);
+  }
+
+  container.innerHTML = chips.length > 0 ? chips.join('') : '<p class="text-xs text-gray-400 italic">No hay filtros activos</p>';
+}
+
+// Eliminar un filtro específico
+function eliminarFiltro(tipo) {
+  switch(tipo) {
+    case 'texto':
+      document.getElementById('busqueda-texto').value = '';
+      break;
+    case 'fecha':
+      document.getElementById('filtro-fecha-desde').value = '';
+      document.getElementById('filtro-fecha-hasta').value = '';
+      break;
+    case 'categoria':
+      document.getElementById('filtro-categoria-avanzado').value = '';
+      break;
+    case 'estado':
+      document.getElementById('filtro-estado-avanzado').value = '';
+      break;
+    case 'organizacion':
+      document.getElementById('filtro-organizacion').value = '';
+      break;
+  }
+  aplicarBusquedaAvanzada();
+}
+
+// Limpiar todos los filtros
+function limpiarFiltros() {
+  document.getElementById('busqueda-texto').value = '';
+  document.getElementById('filtro-fecha-desde').value = '';
+  document.getElementById('filtro-fecha-hasta').value = '';
+  document.getElementById('filtro-categoria-avanzado').value = '';
+  document.getElementById('filtro-estado-avanzado').value = '';
+  document.getElementById('filtro-organizacion').value = '';
+  
+  const resultados = document.getElementById('resultados-busqueda-avanzada');
+  if (resultados) resultados.classList.add('hidden');
+  
+  const filtrosActivosEl = document.getElementById('filtros-activos');
+  if (filtrosActivosEl) filtrosActivosEl.innerHTML = '<p class="text-xs text-gray-400 italic">No hay filtros activos</p>';
+  
+  // Recargar vista normal
+  cargarGastosSeparados();
+}
+
+// Guardar filtro como favorito
+function guardarFiltroFavorito() {
+  const nombre = prompt('Nombre para este filtro:');
+  if (!nombre) return;
+
+  try {
+    const filtrosFavoritos = JSON.parse(localStorage.getItem('filtrosFavoritos') || '[]');
+    filtrosFavoritos.push({
+      nombre: nombre,
+      filtros: { ...filtrosActivos },
+      fecha: new Date().toISOString()
+    });
+    localStorage.setItem('filtrosFavoritos', JSON.stringify(filtrosFavoritos));
+    mostrarNotificacion(`✅ Filtro "${nombre}" guardado`, 'success');
+  } catch (error) {
+    console.error('Error al guardar filtro:', error);
+    mostrarNotificacion('❌ Error al guardar filtro', 'error');
+  }
+}
+
+// Cargar filtros favoritos
+function cargarFiltrosFavoritos() {
+  try {
+    const filtrosFavoritos = JSON.parse(localStorage.getItem('filtrosFavoritos') || '[]');
+    
+    if (filtrosFavoritos.length === 0) {
+      mostrarNotificacion('ℹ️ No tienes filtros guardados', 'info');
+      return;
+    }
+
+    // Crear menú de selección
+    let opciones = '<div class="space-y-2 max-h-96 overflow-y-auto">';
+    filtrosFavoritos.forEach((filtro, index) => {
+      const fecha = new Date(filtro.fecha).toLocaleDateString('es-AR');
+      opciones += `
+        <div class="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg cursor-pointer" onclick="aplicarFiltroFavorito(${index})">
+          <div>
+            <p class="font-medium text-sm">${filtro.nombre}</p>
+            <p class="text-xs text-gray-500">${fecha}</p>
+          </div>
+          <button onclick="event.stopPropagation(); eliminarFiltroFavorito(${index})" class="text-red-500 hover:text-red-700">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          </button>
+        </div>
+      `;
+    });
+    opciones += '</div>';
+
+    // Mostrar en modal simple (puedes mejorar esto con un modal real)
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+    modal.innerHTML = `
+      <div class="bg-white rounded-2xl p-6 max-w-md w-full">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-bold">Mis Filtros Guardados</h3>
+          <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        ${opciones}
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  } catch (error) {
+    console.error('Error al cargar filtros favoritos:', error);
+    mostrarNotificacion('❌ Error al cargar filtros', 'error');
+  }
+}
+
+// Aplicar filtro favorito
+function aplicarFiltroFavorito(index) {
+  try {
+    const filtrosFavoritos = JSON.parse(localStorage.getItem('filtrosFavoritos') || '[]');
+    const filtro = filtrosFavoritos[index];
+    
+    if (!filtro) return;
+
+    // Aplicar valores a los inputs
+    document.getElementById('busqueda-texto').value = filtro.filtros.texto || '';
+    document.getElementById('filtro-fecha-desde').value = filtro.filtros.fechaDesde || '';
+    document.getElementById('filtro-fecha-hasta').value = filtro.filtros.fechaHasta || '';
+    document.getElementById('filtro-categoria-avanzado').value = filtro.filtros.categoria || '';
+    document.getElementById('filtro-estado-avanzado').value = filtro.filtros.estado || '';
+    document.getElementById('filtro-organizacion').value = filtro.filtros.organizacion || '';
+
+    // Cerrar modal y aplicar búsqueda
+    document.querySelector('.fixed.inset-0')?.remove();
+    aplicarBusquedaAvanzada();
+    mostrarNotificacion(`✅ Filtro "${filtro.nombre}" aplicado`, 'success');
+  } catch (error) {
+    console.error('Error al aplicar filtro favorito:', error);
+    mostrarNotificacion('❌ Error al aplicar filtro', 'error');
+  }
+}
+
+// Eliminar filtro favorito
+function eliminarFiltroFavorito(index) {
+  if (!confirm('¿Eliminar este filtro guardado?')) return;
+
+  try {
+    const filtrosFavoritos = JSON.parse(localStorage.getItem('filtrosFavoritos') || '[]');
+    filtrosFavoritos.splice(index, 1);
+    localStorage.setItem('filtrosFavoritos', JSON.stringify(filtrosFavoritos));
+    
+    // Recargar lista
+    document.querySelector('.fixed.inset-0')?.remove();
+    cargarFiltrosFavoritos();
+    mostrarNotificacion('✅ Filtro eliminado', 'success');
+  } catch (error) {
+    console.error('Error al eliminar filtro:', error);
+    mostrarNotificacion('❌ Error al eliminar filtro', 'error');
+  }
+}
+
+// Exportar resultados a CSV
+function exportarResultadosCSV() {
+  if (gastosFiltrados.length === 0) {
+    mostrarNotificacion('ℹ️ No hay resultados para exportar. Aplica filtros primero.', 'info');
+    return;
+  }
+
+  try {
+    // Crear encabezados CSV
+    const headers = [
+      'Fecha',
+      'Descripción',
+      'Categoría',
+      'Organización',
+      'Monto',
+      'Estado',
+      'Nro Recibo',
+      'Comisión ML',
+      'ID'
+    ];
+
+    // Crear filas de datos
+    const rows = gastosFiltrados.map(gasto => [
+      gasto.fecha || '',
+      `"${(gasto.descripcion || '').replace(/"/g, '""')}"`, // Escapar comillas
+      gasto.categoria || '',
+      `"${(gasto.organizacion || '').replace(/"/g, '""')}"`,
+      gasto.monto || 0,
+      gasto.registrado ? 'Registrado' : 'Sin registrar',
+      gasto.nroRecibo || '',
+      gasto.comisionML ? 'Sí' : 'No',
+      gasto.id || ''
+    ]);
+
+    // Combinar en CSV
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // Crear Blob y descargar
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    const fecha = new Date().toISOString().split('T')[0];
+    link.setAttribute('href', url);
+    link.setAttribute('download', `gastos_filtrados_${fecha}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    mostrarNotificacion(`✅ ${gastosFiltrados.length} gastos exportados a CSV`, 'success');
+  } catch (error) {
+    console.error('Error al exportar CSV:', error);
+    mostrarNotificacion('❌ Error al exportar. Intenta de nuevo.', 'error');
+  }
+}
+
+// ==================== FIN SISTEMA BÚSQUEDA AVANZADA ====================
+
 document.addEventListener('DOMContentLoaded', async () => {
   // Inicializar tema
   initTheme();
@@ -125,8 +669,20 @@ document.addEventListener('DOMContentLoaded', async () => {
           document.getElementById('user-role-badge').innerHTML = '👤 Usuario';
         }
         
+        // Iniciar detección de inactividad
+        configurarDeteccionInactividad();
+        resetearTiempoInactividad();
+        
         await cargarPresupuestos();
         await cargarGastosSeparados();
+        
+        // Verificar y archivar trimestres si es necesario
+        if (debeArchivarTrimestreAnterior()) {
+          await archivarTrimestreAnterior();
+        }
+        
+        // Cargar trimestres archivados
+        await cargarTrimestresArchivados();
       }
     }
     
@@ -140,6 +696,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Inicializar configuración del sistema si no existe
     await inicializarConfiguracion();
+    
+    // Verificar y archivar trimestres si es necesario
+    if (usuarioActual && debeArchivarTrimestreAnterior()) {
+      await archivarTrimestreAnterior();
+    }
+    
+    // Cargar trimestres archivados
+    if (usuarioActual) {
+      await cargarTrimestresArchivados();
+    }
     
     // Iniciar escucha en tiempo real después de la inicialización
     iniciarEscuchaEnTiempoReal();
@@ -290,6 +856,11 @@ async function validarPIN() {
       if (btnAdminMobile) btnAdminMobile.classList.remove('hidden');
       loginBtn.innerHTML = '🔑 Verificar PIN';
       loginBtn.disabled = false;
+      
+      // Iniciar detección de inactividad
+      configurarDeteccionInactividad();
+      resetearTiempoInactividad();
+      
       mostrarNotificacion('✅ Bienvenido, Administrador', 'success');
       cargarDatos();
     } else if (pinIngresado === pinUsuarioGuardado) {
@@ -300,6 +871,10 @@ async function validarPIN() {
       localStorage.setItem('sesionActiva', 'true');
       localStorage.setItem('esAdmin', 'false');
       localStorage.setItem('usuarioActual', usuarioActual);
+      
+      // Iniciar detección de inactividad
+      configurarDeteccionInactividad();
+      resetearTiempoInactividad();
       
       document.getElementById('pin-screen').classList.add('hidden');
       document.getElementById('user-role-badge').innerHTML = '<span class="bg-blue-500 text-white px-2 py-1 rounded-lg text-xs font-bold mr-2">👤 USUARIO</span>';
@@ -330,34 +905,8 @@ window.validarPIN = validarPIN;
 window.togglePinVisibility = togglePinVisibility;
 
 // Cerrar sesión
-document.getElementById('btn-cerrar-sesion')?.addEventListener('click', () => {
-  esAdmin = false;
-  usuarioActual = null;
-  categoriaActual = 'todos';
-  
-  // Limpiar sesión del localStorage
-  localStorage.removeItem('sesionActiva');
-  localStorage.removeItem('esAdmin');
-  localStorage.removeItem('usuarioActual');
-  
-  // Resetear UI
-  document.getElementById('pin-screen').classList.remove('hidden');
-  document.getElementById('pin-input').value = '';
-  document.getElementById('btn-panel-admin').classList.add('hidden');
-  const btnAdminMobile = document.getElementById('btn-panel-admin-mobile');
-  if (btnAdminMobile) btnAdminMobile.classList.add('hidden');
-  document.getElementById('user-role-badge').innerHTML = '';
-  
-  // Resetear botón de login
-  const loginBtn = document.getElementById('login-btn');
-  loginBtn.innerHTML = '🔑 Verificar PIN';
-  loginBtn.disabled = false;
-  
-  // Limpiar listas
-  document.getElementById('lista-gastos').innerHTML = '';
-  
-  mostrarNotificacion('👋 Sesión cerrada', 'success');
-});
+document.getElementById('btn-cerrar-sesion')?.addEventListener('click', cerrarSesion);
+document.getElementById('btn-cerrar-sesion-mobile')?.addEventListener('click', cerrarSesion);
 
 // Event listeners para el panel de administración
 document.getElementById('btn-panel-admin')?.addEventListener('click', mostrarPanelAdmin);
@@ -413,7 +962,9 @@ async function calcularGastos() {
       .get();
     
     let totalPresupuesto = 0;
+    let totalPresupuestoRegistrado = 0; // Solo gastos ya registrados
     let totalViaticos = 0;
+    let totalGastosExternos = 0; // Gastos de organizaciones externas
     let totalGastosTrimestre = 0; // Total solo del trimestre actual
 
     // Calcular trimestre actual
@@ -430,16 +981,30 @@ async function calcularGastos() {
     gastosSnapshot.forEach(doc => {
       const gasto = doc.data();
       const fechaGasto = parseFechaLocal(gasto.fecha);
+      const organizacion = gasto.organizacion || '';
+      const esRegistrado = gasto.registrado === true;
       
-      // Sumar para presupuesto y viáticos (todo el año)
-      if (gasto.categoria === 'presupuesto') {
-        totalPresupuesto += gasto.monto || 0;
-      } else if (gasto.categoria === 'viaticos') {
-        totalViaticos += gasto.monto || 0;
+      // Verificar si es una organización externa que no afecta presupuesto/viáticos
+      const esOrganizacionExterna = ORGANIZACIONES_EXTERNAS.includes(organizacion);
+      
+      // Sumar gastos de organizaciones externas por separado
+      if (esOrganizacionExterna) {
+        totalGastosExternos += gasto.monto || 0;
+      } else {
+        // Sumar para presupuesto y viáticos según la CATEGORÍA únicamente
+        if (gasto.categoria === 'presupuesto') {
+          totalPresupuesto += gasto.monto || 0;
+          // Solo sumar a registrados si está marcado como registrado
+          if (esRegistrado) {
+            totalPresupuestoRegistrado += gasto.monto || 0;
+          }
+        } else if (gasto.categoria === 'viaticos') {
+          totalViaticos += gasto.monto || 0;
+        }
       }
       
-      // Sumar solo gastos del trimestre actual para el KPI "Total Gastado"
-      if (fechaGasto >= inicioTrimestre && fechaGasto <= finTrimestre) {
+      // Sumar solo gastos del trimestre actual para el KPI "Total Gastado" - EXCLUIR organizaciones externas
+      if (!esOrganizacionExterna && fechaGasto >= inicioTrimestre && fechaGasto <= finTrimestre) {
         totalGastosTrimestre += gasto.monto || 0;
       }
     });
@@ -465,17 +1030,35 @@ async function calcularGastos() {
     }
     
     // ==================== ACTUALIZAR KPI: PRESUPUESTO DISPONIBLE ====================
-    const disponiblePresupuesto = presupuestoTotal - totalPresupuesto;
+    // Disponible REAL = solo gastos registrados informados
+    const disponibleReal = presupuestoTotal - totalPresupuestoRegistrado;
+    // Disponible PROYECTADO = con todos los gastos (registrados + pendientes)
+    const disponibleProyectado = presupuestoTotal - totalPresupuesto;
+    
     const presupuestoDisponibleEl = document.getElementById('presupuesto-disponible');
     if (presupuestoDisponibleEl) {
-      presupuestoDisponibleEl.textContent = `$${disponiblePresupuesto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-      // Colorear según estado
-      if (disponiblePresupuesto < 0) {
-        presupuestoDisponibleEl.className = 'text-3xl lg:text-4xl font-bold text-red-600';
-      } else if (disponiblePresupuesto < presupuestoTotal * 0.2) {
-        presupuestoDisponibleEl.className = 'text-3xl lg:text-4xl font-bold text-yellow-500';
+      presupuestoDisponibleEl.textContent = `$${disponibleReal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      // Colorear según estado del disponible real
+      if (disponibleReal < 0) {
+        presupuestoDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-red-600 leading-tight';
+      } else if (disponibleReal < presupuestoTotal * 0.2) {
+        presupuestoDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-yellow-500 leading-tight';
       } else {
-        presupuestoDisponibleEl.className = 'text-3xl lg:text-4xl font-bold text-green-500';
+        presupuestoDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-green-500 leading-tight';
+      }
+    }
+    
+    // Actualizar presupuesto proyectado (con pendientes)
+    const presupuestoProyectadoEl = document.getElementById('presupuesto-proyectado');
+    if (presupuestoProyectadoEl) {
+      presupuestoProyectadoEl.textContent = `($${disponibleProyectado.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} con pendientes)`;
+      // Colorear según estado proyectado
+      if (disponibleProyectado < 0) {
+        presupuestoProyectadoEl.className = 'text-sm md:text-base text-red-500 mt-2 font-medium';
+      } else if (disponibleProyectado < presupuestoTotal * 0.2) {
+        presupuestoProyectadoEl.className = 'text-sm md:text-base text-yellow-600 mt-2 font-medium';
+      } else {
+        presupuestoProyectadoEl.className = 'text-sm md:text-base text-gray-500 mt-2';
       }
     }
 
@@ -507,40 +1090,42 @@ async function calcularGastos() {
       viaticosDisponibleEl.textContent = `$${viaticosDisponibles.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
       // Colorear según estado
       if (viaticosDisponibles < 0) {
-        viaticosDisponibleEl.className = 'text-2xl lg:text-3xl font-bold text-red-600';
+        viaticosDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-red-600 leading-tight';
       } else if (viaticosDisponibles < presupuestoViaticos * 0.2) {
-        viaticosDisponibleEl.className = 'text-2xl lg:text-3xl font-bold text-yellow-500';
+        viaticosDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-yellow-500 leading-tight';
       } else {
-        viaticosDisponibleEl.className = 'text-2xl lg:text-3xl font-bold text-purple-500';
+        viaticosDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-purple-500 leading-tight';
       }
     }
 
-    // ==================== ACTUALIZAR KPI: VIÁTICOS GASTADOS ====================
-    const viaticosGastadosKpiEl = document.getElementById('viaticos-gastados-kpi');
-    if (viaticosGastadosKpiEl) {
-      viaticosGastadosKpiEl.textContent = `-$${totalViaticos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    // Actualizar texto de viáticos gastados
+    const viaticosGastadosTextoEl = document.getElementById('viaticos-gastados-texto');
+    if (viaticosGastadosTextoEl) {
+      viaticosGastadosTextoEl.textContent = `Gastado: $${totalViaticos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
       // Colorear según estado
-      viaticosGastadosKpiEl.className = totalViaticos === 0 ? 'text-2xl lg:text-3xl font-bold text-gray-400' : 'text-2xl lg:text-3xl font-bold text-orange-500';
-    }
-
-    // Actualizar el texto de saldo restante en el box de viáticos gastados
-    const viaticosRestantesTextoEl = document.getElementById('viaticos-restantes-texto');
-    if (viaticosRestantesTextoEl) {
-      viaticosRestantesTextoEl.textContent = `$${viaticosDisponibles.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-      // Colorear según estado del saldo restante
-      if (viaticosDisponibles < 0) {
-        viaticosRestantesTextoEl.className = 'font-semibold text-red-600';
-      } else if (viaticosDisponibles < presupuestoViaticos * 0.2) {
-        viaticosRestantesTextoEl.className = 'font-semibold text-yellow-600';
+      if (totalViaticos === 0) {
+        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-gray-400 mt-2';
+      } else if (totalViaticos > presupuestoViaticos * 0.8) {
+        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-red-500 mt-2 font-medium';
+      } else if (totalViaticos > presupuestoViaticos * 0.5) {
+        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-orange-600 mt-2 font-medium';
       } else {
-        viaticosRestantesTextoEl.className = 'font-semibold text-green-600';
+        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-gray-500 mt-2';
       }
     }
 
-    // Actualizar elementos secundarios de viáticos
-    const viaticosGastadosEl = document.getElementById('viaticos-gastados');
-    if (viaticosGastadosEl) {
-      viaticosGastadosEl.textContent = `$${totalViaticos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    // ==================== ACTUALIZAR KPI: GASTOS EXTERNOS ====================
+    const gastosExternosEl = document.getElementById('gastos-externos-monto');
+    if (gastosExternosEl) {
+      gastosExternosEl.textContent = `$${totalGastosExternos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      // Colorear según monto
+      if (totalGastosExternos === 0) {
+        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-gray-400 leading-tight';
+      } else if (totalGastosExternos > 50000) {
+        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-orange-600 leading-tight';
+      } else {
+        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-blue-600 leading-tight';
+      }
     }
 
     // Porcentaje de viáticos
@@ -618,10 +1203,16 @@ function validarCoherenciaKPIs(gastos) {
   let totalViaticosGastos = 0;
 
   gastos.forEach(gasto => {
-    if (gasto.categoria === 'presupuesto') {
-      totalPresupuestoGastos += gasto.monto || 0;
-    } else if (gasto.categoria === 'viaticos') {
-      totalViaticosGastos += gasto.monto || 0;
+    const organizacion = gasto.organizacion || '';
+    const esOrganizacionExterna = ORGANIZACIONES_EXTERNAS.includes(organizacion);
+    
+    // Excluir organizaciones externas
+    if (!esOrganizacionExterna) {
+      if (gasto.categoria === 'presupuesto') {
+        totalPresupuestoGastos += gasto.monto || 0;
+      } else if (gasto.categoria === 'viaticos') {
+        totalViaticosGastos += gasto.monto || 0;
+      }
     }
   });
 
@@ -644,6 +1235,14 @@ function validarCoherenciaKPIs(gastos) {
 
 // ==================== CALCULAR GASTOS POR ORGANIZACIÓN ====================
 async function calcularGastosPorOrganizacion(gastos) {
+  // Filtrar solo gastos del trimestre actual
+  const trimestreActual = calcularTrimestreActual();
+  const gastosTrimestre = gastos.filter(gasto => {
+    if (!gasto.fecha) return false;
+    const fechaGasto = gasto.fecha.toDate ? gasto.fecha.toDate() : new Date(gasto.fecha);
+    return fechaGasto >= trimestreActual.inicio && fechaGasto <= trimestreActual.fin;
+  });
+  
   const organizaciones = {
     'hombres-mujeres-jovenes': { nombre: 'Hombres y mujeres jóvenes', total: 0, color: '#10b981' },
     'primaria': { nombre: 'Primaria', total: 0, color: '#f59e0b' },
@@ -655,18 +1254,29 @@ async function calcularGastosPorOrganizacion(gastos) {
     'viajes-aprobados': { nombre: 'Viajes aprobados', total: 0, color: '#ec4899' }
   };
 
-  // Acumular gastos por organización
-  gastos.forEach(gasto => {
+  const organizacionesExternas = {
+    'meetup': { nombre: 'Meet up', total: 0, color: '#78716c' },
+    'pfj': { nombre: 'PFJ', total: 0, color: '#57534e' },
+    'area': { nombre: 'AREA', total: 0, color: '#44403c' }
+  };
+
+  // Acumular gastos por organización del trimestre actual (separando externas)
+  gastosTrimestre.forEach(gasto => {
     const org = gasto.organizacion || 'gastos-presupuesto';
-    if (organizaciones[org]) {
+    
+    // Verificar si es organización externa
+    if (organizacionesExternas[org]) {
+      organizacionesExternas[org].total += gasto.monto || 0;
+    } else if (organizaciones[org]) {
       organizaciones[org].total += gasto.monto || 0;
     }
   });
 
-  // Calcular total y validar coherencia
+  // Calcular totales separados
   const totalGastos = Object.values(organizaciones).reduce((sum, org) => sum + org.total, 0);
+  const totalExterno = Object.values(organizacionesExternas).reduce((sum, org) => sum + org.total, 0);
   
-  // Actualizar total en el chart (debe coincidir con el KPI de gastos)
+  // Actualizar total en el chart (SOLO organizaciones internas)
   const totalElement = document.getElementById('total-gastos-chart');
   if (totalElement) {
     if (totalGastos === 0) {
@@ -677,13 +1287,19 @@ async function calcularGastosPorOrganizacion(gastos) {
       totalElement.className = 'text-xl lg:text-2xl font-bold text-gray-800 tracking-tight';
     }
   }
+  
+  // Actualizar indicador de trimestre actual en UI
+  const indicadorTrimestre = document.getElementById('indicador-trimestre-actual');
+  if (indicadorTrimestre) {
+    indicadorTrimestre.textContent = `${trimestreActual.nombre} (${trimestreActual.meses.join(', ')})`;
+  }
 
-  // Ordenar organizaciones de mayor a menor gasto
+  // Ordenar organizaciones internas de mayor a menor gasto
   const organizacionesOrdenadas = Object.entries(organizaciones)
     .sort(([, a], [, b]) => b.total - a.total)
-    .filter(([, org]) => org.total > 0); // Solo mostrar las que tienen gastos
+    .filter(([, org]) => org.total > 0);
 
-  // Actualizar lista de organizaciones con porcentajes
+  // Actualizar lista de organizaciones INTERNAS
   const listaOrg = document.getElementById('lista-organizaciones');
   if (listaOrg) {
     if (organizacionesOrdenadas.length === 0) {
@@ -694,28 +1310,52 @@ async function calcularGastosPorOrganizacion(gastos) {
         </div>
       `;
     } else {
-      listaOrg.innerHTML = organizacionesOrdenadas
-        .map(([key, org]) => {
+      const itemsHTML = organizacionesOrdenadas
+        .map(([key, org], index) => {
           const porcentaje = totalGastos > 0 ? (org.total / totalGastos * 100).toFixed(1) : 0;
+          // Ocultar items después del 4to en móviles
+          const hiddenClass = index >= 4 ? ' org-item-hidden' : '';
           return `
-            <div class="flex items-center justify-between text-sm py-2 border-b border-gray-50 last:border-0 hover:bg-gray-50 rounded-lg px-2 transition-colors">
+            <div onclick="mostrarGastosOrganizacion('${key}', '${org.nombre}')" class="org-item${hiddenClass} flex items-center justify-between text-sm py-2 border-b border-gray-50 last:border-0 hover:bg-blue-50 rounded-lg px-2 transition-colors cursor-pointer group">
               <div class="flex items-center gap-3 flex-1 min-w-0">
                 <div class="relative flex-shrink-0">
                   <span class="w-3 h-3 rounded-full block" style="background-color: ${org.color}"></span>
                 </div>
-                <span class="text-gray-600 font-medium truncate">${org.nombre}</span>
+                <span class="text-gray-600 font-medium truncate group-hover:text-blue-600 transition-colors">${org.nombre}</span>
               </div>
               <div class="text-right ml-4">
-                <div class="font-bold text-gray-900">$${org.total.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
+                <div class="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">$${org.total.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
                 <div class="text-[10px] text-gray-400 font-medium bg-gray-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">${porcentaje}% del total</div>
               </div>
             </div>
           `;
         }).join('');
+      
+      listaOrg.innerHTML = itemsHTML;
+      
+      // Agregar botón "Ver más" solo en móviles si hay más de 4 organizaciones
+      if (organizacionesOrdenadas.length > 4) {
+        const btnVerMas = document.createElement('button');
+        btnVerMas.id = 'btn-ver-mas-org';
+        btnVerMas.className = 'btn-ver-mas-org md:hidden';
+        btnVerMas.onclick = toggleVerMasOrganizaciones;
+        btnVerMas.innerHTML = `
+          <span id="texto-ver-mas">Ver más</span>
+          <svg id="icono-ver-mas" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        `;
+        listaOrg.appendChild(btnVerMas);
+      }
     }
   }
 
-  // Actualizar gráfico de dona
+  // Ordenar organizaciones EXTERNAS de mayor a menor gasto
+  const organizacionesExternasOrdenadas = Object.entries(organizacionesExternas)
+    .sort(([, a], [, b]) => b.total - a.total)
+    .filter(([, org]) => org.total > 0);
+
+  // Actualizar gráfico de dona (SOLO con organizaciones internas)
   await actualizarGraficoDona(organizaciones, totalGastos);
 }
 
@@ -755,6 +1395,1446 @@ async function actualizarGraficoDona(organizaciones, total) {
     }
   });
 }
+
+// Función para expandir/contraer lista de organizaciones en móviles
+function toggleVerMasOrganizaciones() {
+  const listaOrg = document.getElementById('lista-organizaciones');
+  const textoBtn = document.getElementById('texto-ver-mas');
+  const iconoBtn = document.getElementById('icono-ver-mas');
+  
+  if (!listaOrg || !textoBtn || !iconoBtn) return;
+  
+  const itemsOcultos = listaOrg.querySelectorAll('.org-item-hidden');
+  const estaExpandido = itemsOcultos[0] && itemsOcultos[0].classList.contains('org-item-hidden-active');
+  
+  itemsOcultos.forEach(item => {
+    if (estaExpandido) {
+      item.classList.remove('org-item-hidden-active');
+    } else {
+      item.classList.add('org-item-hidden-active');
+    }
+  });
+  
+  if (estaExpandido) {
+    textoBtn.textContent = 'Ver más';
+    iconoBtn.classList.remove('rotate-180');
+  } else {
+    textoBtn.textContent = 'Ver menos';
+    iconoBtn.classList.add('rotate-180');
+  }
+}
+
+// ==================== SISTEMA DE TRIMESTRES ARCHIVADOS ====================
+
+// Calcular información del trimestre actual
+function calcularTrimestreActual() {
+  const hoy = new Date();
+  const mes = hoy.getMonth(); // 0-11
+  const anio = hoy.getFullYear();
+  
+  // Determinar número de trimestre (Q1: Ene-Mar, Q2: Abr-Jun, Q3: Jul-Sep, Q4: Oct-Dic)
+  const numeroTrimestre = Math.floor(mes / 3) + 1;
+  
+  // Calcular fechas de inicio y fin del trimestre
+  const mesInicio = (numeroTrimestre - 1) * 3;
+  const mesFin = mesInicio + 2;
+  
+  const fechaInicio = new Date(anio, mesInicio, 1);
+  const fechaFin = new Date(anio, mesFin + 1, 0, 23, 59, 59); // Último día del último mes
+  
+  return {
+    id: `Q${numeroTrimestre}-${anio}`,
+    numero: numeroTrimestre,
+    anio: anio,
+    inicio: fechaInicio,
+    fin: fechaFin,
+    nombre: `${numeroTrimestre}º Trimestre ${anio}`,
+    meses: obtenerNombresMesesTrimestre(numeroTrimestre)
+  };
+}
+
+// Obtener nombres de meses de un trimestre
+function obtenerNombresMesesTrimestre(numeroTrimestre) {
+  const meses = [
+    ['Enero', 'Febrero', 'Marzo'],
+    ['Abril', 'Mayo', 'Junio'],
+    ['Julio', 'Agosto', 'Septiembre'],
+    ['Octubre', 'Noviembre', 'Diciembre']
+  ];
+  return meses[numeroTrimestre - 1];
+}
+
+// Calcular el segundo viernes del mes siguiente al fin del trimestre
+function calcularSegundoViernesMesSiguiente(fechaFinTrimestre) {
+  const mesSiguiente = new Date(fechaFinTrimestre);
+  mesSiguiente.setMonth(mesSiguiente.getMonth() + 1);
+  mesSiguiente.setDate(1);
+  
+  let contadorViernes = 0;
+  let fechaBusqueda = new Date(mesSiguiente);
+  
+  // Buscar el segundo viernes
+  while (contadorViernes < 2) {
+    if (fechaBusqueda.getDay() === 5) { // 5 = Viernes
+      contadorViernes++;
+      if (contadorViernes === 2) {
+        return fechaBusqueda;
+      }
+    }
+    fechaBusqueda.setDate(fechaBusqueda.getDate() + 1);
+  }
+  
+  return fechaBusqueda;
+}
+
+// Verificar si ya pasó la fecha de cierre del trimestre anterior
+function debeArchivarTrimestreAnterior() {
+  const hoy = new Date();
+  const trimestreActual = calcularTrimestreActual();
+  
+  // Si estamos en el primer trimestre del año, revisar si hay que archivar Q4 del año anterior
+  if (trimestreActual.numero === 1) {
+    const fechaFinQ4 = new Date(trimestreActual.anio - 1, 11, 31, 23, 59, 59);
+    const segundoViernesEnero = calcularSegundoViernesMesSiguiente(fechaFinQ4);
+    return hoy > segundoViernesEnero;
+  }
+  
+  // Para otros trimestres, revisar trimestre anterior del mismo año
+  const numeroTrimestreAnterior = trimestreActual.numero - 1;
+  const mesFin = numeroTrimestreAnterior * 3 - 1;
+  const fechaFinTrimestreAnterior = new Date(trimestreActual.anio, mesFin + 1, 0, 23, 59, 59);
+  const segundoViernes = calcularSegundoViernesMesSiguiente(fechaFinTrimestreAnterior);
+  
+  return hoy > segundoViernes;
+}
+
+// Archivar gastos del trimestre anterior en Firestore
+async function archivarTrimestreAnterior() {
+  try {
+    const trimestreActual = calcularTrimestreActual();
+    let trimestreAArchivar;
+    
+    // Determinar qué trimestre archivar
+    if (trimestreActual.numero === 1) {
+      // Archivar Q4 del año anterior
+      trimestreAArchivar = {
+        id: `Q4-${trimestreActual.anio - 1}`,
+        numero: 4,
+        anio: trimestreActual.anio - 1,
+        inicio: new Date(trimestreActual.anio - 1, 9, 1),
+        fin: new Date(trimestreActual.anio - 1, 11, 31, 23, 59, 59),
+        nombre: `4º Trimestre ${trimestreActual.anio - 1}`,
+        meses: ['Octubre', 'Noviembre', 'Diciembre']
+      };
+    } else {
+      // Archivar trimestre anterior del mismo año
+      const numeroAnterior = trimestreActual.numero - 1;
+      const mesInicio = (numeroAnterior - 1) * 3;
+      const mesFin = mesInicio + 2;
+      
+      trimestreAArchivar = {
+        id: `Q${numeroAnterior}-${trimestreActual.anio}`,
+        numero: numeroAnterior,
+        anio: trimestreActual.anio,
+        inicio: new Date(trimestreActual.anio, mesInicio, 1),
+        fin: new Date(trimestreActual.anio, mesFin + 1, 0, 23, 59, 59),
+        nombre: `${numeroAnterior}º Trimestre ${trimestreActual.anio}`,
+        meses: obtenerNombresMesesTrimestre(numeroAnterior)
+      };
+    }
+    
+    // Verificar si ya está archivado
+    const docExistente = await db.collection('trimestres-archivados')
+      .doc(trimestreAArchivar.id)
+      .get();
+    
+    if (docExistente.exists) {
+      console.log(`✅ Trimestre ${trimestreAArchivar.id} ya está archivado`);
+      return;
+    }
+    
+    // Obtener gastos del trimestre anterior
+    const gastosSnapshot = await db.collection('gastos')
+      .where('fecha', '>=', firebase.firestore.Timestamp.fromDate(trimestreAArchivar.inicio))
+      .where('fecha', '<=', firebase.firestore.Timestamp.fromDate(trimestreAArchivar.fin))
+      .where('eliminado', '==', false)
+      .get();
+    
+    const gastosTrimestre = [];
+    gastosSnapshot.forEach(doc => {
+      gastosTrimestre.push({ id: doc.id, ...doc.data() });
+    });
+    
+    // Calcular gastos por organización del trimestre
+    const organizaciones = {
+      'hombres-mujeres-jovenes': { nombre: 'Hombres y mujeres jóvenes', total: 0, color: '#10b981' },
+      'primaria': { nombre: 'Primaria', total: 0, color: '#f59e0b' },
+      'sociedad-socorro': { nombre: 'Sociedad de socorro', total: 0, color: '#3b82f6' },
+      'escuela-dominical': { nombre: 'Escuela dominical', total: 0, color: '#06b6d4' },
+      'quorum-elderes': { nombre: 'Quórum de Elderes', total: 0, color: '#8b5cf6' },
+      'gastos-presupuesto': { nombre: 'Gastos de Presupuesto', total: 0, color: '#f97316' },
+      'adultos-solteros': { nombre: 'Adultos solteros', total: 0, color: '#ef4444' },
+      'viajes-aprobados': { nombre: 'Viajes aprobados', total: 0, color: '#ec4899' }
+    };
+    
+    gastosTrimestre.forEach(gasto => {
+      const org = gasto.organizacion || 'gastos-presupuesto';
+      if (organizaciones[org]) {
+        organizaciones[org].total += gasto.monto || 0;
+      }
+    });
+    
+    const totalGastos = Object.values(organizaciones).reduce((sum, org) => sum + org.total, 0);
+    
+    // Guardar en Firestore
+    await db.collection('trimestres-archivados').doc(trimestreAArchivar.id).set({
+      trimestre: trimestreAArchivar.id,
+      numero: trimestreAArchivar.numero,
+      anio: trimestreAArchivar.anio,
+      nombre: trimestreAArchivar.nombre,
+      meses: trimestreAArchivar.meses,
+      inicio: firebase.firestore.Timestamp.fromDate(trimestreAArchivar.inicio),
+      fin: firebase.firestore.Timestamp.fromDate(trimestreAArchivar.fin),
+      segundoViernes: firebase.firestore.Timestamp.fromDate(calcularSegundoViernesMesSiguiente(trimestreAArchivar.fin)),
+      organizaciones: organizaciones,
+      totalGastos: totalGastos,
+      cantidadGastos: gastosTrimestre.length,
+      fechaArchivo: firebase.firestore.Timestamp.now(),
+      archivoAutomatico: true
+    });
+    
+    console.log(`✅ Trimestre ${trimestreAArchivar.id} archivado exitosamente`);
+    
+    // Recargar trimestres archivados en UI
+    await cargarTrimestresArchivados();
+    
+  } catch (error) {
+    console.error('❌ Error al archivar trimestre:', error);
+  }
+}
+
+// Cargar y mostrar trimestres archivados
+async function cargarTrimestresArchivados() {
+  const contenedor = document.getElementById('trimestres-archivados');
+  if (!contenedor) return;
+
+  const mensajeVacio = `
+    <div class="col-span-full text-center py-6 text-gray-400">
+      <svg class="w-10 h-10 mx-auto mb-2 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+      </svg>
+      <p class="text-sm font-medium">Nada por mostrar por el momento</p>
+      <p class="text-xs mt-1 opacity-70">El primer trimestre se archivará el 2° viernes de abril</p>
+    </div>
+  `;
+
+  try {
+    // Ordenar en cliente para evitar necesidad de índice compuesto en Firestore
+    const snapshot = await db.collection('trimestres-archivados').get();
+    
+    if (snapshot.empty) {
+      contenedor.innerHTML = mensajeVacio;
+      return;
+    }
+    
+    const trimestres = [];
+    snapshot.forEach(doc => {
+      trimestres.push({ id: doc.id, ...doc.data() });
+    });
+    
+    // Ordenar en cliente: más reciente primero
+    trimestres.sort((a, b) => b.anio !== a.anio ? b.anio - a.anio : b.numero - a.numero);
+    
+    contenedor.innerHTML = trimestres.map(trimestre => `
+      <div class="card-dark p-4 cursor-pointer hover:shadow-lg transition-shadow" onclick="mostrarTrimestreArchivado('${trimestre.id}')">
+        <div class="flex items-center justify-between">
+          <div>
+            <h4 class="font-semibold text-gray-900">${trimestre.nombre}</h4>
+            <p class="text-xs text-gray-500 mt-1">${trimestre.meses.join(', ')}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-lg font-bold text-blue-600">$${trimestre.totalGastos.toLocaleString('es-AR')}</p>
+            <p class="text-xs text-gray-400">${trimestre.cantidadGastos} gastos</p>
+          </div>
+        </div>
+        <div class="mt-2 flex items-center gap-2 text-xs text-gray-500">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+          </svg>
+          <span>Click para ver detalles</span>
+        </div>
+      </div>
+    `).join('');
+    
+  } catch (error) {
+    console.error('❌ Error al cargar trimestres archivados:', error);
+    if (contenedor) contenedor.innerHTML = mensajeVacio;
+  }
+}
+
+// Mostrar lightbox con gastos de trimestre archivado
+async function mostrarTrimestreArchivado(trimestreId) {
+  try {
+    const doc = await db.collection('trimestres-archivados').doc(trimestreId).get();
+    
+    if (!doc.exists) {
+      mostrarNotificacion('❌ Trimestre no encontrado', 'error');
+      return;
+    }
+    
+    const trimestre = doc.data();
+    const modal = document.getElementById('modal-trimestre-archivado');
+    if (!modal) return;
+    
+    // Actualizar título
+    document.getElementById('titulo-trimestre-archivado').textContent = trimestre.nombre;
+    document.getElementById('meses-trimestre-archivado').textContent = trimestre.meses.join(', ');
+    
+    // Generar lista de organizaciones
+    const listaOrg = document.getElementById('lista-organizaciones-archivadas');
+    const organizaciones = trimestre.organizaciones;
+    
+    const organizacionesOrdenadas = Object.entries(organizaciones)
+      .sort(([, a], [, b]) => b.total - a.total)
+      .filter(([, org]) => org.total > 0);
+    
+    if (organizacionesOrdenadas.length === 0) {
+      listaOrg.innerHTML = '<p class="text-center text-gray-400 py-8">No hay gastos en este trimestre</p>';
+    } else {
+      listaOrg.innerHTML = organizacionesOrdenadas.map(([key, org]) => {
+        const porcentaje = (org.total / trimestre.totalGastos * 100).toFixed(1);
+        return `
+          <div class="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+            <div class="flex items-center gap-3 flex-1">
+              <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: ${org.color}"></span>
+              <span class="text-gray-700 font-medium">${org.nombre}</span>
+            </div>
+            <div class="text-right">
+              <div class="font-bold text-gray-900">$${org.total.toLocaleString('es-AR')}</div>
+              <div class="text-xs text-gray-400">${porcentaje}%</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    // Mostrar modal
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+  } catch (error) {
+    console.error('❌ Error al mostrar trimestre archivado:', error);
+    mostrarNotificacion('❌ Error al cargar trimestre', 'error');
+  }
+}
+
+// Cerrar modal de trimestre archivado
+function cerrarModalTrimestreArchivado() {
+  const modal = document.getElementById('modal-trimestre-archivado');
+  if (modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+}
+
+// Modificar calcularGastosPorOrganizacion para filtrar solo trimestre actual
+async function calcularGastosPorOrganizacionOriginal(gastos) {
+  // NOTA: Esta función se reemplazará por la versión con filtro de trimestre
+  // Mantener el código original por si se necesita migrar datos
+}
+
+// ==================== MOSTRAR GASTOS POR ORGANIZACIÓN ====================
+async function mostrarGastosOrganizacion(organizacionKey, organizacionNombre) {
+  try {
+    // Mostrar el modal
+    const modal = document.getElementById('modal-gastos-organizacion');
+    if (!modal) {
+      console.error('❌ Modal de gastos por organización no encontrado');
+      return;
+    }
+
+    // Actualizar títulos
+    document.getElementById('titulo-organizacion').textContent = organizacionNombre;
+    
+    // Obtener todos los gastos de la base de datos
+    const gastosSnapshot = await db.collection('gastos').get();
+    const todosLosGastos = gastosSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Filtrar gastos por organización
+    const gastosFiltrados = todosLosGastos.filter(gasto => {
+      const org = gasto.organizacion || 'gastos-presupuesto';
+      return org === organizacionKey && !gasto.eliminado;
+    });
+
+    // Ordenar por fecha (más recientes primero)
+    gastosFiltrados.sort((a, b) => {
+      const fechaA = a.fecha ? parseFechaLocal(a.fecha) : new Date(0);
+      const fechaB = b.fecha ? parseFechaLocal(b.fecha) : new Date(0);
+      return fechaB - fechaA;
+    });
+
+    // Calcular totales
+    const totalGastos = gastosFiltrados.reduce((sum, g) => sum + (g.monto || 0), 0);
+    const cantidadGastos = gastosFiltrados.length;
+
+    // Actualizar subtítulo con resumen
+    document.getElementById('subtitulo-organizacion').textContent = 
+      `${cantidadGastos} gasto${cantidadGastos !== 1 ? 's' : ''} • Total: $${totalGastos.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+
+    // Renderizar gastos
+    const contenido = document.getElementById('contenido-gastos-organizacion');
+    
+    if (gastosFiltrados.length === 0) {
+      contenido.innerHTML = `
+        <div class="text-center py-12 text-gray-400">
+          <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          <p class="text-lg font-medium">No hay gastos registrados</p>
+          <p class="text-sm mt-1">Esta organización aún no tiene gastos</p>
+        </div>
+      `;
+    } else {
+      contenido.innerHTML = `
+        <div class="grid grid-cols-1 gap-4">
+          ${gastosFiltrados.map(gasto => crearTarjetaGastoOrganizacion(gasto)).join('')}
+        </div>
+      `;
+    }
+
+    // Mostrar el modal
+    modal.classList.remove('hidden');
+  } catch (error) {
+    console.error('❌ Error al mostrar gastos por organización:', error);
+    mostrarNotificacion('Error al cargar gastos de la organización', 'error');
+  }
+}
+
+// Crear tarjeta de gasto simplificada para modal de organización
+function crearTarjetaGastoOrganizacion(gasto) {
+  const categoriaInfo = {
+    'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+  };
+
+  const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  
+  const comprobanteIcon = gasto.comprobanteAdjunto 
+    ? '<span class="text-green-500 text-xs">✓ Con comprobante</span>' 
+    : '<span class="text-gray-400 text-xs">Sin comprobante</span>';
+
+  const estadoRegistro = gasto.registrado 
+    ? '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">✓ Registrado</span>'
+    : '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">⏳ Sin registrar</span>';
+
+  return `
+    <div class="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+      <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-${cat.color}-100 text-${cat.color}-700">
+              ${cat.emoji} ${cat.label}
+            </span>
+            <span class="text-xs text-gray-500">📅 ${gasto.fecha}</span>
+            ${estadoRegistro}
+          </div>
+          
+          <h4 class="text-base font-semibold text-gray-900 mb-2">${gasto.descripcion}</h4>
+          
+          <div class="flex items-center gap-2 text-sm">
+            ${comprobanteIcon}
+          </div>
+
+          ${gasto.observaciones ? `
+            <div class="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+              <p class="text-xs text-blue-700"><strong>📋 Observaciones:</strong> ${gasto.observaciones}</p>
+            </div>
+          ` : ''}
+        </div>
+        
+        <div class="flex-shrink-0 text-right">
+          <p class="text-2xl font-bold text-gray-900">$${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+          <p class="text-xs text-gray-500 mt-1">ARS</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Cerrar modal de gastos por organización
+function cerrarModalGastosOrganizacion() {
+  const modal = document.getElementById('modal-gastos-organizacion');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+// ==================== MODAL COMISIONES ML ====================
+async function abrirModalComisionesML() {
+  try {
+    const modal = document.getElementById('modal-comisiones-ml');
+    if (!modal) {
+      console.error('❌ Modal de comisiones ML no encontrado');
+      return;
+    }
+
+    // Mostrar el modal
+    modal.classList.remove('hidden');
+
+    // Obtener todos los gastos con comisión
+    const gastosSnapshot = await db.collection('gastos').get();
+    const gastosConComision = gastosSnapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(gasto => gasto.comision && gasto.comision > 0 && !gasto.eliminado);
+
+    // Ordenar por fecha (más recientes primero)
+    gastosConComision.sort((a, b) => {
+      const fechaA = a.fecha ? parseFechaLocal(a.fecha) : new Date(0);
+      const fechaB = b.fecha ? parseFechaLocal(b.fecha) : new Date(0);
+      return fechaB - fechaA;
+    });
+
+    // Calcular totales
+    const totalGastosConComision = gastosConComision.reduce((sum, g) => sum + (g.monto || 0), 0);
+    const totalComisionesPagadas = gastosConComision.reduce((sum, g) => sum + (g.comision || 0), 0);
+    const cantidadTransacciones = gastosConComision.length;
+
+    // Actualizar KPIs
+    document.getElementById('kpi-total-comisiones-gastos').textContent = 
+      `$${totalGastosConComision.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+    
+    document.getElementById('kpi-total-comisiones-pagadas').textContent = 
+      `$${totalComisionesPagadas.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+    
+    document.getElementById('kpi-cantidad-comisiones').textContent = cantidadTransacciones;
+
+    document.getElementById('subtitulo-comisiones').textContent = 
+      `${cantidadTransacciones} transacción${cantidadTransacciones !== 1 ? 'es' : ''} con comisión del 6.99%`;
+
+    // Renderizar gastos
+    const contenido = document.getElementById('contenido-comisiones-ml');
+    
+    if (gastosConComision.length === 0) {
+      contenido.innerHTML = `
+        <div class="text-center py-16 text-gray-400">
+          <svg class="w-20 h-20 mx-auto mb-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <p class="text-lg font-semibold text-gray-600">No hay gastos con comisión</p>
+          <p class="text-sm mt-2 text-gray-500">Los gastos con comisión de MercadoLibre aparecerán aquí</p>
+        </div>
+      `;
+    } else {
+      // Agrupar por mes
+      const gruposPorMes = agruparComisionesPorMes(gastosConComision);
+      
+      contenido.innerHTML = gruposPorMes.map(grupo => `
+        <div class="mb-5 sm:mb-6">
+          <!-- Header del mes -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-3 sm:mb-4 pb-2 sm:pb-3 border-b-2 border-blue-200 gap-2">
+            <h3 class="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
+              <svg class="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"></path>
+              </svg>
+              <span>${grupo.nombre}</span>
+            </h3>
+            <div class="flex items-center gap-2 sm:gap-4 text-sm sm:text-base">
+              <span class="text-xs sm:text-sm font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">${grupo.comisiones.length} transaccion${grupo.comisiones.length !== 1 ? 'es' : ''}</span>
+              <span class="text-sm sm:text-base font-bold text-orange-600">$${grupo.total.toLocaleString('es-AR', {minimumFractionDigits: 0})}</span>
+            </div>
+          </div>
+          
+          <!-- Gastos del mes -->
+          <div class="space-y-3 sm:space-y-4">
+            ${grupo.comisiones.map(gasto => crearTarjetaGastoComision(gasto)).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch (error) {
+    console.error('❌ Error al cargar comisiones ML:', error);
+    mostrarNotificacion('Error al cargar comisiones', 'error');
+  }
+}
+
+// Crear tarjeta de gasto para modal de comisiones
+function crearTarjetaGastoComision(gasto) {
+  const categoriaInfo = {
+    'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+  };
+
+  const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  
+  const comprobanteIcon = gasto.comprobanteAdjunto 
+    ? '<span class="text-green-600 text-xs font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg> Comprobante</span>' 
+    : '<span class="text-gray-400 text-xs font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg> Sin comprobante</span>';
+
+  const estadoRegistro = gasto.registrado 
+    ? '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">✓ Registrado</span>'
+    : '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">⏳ Pendiente</span>';
+
+  const montoNeto = gasto.monto || 0;
+  const comision = gasto.comision || 0;
+  const totalEnviado = montoNeto + comision;
+  const porcentaje = montoNeto > 0 ? ((comision / montoNeto) * 100).toFixed(2) : '6.99';
+
+  return `
+    <div class="bg-gradient-to-br from-white to-gray-50 border-2 border-blue-100 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 hover:shadow-lg hover:border-blue-200 transition-all">
+      <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 sm:gap-4">
+        <!-- Sección izquierda: Info del gasto -->
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+            <span class="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold bg-${cat.color}-100 text-${cat.color}-700 border border-${cat.color}-200">
+              ${cat.emoji} ${cat.label}
+            </span>
+            <span class="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              📅 ${gasto.fecha}
+            </span>
+            ${estadoRegistro}
+          </div>
+          
+          <h4 class="text-base sm:text-lg font-bold text-gray-900 mb-2 sm:mb-3 leading-tight">${gasto.descripcion}</h4>
+          
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm mb-2">
+            ${comprobanteIcon}
+            ${gasto.organizacion ? `<span class="inline-flex items-center px-2 sm:px-2.5 py-0.5 sm:py-1 bg-gray-100 rounded-lg text-[10px] sm:text-xs font-medium text-gray-700 border border-gray-200">🏢 ${gasto.organizacion.replace(/-/g, ' ')}</span>` : ''}
+          </div>
+
+          ${gasto.observaciones ? `
+            <div class="mt-2 sm:mt-3 p-2 sm:p-3 bg-blue-50 rounded-lg sm:rounded-xl border-l-4 border-blue-400">
+              <p class="text-xs sm:text-sm text-blue-800"><strong class="font-semibold">📋 Nota:</strong> ${gasto.observaciones}</p>
+            </div>
+          ` : ''}
+        </div>
+        
+        <!-- Sección derecha: Montos -->
+        <div class="flex-shrink-0 w-full lg:w-auto lg:min-w-[200px] xl:min-w-[240px]">
+          <div class="grid grid-cols-3 lg:grid-cols-1 gap-2 sm:gap-3">
+            <!-- Monto Neto -->
+            <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-2.5 sm:p-3 md:p-4 rounded-lg sm:rounded-xl border border-blue-200">
+              <p class="text-[9px] sm:text-[10px] md:text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1 flex items-center gap-1">
+                <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd"></path></svg>
+                <span class="hidden sm:inline">Base</span>
+              </p>
+              <p class="text-base sm:text-xl md:text-2xl font-bold text-blue-900">$${montoNeto.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+            </div>
+            
+            <!-- Comisión ML -->
+            <div class="bg-gradient-to-br from-orange-50 to-orange-100 p-2.5 sm:p-3 md:p-4 rounded-lg sm:rounded-xl border-2 border-orange-300">
+              <p class="text-[9px] sm:text-[10px] md:text-xs font-semibold text-orange-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                <span class="hidden sm:inline">${porcentaje}%</span>
+              </p>
+              <p class="text-base sm:text-xl md:text-2xl font-bold text-orange-700">$${comision.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+            </div>
+            
+            <!-- Total -->
+            <div class="bg-gradient-to-br from-green-50 to-green-100 p-2.5 sm:p-3 md:p-4 rounded-lg sm:rounded-xl border-2 border-green-300">
+              <p class="text-[9px] sm:text-[10px] md:text-xs font-semibold text-green-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd"></path></svg>
+                <span class="hidden sm:inline">Total</span>
+              </p>
+              <p class="text-base sm:text-xl md:text-2xl font-bold text-green-800">$${totalEnviado.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Cerrar modal de comisiones ML
+function cerrarModalComisionesML() {
+  const modal = document.getElementById('modal-comisiones-ml');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+// ==================== MODAL COMISIONES COMPLETO ====================
+function mostrarModalComisiones() {
+  console.log('🔍 Abriendo modal de comisiones...');
+  const modal = document.getElementById('modal-comisiones');
+  if (modal) {
+    modal.classList.remove('hidden');
+    pestanaComisionActiva = 'pendientes'; // Resetear a pendientes al abrir
+    cargarComisiones();
+    console.log('✅ Modal de comisiones abierto');
+  } else {
+    console.error('❌ No se encontró el modal de comisiones');
+  }
+}
+
+// Cerrar modal de comisiones
+function cerrarModalComisiones() {
+  const modal = document.getElementById('modal-comisiones');
+  if (modal) modal.classList.add('hidden');
+}
+
+// Cambiar entre pestañas
+function cambiarTabComisiones(tab) {
+  console.log(`📑 Cambiando a pestaña: ${tab}`);
+  pestanaComisionActiva = tab;
+  
+  // Actualizar estilos de pestañas
+  const tabPendientes = document.getElementById('tab-pendientes');
+  const tabInformadas = document.getElementById('tab-informadas');
+  const contentPendientes = document.getElementById('tab-content-pendientes');
+  const contentInformadas = document.getElementById('tab-content-informadas');
+  
+  if (tab === 'pendientes') {
+    tabPendientes.classList.add('tab-comision-active');
+    tabInformadas.classList.remove('tab-comision-active');
+    tabPendientes.setAttribute('aria-selected', 'true');
+    tabInformadas.setAttribute('aria-selected', 'false');
+    contentPendientes.classList.remove('hidden');
+    contentInformadas.classList.add('hidden');
+  } else {
+    tabInformadas.classList.add('tab-comision-active');
+    tabPendientes.classList.remove('tab-comision-active');
+    tabInformadas.setAttribute('aria-selected', 'true');
+    tabPendientes.setAttribute('aria-selected', 'false');
+    contentInformadas.classList.remove('hidden');
+    contentPendientes.classList.add('hidden');
+  }
+}
+
+// Cargar comisiones desde Firebase
+async function cargarComisiones() {
+  console.log('📥 Cargando comisiones desde Firebase...');
+  try {
+    // Obtener todos los gastos y filtrar los que tienen comisión y NO están eliminados
+    const snapshot = await db.collection('gastos')
+      .orderBy('fecha', 'desc')
+      .get();
+
+    const comisiones = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(gasto => {
+        // Filtrar: debe tener comisión > 0 Y no estar eliminado Y no ser categoría externa Y no estar excluida manualmente
+        const categoriaLower = (gasto.categoria || '').toLowerCase();
+        return gasto.comision && gasto.comision > 0 && !gasto.eliminado && !ORGANIZACIONES_EXTERNAS.includes(categoriaLower) && !gasto.comisionExcluida;
+      })
+      .sort((a, b) => {
+        // Ordenar por fecha descendente (más reciente primero)
+        const fechaA = parseFechaLocal(a.fecha);
+        const fechaB = parseFechaLocal(b.fecha);
+        return fechaB - fechaA;
+      });
+
+    console.log(`✅ Comisiones cargadas: ${comisiones.length}`);
+    
+    // Separar comisiones en pendientes e informadas
+    const comisionesPendientes = comisiones.filter(c => !c.comisionInformada);
+    const comisionesInformadas = comisiones.filter(c => c.comisionInformada);
+    
+    // Renderizar ambas listas
+    renderComisionesPendientes(comisionesPendientes);
+    renderComisionesInformadas(comisionesInformadas);
+    
+    // Actualizar resumen y badges
+    actualizarResumenComisiones(comisiones);
+    actualizarBadgesComisiones(comisionesPendientes.length, comisionesInformadas.length);
+
+  } catch (error) {
+    console.error('❌ Error al cargar comisiones:', error);
+    mostrarNotificacion('❌ Error al cargar las comisiones: ' + error.message, 'error');
+  }
+}
+
+// Actualizar badges de las pestañas
+function actualizarBadgesComisiones(countPendientes, countInformadas) {
+  const badgePendientes = document.getElementById('badge-pendientes');
+  const badgeInformadas = document.getElementById('badge-informadas');
+  
+  if (badgePendientes) badgePendientes.textContent = countPendientes;
+  if (badgeInformadas) badgeInformadas.textContent = countInformadas;
+}
+
+// Función auxiliar: Agrupar comisiones por mes/año
+function agruparComisionesPorMes(comisiones) {
+  const grupos = {};
+  
+  comisiones.forEach(comision => {
+    const fecha = parseFechaLocal(comision.fecha);
+    const mesAno = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+    const mesNombre = fecha.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    
+    if (!grupos[mesAno]) {
+      grupos[mesAno] = {
+        clave: mesAno,
+        nombre: mesNombre.charAt(0).toUpperCase() + mesNombre.slice(1),
+        fecha: fecha, // Para ordenar
+        comisiones: [],
+        total: 0,
+        totalGastos: 0
+      };
+    }
+    
+    grupos[mesAno].comisiones.push(comision);
+    grupos[mesAno].total += comision.comision || 0;
+    grupos[mesAno].totalGastos += comision.monto || 0;
+  });
+  
+  // Convertir a array y ordenar por fecha descendente
+  return Object.values(grupos).sort((a, b) => b.fecha - a.fecha);
+}
+
+// Función auxiliar: Agrupar comisiones por trimestre
+function agruparComisionesPorTrimestre(comisiones) {
+  const grupos = {};
+  
+  comisiones.forEach(comision => {
+    const fecha = parseFechaLocal(comision.fecha);
+    const year = fecha.getFullYear();
+    const month = fecha.getMonth(); // 0-11
+    const trimestre = Math.floor(month / 3) + 1; // 1, 2, 3, 4
+    const claveT = `${year}-T${trimestre}`;
+    
+    if (!grupos[claveT]) {
+      grupos[claveT] = {
+        clave: claveT,
+        nombre: `T${trimestre} ${year}`,
+        año: year,
+        trimestre: trimestre,
+        fecha: new Date(year, trimestre * 3 - 3, 1), // Primer día del trimestre
+        comisiones: [],
+        total: 0,
+        totalGastos: 0,
+        cantidad: 0
+      };
+    }
+    
+    grupos[claveT].comisiones.push(comision);
+    grupos[claveT].total += comision.comision || 0;
+    grupos[claveT].totalGastos += comision.monto || 0;
+    grupos[claveT].cantidad++;
+  });
+  
+  // Convertir a array y ordenar por fecha descendente
+  return Object.values(grupos).sort((a, b) => b.fecha - a.fecha);
+}
+
+// Toggle grupo de mes
+function toggleGrupoMes(mesId) {
+  const contenido = document.getElementById(`grupo-mes-${mesId}`);
+  const icono = document.getElementById(`icono-mes-${mesId}`);
+  
+  if (contenido && icono) {
+    contenido.classList.toggle('hidden');
+    icono.classList.toggle('rotate-180');
+    
+    // Guardar estado (expandido si NO tiene hidden)
+    const estaExpandido = !contenido.classList.contains('hidden');
+    guardarEstadoAcordeon(`mes-${mesId}`, estaExpandido);
+  }
+}
+
+// Expandir/contraer todos los meses
+function toggleTodosMeses(tipo) {
+  const contenedorId = tipo === 'pendientes' ? 'lista-comisiones-pendientes' : 'lista-comisiones-informadas';
+  const contenedor = document.getElementById(contenedorId);
+  
+  if (!contenedor) return;
+  
+  const grupos = contenedor.querySelectorAll('[id^="grupo-mes-"]');
+  const iconos = contenedor.querySelectorAll('[id^="icono-mes-"]');
+  const todosExpandidos = Array.from(grupos).every(g => !g.classList.contains('hidden'));
+  
+  grupos.forEach(g => {
+    if (todosExpandidos) {
+      g.classList.add('hidden');
+    } else {
+      g.classList.remove('hidden');
+    }
+  });
+  
+  iconos.forEach(i => {
+    if (todosExpandidos) {
+      i.classList.remove('rotate-180');
+    } else {
+      i.classList.add('rotate-180');
+    }
+  });
+}
+
+// Toggle para grupos de gastos mensuales
+function toggleGrupoGastoMes(mesId) {
+  const contenido = document.getElementById(`grupo-${mesId}`);
+  const icono = document.getElementById(`icono-${mesId}`);
+  
+  if (contenido && icono) {
+    contenido.classList.toggle('hidden');
+    icono.classList.toggle('rotate-180');
+    
+    // Guardar estado (expandido si NO tiene hidden)
+    const estaExpandido = !contenido.classList.contains('hidden');
+    guardarEstadoAcordeon(mesId, estaExpandido);
+  }
+}
+
+// Renderizar lista de comisiones pendientes
+function renderComisionesPendientes(comisiones) {
+  const lista = document.getElementById('lista-comisiones-pendientes');
+  
+  if (!lista) return;
+
+  if (comisiones.length === 0) {
+    lista.innerHTML = `
+      <div class="text-center modal-comisiones-empty py-8">
+        <span class="text-4xl mb-2 block">💳</span>
+        <p class="text-sm mb-1 font-medium">No hay comisiones pendientes</p>
+        <p class="text-xs">Las comisiones por informar aparecerán aquí</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Agrupar por mes
+  const gruposPorMes = agruparComisionesPorMes(comisiones);
+  
+  // Agregar botón para expandir/contraer todos
+  const botonExpandir = `
+    <div class="flex justify-end mb-3">
+      <button onclick="toggleTodosMeses('pendientes')" 
+        class="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-purple-50 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+        </svg>
+        Expandir/Contraer todo
+      </button>
+    </div>
+  `;
+
+  lista.innerHTML = botonExpandir + gruposPorMes.map(grupo => {
+    const itemsHTML = grupo.comisiones.map(comision => {
+      const fecha = parseFechaLocal(comision.fecha).toLocaleDateString('es-ES', { 
+        day: 'numeric', 
+        month: 'short'
+      });
+
+      const porcentajeComision = comision.monto && comision.monto > 0 
+        ? ((comision.comision / comision.monto) * 100).toFixed(2) 
+        : null;
+
+      return `
+        <div class="comision-item rounded-xl p-4 hover:shadow-md transition-all border border-gray-100">
+          <div class="flex items-start gap-4">
+            <input type="checkbox" 
+              class="comision-checkbox mt-1 w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 cursor-pointer" 
+              data-comision-id="${comision.id}"
+              data-comision-monto="${comision.comision}">
+            
+            <div class="flex-1">
+              <div class="flex items-start justify-between gap-3 mb-3">
+                <div class="flex-1">
+                  <h4 class="comision-item-title text-sm font-bold mb-1">${comision.descripcion}</h4>
+                  <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="flex items-center gap-1 comision-item-date">
+                      📅 ${fecha}
+                    </span>
+                    ${comision.organizacion ? `
+                      <span class="flex items-center gap-1 comision-item-date">
+                        🏢 ${comision.organizacion}
+                      </span>
+                    ` : ''}
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3 p-3 rounded-lg comision-montos-container">
+                <div class="text-center p-2 rounded comision-monto-box">
+                  <p class="text-xs comision-monto-label mb-1">💰 Monto</p>
+                  <p class="text-base font-bold comision-monto-value">${comision.monto ? `$${comision.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : 'N/A'}</p>
+                </div>
+                <div class="text-center p-2 rounded comision-comision-box">
+                  <p class="text-xs comision-comision-label mb-1">💳 Comisión ${porcentajeComision ? `(${porcentajeComision}%)` : ''}</p>
+                  <p class="text-base font-bold text-purple-600 comision-item-amount">$${comision.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+                </div>
+              </div>
+
+              ${comision.observaciones ? `
+                <p class="comision-item-note text-xs italic mt-2 p-2 rounded border-l-2">
+                  📝 ${comision.observaciones}
+                </p>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const acordeonId = `mes-${grupo.clave}-pend`;
+    const estaExpandido = obtenerEstadoAcordeon(acordeonId);
+
+    return `
+      <div class="mb-4 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+        <!-- Header del mes -->
+        <button onclick="toggleGrupoMes('${grupo.clave}-pend')" 
+          class="w-full flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 hover:from-orange-100 hover:to-orange-150 dark:hover:from-orange-900/40 dark:hover:to-orange-800/40 transition-all">
+          <div class="flex items-center gap-3">
+            <svg id="icono-mes-${grupo.clave}-pend" class="w-5 h-5 text-orange-600 dark:text-orange-400 transition-transform ${estaExpandido ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+            <div class="text-left">
+              <h3 class="font-bold text-gray-900 dark:text-gray-100">${grupo.nombre}</h3>
+              <p class="text-xs text-gray-600 dark:text-gray-400">${grupo.comisiones.length} comisión${grupo.comisiones.length !== 1 ? 'es' : ''}</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-lg font-bold text-orange-700 dark:text-orange-400">$${grupo.total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+            <p class="text-xs text-orange-600 dark:text-orange-500 font-medium">Total del mes</p>
+          </div>
+        </button>
+        
+        <!-- Contenido del mes -->
+        <div id="grupo-mes-${grupo.clave}-pend" class="p-3 space-y-3 bg-gray-50 dark:bg-gray-900/50 ${estaExpandido ? '' : 'hidden'}">
+          ${itemsHTML}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Renderizar lista de comisiones informadas
+function renderComisionesInformadas(comisiones) {
+  const lista = document.getElementById('lista-comisiones-informadas');
+  
+  if (!lista) return;
+
+  if (comisiones.length === 0) {
+    lista.innerHTML = `
+      <div class="text-center modal-comisiones-empty py-8">
+        <span class="text-4xl mb-2 block">✅</span>
+        <p class="text-sm mb-1 font-medium">No hay comisiones informadas</p>
+        <p class="text-xs">Las comisiones notificadas al sistema aparecerán aquí</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Agrupar por mes
+  const gruposPorMes = agruparComisionesPorMes(comisiones);
+  
+  // Agregar botón para expandir/contraer todos
+  const botonExpandir = `
+    <div class="flex justify-end mb-3">
+      <button onclick="toggleTodosMeses('informadas')" 
+        class="text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-green-50 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+        </svg>
+        Expandir/Contraer todo
+      </button>
+    </div>
+  `;
+
+  lista.innerHTML = botonExpandir + gruposPorMes.map(grupo => {
+    const itemsHTML = grupo.comisiones.map(comision => {
+      const fecha = parseFechaLocal(comision.fecha).toLocaleDateString('es-ES', { 
+        day: 'numeric', 
+        month: 'short'
+      });
+
+      const fechaInformada = comision.fechaComisionInformada 
+        ? (comision.fechaComisionInformada.toDate ? comision.fechaComisionInformada.toDate() : new Date(comision.fechaComisionInformada)).toLocaleDateString('es-ES', { 
+            day: 'numeric', 
+            month: 'short' 
+          })
+        : '';
+
+      const porcentajeComision = comision.monto && comision.monto > 0 
+        ? ((comision.comision / comision.monto) * 100).toFixed(2) 
+        : null;
+
+      return `
+        <div class="comision-item comision-item-informada rounded-xl p-4 hover:shadow-md transition-all border border-gray-100">
+          <div class="flex items-start gap-4">
+            <div class="mt-1 w-5 h-5 bg-green-500 rounded flex items-center justify-center flex-shrink-0">
+              <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+              </svg>
+            </div>
+            
+            <div class="flex-1">
+              <div class="flex items-start justify-between gap-3 mb-3">
+                <div class="flex-1">
+                  <h4 class="comision-item-title text-sm font-bold mb-1">${comision.descripcion}</h4>
+                  <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="flex items-center gap-1 comision-item-date">
+                      📅 ${fecha}
+                    </span>
+                    ${comision.organizacion ? `
+                      <span class="flex items-center gap-1 comision-item-date">
+                        🏢 ${comision.organizacion}
+                      </span>
+                    ` : ''}
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3 p-3 rounded-lg comision-montos-container">
+                <div class="text-center p-2 rounded comision-monto-box">
+                  <p class="text-xs comision-monto-label mb-1">💰 Monto</p>
+                  <p class="text-base font-bold comision-monto-value">${comision.monto ? `$${comision.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : 'N/A'}</p>
+                </div>
+                <div class="text-center p-2 rounded comision-comision-box">
+                  <p class="text-xs comision-comision-label mb-1">💳 Comisión ${porcentajeComision ? `(${porcentajeComision}%)` : ''}</p>
+                  <p class="text-base font-bold text-purple-600 comision-item-amount">$${comision.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+                </div>
+              </div>
+
+              ${comision.observaciones ? `
+                <p class="comision-item-note text-xs italic mt-2 p-2 rounded border-l-2">
+                  📝 ${comision.observaciones}
+                </p>
+              ` : ''}
+
+              <div class="flex items-center gap-2 mt-2">
+                <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold comision-badge comision-badge-informada">
+                  ✅ Informada${fechaInformada ? ` el ${fechaInformada}` : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const acordeonId = `mes-${grupo.clave}-inf`;
+    const estaExpandido = obtenerEstadoAcordeon(acordeonId);
+
+    return `
+      <div class="mb-4 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+        <!-- Header del mes -->
+        <button onclick="toggleGrupoMes('${grupo.clave}-inf')" 
+          class="w-full flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 hover:from-green-100 hover:to-green-150 dark:hover:from-green-900/40 dark:hover:to-green-800/40 transition-all">
+          <div class="flex items-center gap-3">
+            <svg id="icono-mes-${grupo.clave}-inf" class="w-5 h-5 text-green-600 dark:text-green-400 transition-transform ${estaExpandido ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+            <div class="text-left">
+              <h3 class="font-bold text-gray-900 dark:text-gray-100">${grupo.nombre}</h3>
+              <p class="text-xs text-gray-600 dark:text-gray-400">${grupo.comisiones.length} comisión${grupo.comisiones.length !== 1 ? 'es' : ''}</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-lg font-bold text-green-700 dark:text-green-400">$${grupo.total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+            <p class="text-xs text-green-600 dark:text-green-500 font-medium">Total del mes</p>
+          </div>
+        </button>
+        
+        <!-- Contenido del mes -->
+        <div id="grupo-mes-${grupo.clave}-inf" class="p-3 space-y-3 bg-gray-50 dark:bg-gray-900/50 ${estaExpandido ? '' : 'hidden'}">
+          ${itemsHTML}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Actualizar resumen de comisiones
+function actualizarResumenComisiones(comisiones) {
+  const total = comisiones.reduce((sum, c) => sum + (c.comision || 0), 0);
+  const pendientes = comisiones.filter(c => !c.comisionInformada);
+  const totalPendientes = pendientes.reduce((sum, c) => sum + (c.comision || 0), 0);
+  const informadas = comisiones.filter(c => c.comisionInformada);
+  const totalInformadas = informadas.reduce((sum, c) => sum + (c.comision || 0), 0);
+
+  const elemTotal = document.getElementById('total-comisiones');
+  const elemPendientes = document.getElementById('total-comisiones-pendientes');
+  const elemInformadas = document.getElementById('total-comisiones-informadas');
+
+  if (elemTotal) elemTotal.textContent = `$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+  if (elemPendientes) elemPendientes.textContent = `$${totalPendientes.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+  if (elemInformadas) elemInformadas.textContent = `$${totalInformadas.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+}
+
+// Seleccionar todas las comisiones pendientes
+function seleccionarTodasComisiones() {
+  const checkboxes = document.querySelectorAll('.comision-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = true;
+  });
+}
+
+// Deseleccionar todas las comisiones
+function deseleccionarTodasComisiones() {
+  const checkboxes = document.querySelectorAll('.comision-checkbox');
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = false;
+  });
+}
+
+// Marcar comisiones seleccionadas como informadas
+async function marcarComisionesComoInformadas() {
+  const checkboxes = document.querySelectorAll('.comision-checkbox:checked');
+  
+  if (checkboxes.length === 0) {
+    mostrarNotificacion('⚠️ Selecciona al menos una comisión para marcar como informada', 'warning');
+    return;
+  }
+
+  if (!confirm(`¿Marcar ${checkboxes.length} comisión(es) como informadas?`)) {
+    return;
+  }
+
+  try {
+    const batch = db.batch();
+    const ahora = firebase.firestore.FieldValue.serverTimestamp();
+
+    checkboxes.forEach(checkbox => {
+      const id = checkbox.getAttribute('data-comision-id');
+      const ref = db.collection('gastos').doc(id);
+      batch.update(ref, {
+        comisionInformada: true,
+        fechaComisionInformada: ahora,
+        informadaPor: usuarioActual
+      });
+    });
+
+    await batch.commit();
+    
+    mostrarNotificacion(`✅ ${checkboxes.length} comisión(es) marcadas como informadas`, 'success');
+    
+    // Recargar comisiones
+    await cargarComisiones();
+
+  } catch (error) {
+    console.error('Error al marcar comisiones:', error);
+    mostrarNotificacion('❌ Error al marcar las comisiones: ' + error.message, 'error');
+  }
+}
+
+// Función para excluir comisiones del modal (ocultar permanentemente)
+async function excluirComisionesSeleccionadas() {
+  const checkboxes = document.querySelectorAll('.comision-checkbox:checked');
+  
+  if (checkboxes.length === 0) {
+    mostrarNotificacion('⚠️ Selecciona al menos una comisión para excluir', 'warning');
+    return;
+  }
+
+  if (!confirm(`¿Excluir ${checkboxes.length} comisión(es) del modal de MercadoLibre?\n\nEstas comisiones no se mostrarán más en este modal, pero seguirán en el historial de gastos.`)) {
+    return;
+  }
+
+  try {
+    const batch = db.batch();
+
+    checkboxes.forEach(checkbox => {
+      const id = checkbox.getAttribute('data-comision-id');
+      const ref = db.collection('gastos').doc(id);
+      batch.update(ref, {
+        comisionExcluida: true,
+        fechaComisionExcluida: firebase.firestore.FieldValue.serverTimestamp(),
+        excluidaPor: usuarioActual
+      });
+    });
+
+    await batch.commit();
+    
+    mostrarNotificacion(`✅ ${checkboxes.length} comisión(es) excluidas del modal`, 'success');
+    
+    // Recargar comisiones
+    await cargarComisiones();
+
+  } catch (error) {
+    console.error('Error al excluir comisiones:', error);
+    mostrarNotificacion('❌ Error al excluir las comisiones: ' + error.message, 'error');
+  }
+}
+
+// ==================== MODAL GASTOS EXTERNOS ====================
+// Abrir modal de gastos externos
+async function abrirModalGastosExternos() {
+  const modal = document.getElementById('modal-gastos-externos');
+  if (!modal) {
+    console.error('❌ Modal de gastos externos no encontrado');
+    return;
+  }
+
+  try {
+    modal.classList.remove('hidden');
+
+    // Obtener todos los gastos externos
+    const gastosSnapshot = await db.collection('gastos').get();
+    const gastosExternos = gastosSnapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      .filter(gasto => !gasto.eliminado && ORGANIZACIONES_EXTERNAS.includes(gasto.organizacion));
+
+    // Ordenar por fecha (más recientes primero)
+    gastosExternos.sort((a, b) => {
+      const fechaA = a.fecha ? parseFechaLocal(a.fecha) : new Date(0);
+      const fechaB = b.fecha ? parseFechaLocal(a.fecha) : new Date(0);
+      return fechaB - fechaA;
+    });
+
+    // Agrupar por organización
+    const gastosAgrupados = {};
+    ORGANIZACIONES_EXTERNAS.forEach(org => {
+      gastosAgrupados[org] = gastosExternos.filter(g => g.organizacion === org);
+    });
+
+    // Calcular totales
+    const totalGastosExternos = gastosExternos.reduce((sum, g) => sum + (g.monto || 0), 0);
+    const cantidadGastos = gastosExternos.length;
+    const organizacionesActivas = ORGANIZACIONES_EXTERNAS.filter(org => gastosAgrupados[org].length > 0).length;
+
+    // Actualizar KPIs
+    document.getElementById('kpi-total-externos').textContent = 
+      `$${totalGastosExternos.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+    
+    document.getElementById('kpi-cantidad-externos').textContent = cantidadGastos;
+    
+    document.getElementById('kpi-organizaciones-externas').textContent = organizacionesActivas;
+
+    document.getElementById('subtitulo-gastos-externos').textContent = 
+      `${cantidadGastos} gasto${cantidadGastos !== 1 ? 's' : ''} que no afectan presupuesto ni viáticos`;
+
+    // Renderizar gastos por organización
+    const contenido = document.getElementById('contenido-gastos-externos');
+    
+    if (gastosExternos.length === 0) {
+      contenido.innerHTML = `
+        <div class="text-center py-12 text-gray-400">
+          <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+          </svg>
+          <p class="text-lg font-medium">No hay gastos externos registrados</p>
+          <p class="text-sm mt-1">Los gastos de meetup, pfj y area aparecerán aquí</p>
+        </div>
+      `;
+    } else {
+      let html = '';
+      
+      ORGANIZACIONES_EXTERNAS.forEach(org => {
+        const gastosOrg = gastosAgrupados[org];
+        if (gastosOrg.length > 0) {
+          const totalOrg = gastosOrg.reduce((sum, g) => sum + (g.monto || 0), 0);
+          const nombreOrg = org.charAt(0).toUpperCase() + org.slice(1).replace(/-/g, ' ');
+          
+          html += `
+            <div class="mb-6">
+              <div class="flex items-center justify-between mb-3 pb-2 border-b-2 border-amber-200">
+                <h4 class="text-lg font-bold text-gray-800">${nombreOrg}</h4>
+                <span class="text-lg font-bold text-amber-600">$${totalOrg.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+              </div>
+              <div class="grid grid-cols-1 gap-3">
+                ${gastosOrg.map(gasto => crearTarjetaGastoExterno(gasto)).join('')}
+              </div>
+            </div>
+          `;
+        }
+      });
+      
+      contenido.innerHTML = html;
+    }
+  } catch (error) {
+    console.error('❌ Error al cargar gastos externos:', error);
+    mostrarNotificacion('Error al cargar gastos externos', 'error');
+  }
+}
+
+// Crear tarjeta de gasto externo
+function crearTarjetaGastoExterno(gasto) {
+  const categoriaInfo = {
+    'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+  };
+
+  const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  
+  const comprobanteIcon = gasto.comprobanteAdjunto 
+    ? '<span class="text-green-500 text-xs">✓ Con comprobante</span>' 
+    : '<span class="text-gray-400 text-xs">Sin comprobante</span>';
+
+  const estadoRegistro = gasto.registrado 
+    ? '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">✓ Registrado</span>'
+    : '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">⏳ Sin registrar</span>';
+
+  const montoTotal = gasto.monto || 0;
+  const comision = gasto.comision || 0;
+  const montoNeto = montoTotal - comision;
+
+  return `
+    <div class="bg-white border border-amber-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+      <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-${cat.color}-100 text-${cat.color}-700">
+              ${cat.emoji} ${cat.label}
+            </span>
+            <span class="text-xs text-gray-500">📅 ${gasto.fecha}</span>
+            ${estadoRegistro}
+          </div>
+          
+          <h4 class="text-base font-semibold text-gray-900 mb-2">${gasto.descripcion}</h4>
+          
+          <div class="flex items-center gap-2 text-sm mb-2">
+            ${comprobanteIcon}
+          </div>
+
+          ${gasto.observaciones ? `
+            <div class="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+              <p class="text-xs text-blue-700"><strong>📋 Observaciones:</strong> ${gasto.observaciones}</p>
+            </div>
+          ` : ''}
+        </div>
+        
+        <div class="flex-shrink-0 text-right">
+          <div class="mb-2">
+            <p class="text-xs text-gray-500">Monto Total</p>
+            <p class="text-2xl font-bold text-amber-600">$${montoTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+          </div>
+          ${comision > 0 ? `
+            <div class="p-2 bg-red-50 rounded-lg">
+              <p class="text-xs text-red-600">Incluye comisión: $${comision.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Cerrar modal de gastos externos
+function cerrarModalGastosExternos() {
+  const modal = document.getElementById('modal-gastos-externos');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+// Exponer funciones globalmente
+window.abrirModalGastosExternos = abrirModalGastosExternos;
+window.cerrarModalGastosExternos = cerrarModalGastosExternos;
+window.mostrarModalComisiones = mostrarModalComisiones;
+window.cerrarModalComisiones = cerrarModalComisiones;
+window.cambiarTabComisiones = cambiarTabComisiones;
+window.seleccionarTodasComisiones = seleccionarTodasComisiones;
+window.deseleccionarTodasComisiones = deseleccionarTodasComisiones;
+window.marcarComisionesComoInformadas = marcarComisionesComoInformadas;
+window.excluirComisionesSeleccionadas = excluirComisionesSeleccionadas;
+window.toggleGrupoMes = toggleGrupoMes;
+window.toggleTodosMeses = toggleTodosMeses;
+window.toggleVerMasOrganizaciones = toggleVerMasOrganizaciones;
+window.mostrarTrimestreArchivado = mostrarTrimestreArchivado;
+window.cerrarModalTrimestreArchivado = cerrarModalTrimestreArchivado;
 
 // ==================== CALCULAR EVOLUCIÓN TEMPORAL DE GASTOS ====================
 async function calcularEvolucionGastos(gastos) {
@@ -815,9 +2895,9 @@ function actualizarBarras(barras, datos, nombres, presupuestoRef, tipo) {
   if (!barras || barras.length === 0) return;
   
   // Ajustar alturas mínimas según el tipo
-  const alturaMinSinDatos = tipo === 'trimestre' ? 8 : 4;
-  const alturaMinConDatos = tipo === 'trimestre' ? 12 : 8;
-  const minHeightPx = tipo === 'trimestre' ? '10px' : '6px';
+  const alturaMinSinDatos = tipo === 'trimestre' ? 12 : 4;
+  const alturaMinConDatos = tipo === 'trimestre' ? 18 : 8;
+  const minHeightPx = tipo === 'trimestre' ? '16px' : '6px';
 
   if (presupuestoRef === 0) {
     // Sin presupuesto configurado: usar escala relativa
@@ -918,6 +2998,9 @@ function cerrarModal() {
   editandoGastoId = null; // Resetear ID de edición
   document.getElementById('modal-gasto').classList.add('hidden');
   document.getElementById('form-gasto').reset();
+  
+  // Limpiar captura OCR
+  limpiarCaptura();
   
   // Resetear checkboxes de comisión
   const containerIncluye = document.getElementById('container-incluye-comision');
@@ -1159,6 +3242,27 @@ function configurarEventListeners() {
             }
         }
 
+        // Obtener tipo de pago seleccionado (null si no se seleccionó ninguno)
+        const tipoPagoSeleccionado = document.querySelector('input[name="tipoPago"]:checked')?.value || null;
+
+        // Subir imagen del recibo si existe
+        let urlImagenSubida = null;
+        if (imagenReciboCapturada) {
+          try {
+            const gastoId = editandoGastoId || `temp_${Date.now()}`;
+            const fileName = `recibos/${gastoId}_${Date.now()}.jpg`;
+            const storageRef = storage.ref(fileName);
+            
+            console.log('📤 Subiendo imagen del recibo...');
+            const snapshot = await storageRef.put(imagenReciboCapturada);
+            urlImagenSubida = await snapshot.ref.getDownloadURL();
+            console.log('✅ Imagen subida:', urlImagenSubida);
+          } catch (error) {
+            console.error('⚠️ Error al subir imagen:', error);
+            // Continuar sin la imagen
+          }
+        }
+
         const gasto = {
           descripcion: document.getElementById('descripcion').value,
           monto: montoReal,
@@ -1168,8 +3272,10 @@ function configurarEventListeners() {
           categoria: document.getElementById('categoria').value,
           organizacion: organizacion,
           comprobanteAdjunto: document.getElementById('comprobante').checked,
-          reembolsado: document.getElementById('reembolsado').checked,
+          tipoPago: tipoPagoSeleccionado,
+          reembolsado: tipoPagoSeleccionado === 'reembolsado',
           observaciones: observaciones || '',
+          imagenRecibo: urlImagenSubida || null,
           registrado: false,
           eliminado: false,
           creadoPor: usuarioActual,
@@ -1269,25 +3375,85 @@ async function marcarComoReportado(id) {
 window.marcarComoReportado = marcarComoReportado;
 
 // Toggle estado de reembolso
+// Función para seleccionar tipo de pago (permite cambiar o eliminar la selección)
+async function seleccionarTipoPago(id) {
+  const result = await Swal.fire({
+    title: '¿Tipo de pago?',
+    text: 'Selecciona el tipo de transacción o desmarca',
+    icon: 'question',
+    showDenyButton: true,
+    showCancelButton: true,
+    confirmButtonText: '💵 Pago Directo',
+    denyButtonText: '✅ Reembolsado',
+    cancelButtonText: '❌ Sin definir',
+    confirmButtonColor: '#10b981',
+    denyButtonColor: '#10b981',
+    cancelButtonColor: '#f59e0b',
+    allowOutsideClick: false
+  });
+
+  let tipoPagoSeleccionado = null;
+  let actualizar = false;
+  
+  if (result.isConfirmed) {
+    tipoPagoSeleccionado = 'pagoDirecto';
+    actualizar = true;
+  } else if (result.isDenied) {
+    tipoPagoSeleccionado = 'reembolsado';
+    actualizar = true;
+  } else if (result.dismiss === Swal.DismissReason.cancel) {
+    // Usuario seleccionó "Sin definir" - establecer como null
+    tipoPagoSeleccionado = null;
+    actualizar = true;
+  }
+
+  if (actualizar) {
+    try {
+      await db.collection('gastos').doc(id).update({
+        tipoPago: tipoPagoSeleccionado,
+        reembolsado: tipoPagoSeleccionado === 'reembolsado',
+        fechaReembolso: tipoPagoSeleccionado === 'reembolsado' ? firebase.firestore.FieldValue.serverTimestamp() : null,
+        reembolsadoPor: tipoPagoSeleccionado === 'reembolsado' ? usuarioActual : null
+      });
+      
+      if (tipoPagoSeleccionado === 'reembolsado') {
+        mostrarNotificacion('✅ Marcado como Reembolsado', 'success');
+      } else if (tipoPagoSeleccionado === 'pagoDirecto') {
+        mostrarNotificacion('💵 Marcado como Pago Directo', 'success');
+      } else {
+        mostrarNotificacion('❓ Tipo de pago sin definir', 'info');
+      }
+      
+      await cargarGastosSeparados();
+    } catch (error) {
+      console.error('Error al actualizar tipo de pago:', error);
+      mostrarNotificacion('❌ Error al actualizar el tipo de pago: ' + error.message, 'error');
+    }
+  }
+}
+
+// Función para alternar entre tipos de pago
 async function toggleReembolso(id, nuevoEstado) {
   try {
     await db.collection('gastos').doc(id).update({
       reembolsado: nuevoEstado,
+      tipoPago: nuevoEstado ? 'reembolsado' : 'pagoDirecto',
       fechaReembolso: nuevoEstado ? firebase.firestore.FieldValue.serverTimestamp() : null,
       reembolsadoPor: nuevoEstado ? usuarioActual : null
     });
 
-    mostrarNotificacion(nuevoEstado ? '✅ Gasto marcado como reembolsado' : '⏳ Gasto marcado como pendiente de reembolso', 'success');
+    mostrarNotificacion(nuevoEstado ? '✅ Marcado como Reembolsado' : '💵 Marcado como Pago Directo', 'success');
     
     // Recargar gastos separados
     await cargarGastosSeparados();
 
   } catch (error) {
-    console.error('Error al actualizar estado de reembolso:', error);
-    mostrarNotificacion('❌ Error al actualizar el estado: ' + error.message, 'error');
+    console.error('Error al actualizar tipo de pago:', error);
+    mostrarNotificacion('❌ Error al actualizar el tipo de pago: ' + error.message, 'error');
   }
 }
 
+window.seleccionarTipoPago = seleccionarTipoPago;
 window.toggleReembolso = toggleReembolso;
 
 // Variable para trackear el botón de eliminar activo
@@ -1504,7 +3670,13 @@ async function editarGasto(id) {
       document.getElementById('organizacion').value = gasto.organizacion || '';
     }
     document.getElementById('comprobante').checked = gasto.comprobanteAdjunto || false;
-    document.getElementById('reembolsado').checked = gasto.reembolsado || false;
+    
+    // Establecer tipo de pago
+    const tipoPago = gasto.tipoPago || (gasto.reembolsado ? 'reembolsado' : 'pagoDirecto');
+    const radioTipoPago = document.querySelector(`input[name="tipoPago"][value="${tipoPago}"]`);
+    if (radioTipoPago) {
+      radioTipoPago.checked = true;
+    }
     document.getElementById('observaciones').value = gasto.observaciones || '';
     
     // Cambiar el título del modal
@@ -1646,7 +3818,7 @@ function crearTarjetaGasto(gasto) {
 
   const estadoRegistro = gasto.registrado 
     ? '<span class="inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-bold bg-green-900 text-green-300 border border-green-700 whitespace-nowrap">✓ REGISTRADO</span>'
-    : '<span class="inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-300 border border-gray-600 whitespace-nowrap">⏳ PENDIENTE</span>';
+    : '<span class="inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-300 border border-gray-600 whitespace-nowrap">⏳ SIN REGISTRAR</span>';
 
   // Mostrar observaciones si existen
   const observacionesHTML = gasto.observaciones ? `
@@ -2316,14 +4488,45 @@ function renderGastosPendientes(gastos) {
         <p class="text-[10px]">Todos los gastos han sido reportados</p>
       </div>
     `;
-  } else {
-    // Lista vertical para tarjetas horizontales
-    container.innerHTML = `
-      <div class="flex flex-col gap-3">
-        ${gastosFiltrados.map(crearTarjetaGastoPendiente).join('')}
+    return;
+  }
+
+  // Agrupar por mes
+  const gruposPorMes = agruparPorMes(gastosFiltrados);
+  
+  // Renderizar grupos de mes con acordeón
+  container.innerHTML = gruposPorMes.map(([mesAnio, grupo]) => {
+    const tarjetas = grupo.gastos.map(crearTarjetaGastoPendiente).join('');
+    const acordeonId = `pend-${mesAnio}`;
+    const estaExpandido = obtenerEstadoAcordeon(acordeonId);
+    
+    return `
+      <div class="mb-3 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+        <!-- Header del mes -->
+        <button onclick="toggleGrupoGastoMes('${acordeonId}')" 
+          class="w-full flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/40 dark:hover:to-blue-800/40 transition-all">
+          <div class="flex items-center gap-2">
+            <svg id="icono-${acordeonId}" class="w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform ${estaExpandido ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+            <div class="text-left">
+              <h4 class="font-bold text-gray-900 dark:text-gray-100 text-sm capitalize">${grupo.label}</h4>
+              <p class="text-xs text-gray-600 dark:text-gray-400">${grupo.gastos.length} gasto${grupo.gastos.length !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-base font-bold text-blue-700 dark:text-blue-400">$${grupo.total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+            <p class="text-xs text-blue-600 dark:text-blue-500 font-medium">Total</p>
+          </div>
+        </button>
+        
+        <!-- Contenido del mes -->
+        <div id="grupo-${acordeonId}" class="p-2 space-y-2 bg-gray-50 dark:bg-gray-900/50 ${estaExpandido ? '' : 'hidden'}">
+          ${tarjetas}
+        </div>
       </div>
     `;
-  }
+  }).join('');
 }
 
 // Renderizar gastos reportados agrupados
@@ -2444,28 +4647,29 @@ function agruparPorAnio(gastos) {
 function renderGastosAgrupados(grupos, vista) {
   return grupos.map(([key, grupo], index) => {
     const icono = vista === 'mes' ? '📅' : vista === 'trimestre' ? '📊' : '📆';
-    const grupoId = `grupo-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const grupoId = `hist-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const estaExpandido = obtenerEstadoAcordeon(grupoId);
     
     return `
-      <div class="mb-3 border border-gray-200 rounded-lg overflow-hidden">
-        <div class="bg-gradient-to-r from-sky-100 to-blue-100 p-3 cursor-pointer hover:from-sky-200 hover:to-blue-200 transition-all"
+      <div class="mb-3 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+        <div class="bg-gradient-to-r from-sky-100 to-blue-100 dark:from-sky-900/30 dark:to-blue-800/30 p-3 cursor-pointer hover:from-sky-200 hover:to-blue-200 dark:hover:from-sky-900/40 dark:hover:to-blue-800/40 transition-all"
              onclick="toggleGrupoGastos('${grupoId}')">
           <div class="flex justify-between items-center">
-            <h3 class="text-sm font-bold text-gray-800 flex items-center">
-              <span id="icon-${grupoId}" class="mr-1.5 text-sm transition-transform duration-300">▼</span>
+            <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 flex items-center">
+              <span id="icon-${grupoId}" class="mr-1.5 text-sm transition-transform duration-300 ${estaExpandido ? '' : '-rotate-90'}">▼</span>
               <span class="mr-2">${icono}</span>
               ${grupo.label}
             </h3>
             <div class="text-right">
-              <p class="text-[10px] text-gray-600">${grupo.gastos.length} gasto${grupo.gastos.length !== 1 ? 's' : ''}</p>
-              <p class="text-sm font-bold text-sky-600">
+              <p class="text-[10px] text-gray-600 dark:text-gray-400">${grupo.gastos.length} gasto${grupo.gastos.length !== 1 ? 's' : ''}</p>
+              <p class="text-sm font-bold text-sky-600 dark:text-sky-400">
                 $${grupo.total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
               </p>
             </div>
           </div>
         </div>
         
-        <div id="${grupoId}" class="p-3 bg-gray-50 transition-all duration-300">
+        <div id="${grupoId}" class="p-3 bg-gray-50 dark:bg-gray-900/50 transition-all duration-300 ${estaExpandido ? '' : 'hidden'}">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
             ${grupo.gastos.map(crearTarjetaGastoReportado).join('')}
           </div>
@@ -2480,14 +4684,28 @@ function toggleGrupoGastos(grupoId) {
   const contenido = document.getElementById(grupoId);
   const icono = document.getElementById(`icon-${grupoId}`);
   
-  if (contenido.style.display === 'none') {
-    contenido.style.display = 'block';
-    icono.textContent = '▼';
-    icono.style.transform = 'rotate(0deg)';
-  } else {
-    contenido.style.display = 'none';
-    icono.textContent = '▶';
-    icono.style.transform = 'rotate(-90deg)';
+  if (contenido && icono) {
+    contenido.classList.toggle('hidden');
+    icono.classList.toggle('-rotate-90');
+    
+    // Guardar estado (expandido si NO tiene hidden)
+    const estaExpandido = !contenido.classList.contains('hidden');
+    guardarEstadoAcordeon(grupoId, estaExpandido);
+  }
+}
+
+// Toggle para grupos de gastos mensuales
+function toggleGrupoGastoMes(mesId) {
+  const contenido = document.getElementById(`grupo-${mesId}`);
+  const icono = document.getElementById(`icono-${mesId}`);
+  
+  if (contenido && icono) {
+    contenido.classList.toggle('hidden');
+    icono.classList.toggle('rotate-180');
+    
+    // Guardar estado (expandido si NO tiene hidden)
+    const estaExpandido = !contenido.classList.contains('hidden');
+    guardarEstadoAcordeon(mesId, estaExpandido);
   }
 }
 
@@ -2505,26 +4723,30 @@ function crearTarjetaGastoPendiente(gasto) {
     : '<span class="text-gray-400 text-xs font-medium flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg><span class="hidden sm:inline">Sin comprobante</span></span>';
 
   const checkboxHtml = gasto.reportado ? '' : `
-    <label class="flex items-center cursor-pointer hover:bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 transition-all group w-full sm:w-auto justify-center sm:justify-start bg-white shadow-sm" title="Marcar como reportado">
+    <label class="flex items-center cursor-pointer hover:bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 transition-all group w-full sm:w-auto justify-center sm:justify-start bg-white shadow-sm" title="Marcar como registrado oficialmente">
       <input type="checkbox" 
         onchange="marcarComoReportado('${gasto.id}')"
         class="w-4 h-4 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer">
-      <span class="ml-2 text-xs font-semibold text-gray-700 group-hover:text-green-700">Reportar</span>
+      <span class="ml-2 text-xs font-semibold text-gray-700 group-hover:text-green-700">Marcar como registrado</span>
     </label>
   `;
 
-  // Botón de Reembolso con fecha
-  let fechaReembolsoText = '';
-  if (gasto.reembolsado && gasto.fechaReembolso) {
-    const fechaReemb = gasto.fechaReembolso.toDate ? gasto.fechaReembolso.toDate() : new Date(gasto.fechaReembolso);
-    fechaReembolsoText = ` el ${fechaReemb.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`;
-  }
+  // Botón de Tipo de Pago
+  const tipoPago = gasto.tipoPago || (gasto.reembolsado ? 'reembolsado' : null);
+  let tipoPagoConfig = {
+    'pago': { emoji: '💵', label: 'Pago Directo', colorBg: 'bg-green-50', colorText: 'text-green-700', colorBorder: 'border-green-200' }, // Retrocompatibilidad
+    'pagoDirecto': { emoji: '💵', label: 'Pago Directo', colorBg: 'bg-green-50', colorText: 'text-green-700', colorBorder: 'border-green-200' },
+    'reembolsado': { emoji: '✅', label: 'Reembolsado', colorBg: 'bg-green-50', colorText: 'text-green-700', colorBorder: 'border-green-200' },
+    'null': { emoji: '❓', label: '¿Tipo de pago?', colorBg: 'bg-orange-50', colorText: 'text-orange-700', colorBorder: 'border-orange-200' }
+  };
+  const pagoInfo = tipoPagoConfig[tipoPago] || tipoPagoConfig['null'];
+  
   const reembolsoBtn = `
-    <button onclick="toggleReembolso('${gasto.id}', ${!gasto.reembolsado})" 
-      class="w-full sm:w-auto justify-center ${gasto.reembolsado ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-700 border-orange-200'} border px-3 py-2 rounded-lg transition-all flex items-center gap-2 text-xs font-semibold shadow-sm hover:shadow-md" 
-      title="${gasto.reembolsado ? 'Marcar como NO reembolsado' : 'Marcar como reembolsado'}">
-      ${gasto.reembolsado ? '<span class="text-sm">✅</span>' : '<span class="text-sm">⏳</span>'}
-      <span>${gasto.reembolsado ? 'Reembolsado' : 'Pendiente'}${fechaReembolsoText}</span>
+    <button onclick="seleccionarTipoPago('${gasto.id}')" 
+      class="w-full sm:w-auto justify-center ${pagoInfo.colorBg} ${pagoInfo.colorText} ${pagoInfo.colorBorder} border px-3 py-2 rounded-lg transition-all flex items-center gap-2 text-xs font-semibold shadow-sm hover:shadow-md cursor-pointer" 
+      title="Click para cambiar el tipo de pago">
+      <span class="text-sm">${pagoInfo.emoji}</span>
+      <span>${pagoInfo.label}</span>
     </button>
   `;
 
@@ -2560,7 +4782,7 @@ function crearTarjetaGastoPendiente(gasto) {
         <!-- Left: Main Info -->
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap mb-2">
-             <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-yellow-100 text-yellow-800 border border-yellow-200">PENDIENTE</span>
+             <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-yellow-100 text-yellow-800 border border-yellow-200">SIN REGISTRAR</span>
              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-50 text-${cat.color}-700 border border-${cat.color}-100 flex items-center gap-1">${cat.emoji} ${cat.label}</span>
           </div>
 
@@ -2577,10 +4799,12 @@ function crearTarjetaGastoPendiente(gasto) {
         <!-- Right: Amount -->
         <div class="text-right flex-shrink-0">
           ${gasto.comision && gasto.comision > 0 ? `
-              <p class="text-lg font-bold text-gray-800 leading-none" title="Monto Real">$${(gasto.monto).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-              <div class="flex flex-col items-end gap-0.5 mt-1">
-                  <span class="text-[10px] text-purple-600 font-bold px-1.5 py-0.5 bg-purple-50 rounded border border-purple-100" title="Comisión MercadoPago/Libre">+ $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Com.</span>
-                  <span class="text-[10px] text-gray-400 font-bold uppercase tracking-wide mt-0.5">Total: $${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+              <p class="text-xl font-bold text-gray-900 leading-none" title="Total a informar">
+                $${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+              </p>
+              <div class="flex flex-col items-end gap-0.5 mt-1.5">
+                  <span class="text-[10px] text-gray-500 font-medium">Gasto: $${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                  <span class="text-[9px] text-purple-600 font-bold px-1.5 py-0.5 bg-purple-50 rounded border border-purple-100" title="Comisión ML">+ Com: $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
               </div>
           ` : `
               <p class="text-xl font-bold text-gray-800 leading-none">
@@ -2616,18 +4840,33 @@ function crearTarjetaGastoReportado(gasto) {
     ? '<span class="text-green-600 text-xs lg:text-sm font-semibold">✓ Comprobante</span>' 
     : '<span class="text-red-600 text-xs lg:text-sm font-semibold">✗ Sin comprobante</span>';
 
-  // Reembolso con fecha
-  let reembolsoText = '⏳ Pendiente';
-  if (gasto.reembolsado) {
-    reembolsoText = '✅ Reembolsado';
-    if (gasto.fechaReembolso) {
-      const fechaReemb = gasto.fechaReembolso.toDate ? gasto.fechaReembolso.toDate() : new Date(gasto.fechaReembolso);
-      reembolsoText += ` (${fechaReemb.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })})`;
-    }
+  // Tipo de Pago
+  const tipoPago = gasto.tipoPago || (gasto.reembolsado ? 'reembolsado' : null);
+  let tipoPagoConfig = {
+    'pago': { emoji: '💵', label: 'Pago Directo', color: 'text-green-600' }, // Retrocompatibilidad
+    'pagoDirecto': { emoji: '💵', label: 'Pago Directo', color: 'text-green-600' },
+    'reembolsado': { emoji: '✅', label: 'Reembolsado', color: 'text-green-600' },
+    'null': { emoji: '❓', label: '¿Tipo de pago?', color: 'text-orange-600' }
+  };
+  const pagoInfo = tipoPagoConfig[tipoPago] || tipoPagoConfig['null'];
+  
+  let tipoPagoText = `${pagoInfo.emoji} ${pagoInfo.label}`;
+  if (tipoPago === 'reembolsado' && gasto.fechaReembolso) {
+    const fechaReemb = gasto.fechaReembolso.toDate ? gasto.fechaReembolso.toDate() : new Date(gasto.fechaReembolso);
+    tipoPagoText += ` (${fechaReemb.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })})`;
   }
-  const reembolsoIcon = gasto.reembolsado
-    ? `<span class="text-green-600 text-xs lg:text-sm font-semibold flex items-center gap-1">${reembolsoText}</span>`
-    : `<span class="text-orange-600 text-xs lg:text-sm font-semibold flex items-center gap-1">${reembolsoText}</span>`;
+  const tipoPagoIcon = `<span class="${pagoInfo.color} text-xs lg:text-sm font-semibold flex items-center gap-1">${tipoPagoText}</span>`;
+
+  const verBtn = `
+    <button onclick='mostrarDetalleGasto(${JSON.stringify(gasto).replace(/'/g, "&#39;")})' 
+      class="bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white p-2.5 rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95" 
+      title="Ver detalle del gasto">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+      </svg>
+    </button>
+  `;
 
   const editarBtn = esAdmin ? `
     <button onclick="editarGasto('${gasto.id}')"  
@@ -2650,7 +4889,7 @@ function crearTarjetaGastoReportado(gasto) {
       <!-- Header con badges -->
       <div class="flex flex-wrap items-center gap-1.5 mb-2">
         <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 flex-shrink-0">
-          ✅ REPORTADO${gasto.fechaRegistro ? ` (${(gasto.fechaRegistro.toDate ? gasto.fechaRegistro.toDate() : new Date(gasto.fechaRegistro)).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })})` : ''}
+          ✅ REGISTRADO
         </span>
         <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-100 text-${cat.color}-800 flex-shrink-0">
           ${cat.emoji} ${cat.label}
@@ -2661,11 +4900,13 @@ function crearTarjetaGastoReportado(gasto) {
       <div class="mb-2">
         <h4 class="text-xs font-bold text-gray-900 mb-1.5 line-clamp-2">${gasto.descripcion}</h4>
         ${gasto.comision && gasto.comision > 0 ? `
-            <div class="flex items-baseline gap-1 flex-wrap">
-                <p class="text-base font-bold text-sky-600" title="Monto Real">$${(gasto.monto).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-                <span class="text-[10px] text-purple-600 font-bold bg-purple-50 px-1 py-0.5 rounded border border-purple-100" title="Comisión">+ $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            <div class="flex flex-col items-start gap-1">
+                <p class="text-lg font-bold text-sky-700" title="Total informado">$${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <div class="flex items-center gap-1 text-[10px]">
+                    <span class="text-gray-500">Gasto: $${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                    <span class="text-purple-600 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">+ Com: $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                </div>
             </div>
-            <p class="text-[9px] text-gray-400 mt-1 font-medium">Total: $${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
         ` : `
             <p class="text-base font-bold text-sky-600">
               $${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
@@ -2681,14 +4922,13 @@ function crearTarjetaGastoReportado(gasto) {
             <span>${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
           </span>
           <div class="text-[9px]">${comprobanteIcon}</div>
-          <div class="text-[9px]">${reembolsoIcon}</div>
+          <div class="text-[9px]">${tipoPagoIcon}</div>
         </div>
-        ${esAdmin ? `
-          <div class="flex flex-col gap-1.5">
-            ${editarBtn}
-            ${eliminarBtn}
-          </div>
-        ` : ''}
+        <div class="flex flex-col gap-1.5">
+          ${verBtn}
+          ${esAdmin ? editarBtn : ''}
+          ${esAdmin ? eliminarBtn : ''}
+        </div>
       </div>
     </div>
   `;
@@ -2751,12 +4991,353 @@ function cambiarVistaHistorial(vista) {
   cargarGastosSeparados();
 }
 
+// ==================== MODAL GASTOS INFORMADOS ====================
+
+// Abrir modal de gastos informados
+async function abrirModalGastosInformados() {
+  const modal = document.getElementById('modal-gastos-informados');
+  if (!modal) return;
+  
+  modal.classList.remove('hidden');
+  await cargarGastosInformados();
+}
+
+// Cerrar modal de gastos informados
+function cerrarModalGastosInformados() {
+  const modal = document.getElementById('modal-gastos-informados');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+// Cargar y mostrar gastos informados
+async function cargarGastosInformados() {
+  try {
+    const contenido = document.getElementById('contenido-gastos-informados');
+    const totalText = document.getElementById('total-informados-text');
+    
+    if (!db) {
+      contenido.innerHTML = '<div class="text-center py-12 text-red-500"><p>Error: Firebase no inicializado</p></div>';
+      return;
+    }
+    
+    // Obtener todos los gastos informados
+    const gastosSnapshot = await db.collection('gastos')
+      .where('registrado', '==', true)
+      .where('eliminado', '==', false)
+      .get();
+    
+    const gastosInformados = [];
+    gastosSnapshot.forEach(doc => {
+      gastosInformados.push({ id: doc.id, ...doc.data() });
+    });
+    
+    // Ordenar por fecha en memoria
+    gastosInformados.sort((a, b) => {
+      const fechaA = a.fecha?.toDate ? a.fecha.toDate() : new Date(a.fecha);
+      const fechaB = b.fecha?.toDate ? b.fecha.toDate() : new Date(b.fecha);
+      return fechaB - fechaA; // desc
+    });
+    
+    // Calcular totales
+    let totalMonto = 0;
+    let totalComisiones = 0;
+    gastosInformados.forEach(g => {
+      totalMonto += g.monto || 0;
+      totalComisiones += g.comision || 0;
+    });
+    const totalGeneral = totalMonto + totalComisiones;
+    
+    // Actualizar texto del header
+    totalText.textContent = `${gastosInformados.length} gastos • Total: $${totalGeneral.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    
+    // Renderizar la lista
+    if (gastosInformados.length === 0) {
+      contenido.innerHTML = `
+        <div class="text-center py-12 text-gray-400">
+          <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          <p class="text-lg font-medium">No hay gastos informados aún</p>
+          <p class="text-sm mt-2">Los gastos que marques como reportados aparecerán aquí</p>
+        </div>
+      `;
+      return;
+    }
+    
+    // Organizar gastos con información formateada
+    const organizaciones = {
+      'hombres-mujeres-jovenes': 'Hombres y mujeres jóvenes',
+      'primaria': 'Primaria',
+      'sociedad-socorro': 'Sociedad de socorro',
+      'escuela-dominical': 'Escuela dominical',
+      'quorum-elderes': 'Quórum de Elderes',
+      'gastos-presupuesto': 'Gastos de Presupuesto',
+      'adultos-solteros': 'Adultos solteros',
+      'viajes-aprobados': 'Viajes aprobados',
+      'meetup': 'Meet up (externo)',
+      'pfj': 'PFJ (externo)',
+      'area': 'AREA (externo)'
+    };
+    
+    contenido.innerHTML = `
+      <div class="space-y-3">
+        ${gastosInformados.map(g => {
+          const fecha = parseFechaLocal(g.fecha);
+          const fechaFormateada = fecha.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+          const orgFormateada = organizaciones[g.organizacion] || g.organizacion;
+          const montoTotal = (g.monto || 0) + (g.comision || 0);
+          const categoriaEmoji = g.categoria === 'viaticos' ? '🚗' : '💰';
+          const categoriaColor = g.categoria === 'viaticos' ? 'text-green-600 bg-green-50' : 'text-orange-600 bg-orange-50';
+          
+          return `
+            <div class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="px-2 py-1 rounded text-xs font-semibold ${categoriaColor}">
+                      ${categoriaEmoji} ${g.categoria === 'viaticos' ? 'Viáticos' : 'Presupuesto'}
+                    </span>
+                    <span class="text-xs text-gray-500">${fechaFormateada}</span>
+                  </div>
+                  <p class="font-medium text-gray-900 mb-1">${g.descripcion}</p>
+                  <p class="text-sm text-gray-600">${orgFormateada}</p>
+                  ${g.tieneComision ? `
+                    <div class="mt-2 text-xs text-gray-500">
+                      <span>Base: $${(g.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                      <span class="mx-2">•</span>
+                      <span>Comisión: $${(g.comision || 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                    </div>
+                  ` : ''}
+                </div>
+                <div class="text-right ml-4 flex flex-col items-end gap-2">
+                  <p class="text-lg font-bold text-purple-600">$${montoTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                  ${g.reembolsado ? '<span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded font-medium">Reembolsado</span>' : ''}
+                  <button onclick='mostrarDetalleGasto(${JSON.stringify(g).replace(/'/g, "&#39;")})' 
+                    class="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                    Ver detalle
+                  </button>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      
+      <!-- Resumen al final -->
+      <div class="mt-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
+        <div class="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p class="text-xs text-gray-600 mb-1">Monto Base</p>
+            <p class="text-lg font-bold text-gray-900">$${totalMonto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-600 mb-1">Comisiones</p>
+            <p class="text-lg font-bold text-purple-600">$${totalComisiones.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-600 mb-1">Total General</p>
+            <p class="text-xl font-bold text-gray-900">$${totalGeneral.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+          </div>
+        </div>
+      </div>
+    `;
+    
+  } catch (error) {
+    console.error('Error al cargar gastos informados:', error);
+    const contenido = document.getElementById('contenido-gastos-informados');
+    contenido.innerHTML = `
+      <div class="text-center py-12 text-red-500">
+        <p class="font-medium">Error al cargar gastos informados</p>
+        <p class="text-sm mt-2">${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+// Descargar PDF de gastos informados
+async function descargarPDFGastosInformados() {
+  try {
+    // Obtener gastos informados
+    const gastosSnapshot = await db.collection('gastos')
+      .where('registrado', '==', true)
+      .where('eliminado', '==', false)
+      .orderBy('fecha', 'desc')
+      .get();
+    
+    const gastosInformados = [];
+    gastosSnapshot.forEach(doc => {
+      gastosInformados.push({ id: doc.id, ...doc.data() });
+    });
+    
+    if (gastosInformados.length === 0) {
+      mostrarNotificacion('No hay gastos informados para descargar', 'warning');
+      return;
+    }
+    
+    // Calcular totales
+    let totalMonto = 0;
+    let totalComisiones = 0;
+    gastosInformados.forEach(g => {
+      totalMonto += g.monto || 0;
+      totalComisiones += g.comision || 0;
+    });
+    const totalGeneral = totalMonto + totalComisiones;
+    
+    const organizaciones = {
+      'hombres-mujeres-jovenes': 'Hombres y mujeres jóvenes',
+      'primaria': 'Primaria',
+      'sociedad-socorro': 'Sociedad de socorro',
+      'escuela-dominical': 'Escuela dominical',
+      'quorum-elderes': 'Quórum de Elderes',
+      'gastos-presupuesto': 'Gastos de Presupuesto',
+      'adultos-solteros': 'Adultos solteros',
+      'viajes-aprobados': 'Viajes aprobados',
+      'meetup': 'Meet up (externo)',
+      'pfj': 'PFJ (externo)',
+      'area': 'AREA (externo)'
+    };
+    
+    // Crear HTML para el PDF
+    const contenidoPDF = `
+      <div style="font-family: Arial, sans-serif; padding: 30px; max-width: 800px; margin: 0 auto;">
+        <!-- Header -->
+        <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #7c3aed;">
+          <h1 style="font-size: 24px; color: #1f2937; margin: 0 0 10px 0; font-weight: bold;">LISTA DE GASTOS INFORMADOS</h1>
+          <p style="font-size: 12px; color: #6b7280; margin: 0;">Sistema de Control de Gastos - Estaca Aldo Bonzi</p>
+          <p style="font-size: 11px; color: #9ca3af; margin: 5px 0 0 0;">Generado: ${new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        </div>
+        
+        <!-- Resumen -->
+        <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px; font-size: 12px; color: #6b7280; font-weight: 600;">Total de Gastos:</td>
+              <td style="padding: 8px; font-size: 12px; color: #1f2937; font-weight: bold; text-align: right;">${gastosInformados.length}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; font-size: 12px; color: #6b7280; font-weight: 600;">Monto Base:</td>
+              <td style="padding: 8px; font-size: 12px; color: #1f2937; font-weight: bold; text-align: right;">$${totalMonto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; font-size: 12px; color: #6b7280; font-weight: 600;">Comisiones:</td>
+              <td style="padding: 8px; font-size: 12px; color: #7c3aed; font-weight: bold; text-align: right;">$${totalComisiones.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+            </tr>
+            <tr style="border-top: 2px solid #d1d5db;">
+              <td style="padding: 10px 8px; font-size: 13px; color: #1f2937; font-weight: bold;">Total General:</td>
+              <td style="padding: 10px 8px; font-size: 16px; color: #7c3aed; font-weight: bold; text-align: right;">$${totalGeneral.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+            </tr>
+          </table>
+        </div>
+        
+        <!-- Lista de Gastos -->
+        <div style="margin-bottom: 20px;">
+          <h2 style="font-size: 14px; color: #1f2937; font-weight: bold; margin-bottom: 15px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb;">DETALLE DE GASTOS</h2>
+          
+          ${gastosInformados.map((g, index) => {
+            const fecha = parseFechaLocal(g.fecha);
+            const fechaFormateada = fecha.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+            const orgFormateada = organizaciones[g.organizacion] || g.organizacion;
+            const montoTotal = (g.monto || 0) + (g.comision || 0);
+            const categoriaLabel = g.categoria === 'viaticos' ? 'Viáticos' : 'Presupuesto';
+            
+            return `
+              <div style="background: ${index % 2 === 0 ? '#ffffff' : '#f9fafb'}; padding: 12px; margin-bottom: 8px; border: 1px solid #e5e7eb; border-radius: 6px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                  <span style="font-size: 11px; color: #6b7280;">${fechaFormateada}</span>
+                  <span style="font-size: 10px; color: #7c3aed; font-weight: 600;">${categoriaLabel}</span>
+                </div>
+                <p style="font-size: 12px; color: #1f2937; font-weight: bold; margin: 0 0 4px 0;">${g.descripcion}</p>
+                <p style="font-size: 11px; color: #6b7280; margin: 0 0 6px 0;">${orgFormateada}</p>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div style="font-size: 10px; color: #9ca3af;">
+                    ${g.tieneComision ? `Base: $${(g.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2})} + Comisión: $${(g.comision || 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}` : `Monto: $${(g.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}`}
+                  </div>
+                  <div style="font-size: 14px; color: #7c3aed; font-weight: bold;">$${montoTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</div>
+                </div>
+                ${g.reembolsado ? '<div style="margin-top: 4px; font-size: 9px; color: #059669; font-weight: 600;">✓ REEMBOLSADO</div>' : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+        
+        <!-- Footer -->
+        <div style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #e5e7eb; text-align: center;">
+          <p style="font-size: 9px; color: #9ca3af; margin: 0;">Este documento fue generado automáticamente por el Sistema de Control de Gastos</p>
+        </div>
+      </div>
+    `;
+    
+    // Crear elemento temporal
+    const elemento = document.createElement('div');
+    elemento.innerHTML = contenidoPDF;
+    document.body.appendChild(elemento);
+    
+    // Configuración de html2pdf
+    const fechaHoy = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const nombreArchivo = `Gastos_Informados_${fechaHoy}.pdf`;
+    
+    const opciones = {
+      margin: 10,
+      filename: nombreArchivo,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    
+    // Generar y descargar el PDF
+    await html2pdf().set(opciones).from(elemento).save();
+    document.body.removeChild(elemento);
+    mostrarNotificacion('✅ PDF descargado exitosamente', 'success');
+    
+  } catch (error) {
+    console.error('Error al generar PDF:', error);
+    mostrarNotificacion('❌ Error al generar PDF: ' + error.message, 'error');
+  }
+}
+
+// Imprimir gastos informados
+function imprimirGastosInformados() {
+  const contenido = document.getElementById('contenido-gastos-informados').innerHTML;
+  const ventana = window.open('', '_blank');
+  ventana.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Gastos Informados - Impresión</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        @media print {
+          body { padding: 0; }
+        }
+      </style>
+    </head>
+    <body>
+      <h1 style="text-align: center; color: #7c3aed; margin-bottom: 20px;">Gastos Informados</h1>
+      <p style="text-align: center; color: #6b7280; font-size: 12px; margin-bottom: 30px;">Sistema de Control de Gastos - Estaca Aldo Bonzi</p>
+      ${contenido}
+      <script>
+        window.onload = function() { window.print(); }
+      </script>
+    </body>
+    </html>
+  `);
+  ventana.document.close();
+}
+
 // ==================== DETALLE DE GASTO (LIGHTBOX) ====================
 function mostrarDetalleGasto(gasto) {
   const modal = document.getElementById('modal-detalle-gasto');
   const contenido = document.getElementById('contenido-detalle-gasto');
   
   if (!modal || !contenido) return;
+
+  // Guardar el gasto actual para poder descargarlo
+  gastoActualDetalle = gasto;
 
   const categoriaInfo = {
     'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
@@ -2773,6 +5354,12 @@ function mostrarDetalleGasto(gasto) {
     day: 'numeric' 
   });
 
+  // Calcular comisión y total
+  const montoReal = gasto.monto || 0;
+  const comision = gasto.comision || 0;
+  const tieneComision = gasto.tieneComision || false;
+  const total = montoReal + comision;
+
   const html = `
     <div class="p-6 space-y-4">
       <!-- Encabezado con monto y estado -->
@@ -2781,7 +5368,7 @@ function mostrarDetalleGasto(gasto) {
           <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-${cat.color}-100 text-${cat.color}-800 border border-${cat.color}-200 mb-2">
             ${cat.emoji} ${cat.label}
           </span>
-          <h2 class="text-3xl font-bold text-gray-900">$${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2})}</h2>
+          <h2 class="text-3xl font-bold text-gray-900">$${montoReal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</h2>
           <p class="text-sm text-gray-500 mt-1 capitalize">${fecha}</p>
         </div>
       </div>
@@ -2791,6 +5378,44 @@ function mostrarDetalleGasto(gasto) {
         <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Descripción</label>
         <p class="text-gray-800 font-medium text-lg mt-1">${gasto.descripcion}</p>
       </div>
+
+      ${gasto.imagenRecibo ? `
+      <!-- Imagen del recibo -->
+      <div class="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-200">
+        <label class="text-xs font-bold text-indigo-600 uppercase tracking-wide flex items-center gap-2 mb-3">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          </svg>
+          Recibo Escaneado (OCR)
+        </label>
+        <div class="relative rounded-lg overflow-hidden bg-white shadow-md">
+          <img src="${gasto.imagenRecibo}" alt="Recibo" class="w-full h-auto max-h-80 object-contain cursor-pointer" onclick="window.open('${gasto.imagenRecibo}', '_blank')">
+          <div class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-semibold text-gray-600">
+            Click para ampliar
+          </div>
+        </div>
+      </div>
+      ` : ''}
+
+      ${tieneComision ? `
+      <!-- Desglose de montos con comisión -->
+      <div class="bg-purple-50 p-4 rounded-xl border border-purple-100">
+        <div class="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <label class="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">Monto Base</label>
+            <p class="text-lg font-bold text-gray-900">$${montoReal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">Comisión (6.99%)</label>
+            <p class="text-lg font-bold text-purple-600">$${comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+          </div>
+          <div class="border-l-2 border-purple-200">
+            <label class="text-xs font-bold text-gray-400 uppercase tracking-wide block mb-1">Total</label>
+            <p class="text-lg font-bold text-gray-900">$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+          </div>
+        </div>
+      </div>
+      ` : ''}
 
       <!-- Detalles: Organización y Notas -->
       <div class="grid grid-cols-1 gap-4">
@@ -2833,240 +5458,541 @@ function cerrarModalDetalle() {
   if (modal) modal.classList.add('hidden');
 }
 
-// ==================== GESTIÓN DE COMISIONES DE MERCADOLIBRE ====================
-// v1.0 - Panel de gestión de comisiones
-
-// Abrir modal de comisiones
-function mostrarModalComisiones() {
-  console.log('🔍 Abriendo modal de comisiones...');
-  const modal = document.getElementById('modal-comisiones');
-  if (modal) {
-    modal.classList.remove('hidden');
-    cargarComisiones();
-    console.log('✅ Modal de comisiones abierto');
-  } else {
-    console.error('❌ No se encontró el modal de comisiones');
-  }
-}
-
-// Cerrar modal de comisiones
-function cerrarModalComisiones() {
-  const modal = document.getElementById('modal-comisiones');
-  if (modal) modal.classList.add('hidden');
-}
-
-// Cargar comisiones desde Firebase
-async function cargarComisiones() {
-  console.log('📥 Cargando comisiones desde Firebase...');
-  try {
-    // Obtener todos los gastos y filtrar los que tienen comisión y NO están eliminados
-    const snapshot = await db.collection('gastos')
-      .orderBy('fecha', 'desc')
-      .get();
-
-    const comisiones = snapshot.docs
-      .map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
-      .filter(gasto => {
-        // Filtrar: debe tener comisión > 0 Y no estar eliminado
-        return gasto.comision && gasto.comision > 0 && !gasto.eliminado;
-      })
-      .sort((a, b) => {
-        // Ordenar por fecha descendente (más reciente primero)
-        const fechaA = parseFechaLocal(a.fecha);
-        const fechaB = parseFechaLocal(b.fecha);
-        return fechaB - fechaA;
-      });
-
-    console.log(`✅ Comisiones cargadas: ${comisiones.length}`);
-    renderComisiones(comisiones);
-    actualizarResumenComisiones(comisiones);
-
-  } catch (error) {
-    console.error('❌ Error al cargar comisiones:', error);
-    mostrarNotificacion('❌ Error al cargar las comisiones: ' + error.message, 'error');
-  }
-}
-
-// Renderizar lista de comisiones
-function renderComisiones(comisiones) {
-  const lista = document.getElementById('lista-comisiones');
+// ==================== CIERRE DE AÑO FISCAL ====================
+async function cerrarAnoFiscal() {
+  const pinInput = document.getElementById('pin-cierre-fiscal');
+  const confirmacionInput = document.getElementById('confirmacion-cierre-fiscal');
   
-  if (!lista) return;
-
-  if (comisiones.length === 0) {
-    lista.innerHTML = `
-      <div class="text-center modal-comisiones-empty py-8">
-        <span class="text-4xl mb-2 block">💳</span>
-        <p class="text-sm mb-1 font-medium">No hay comisiones registradas</p>
-        <p class="text-xs">Las comisiones de MercadoLibre aparecerán aquí</p>
-      </div>
-    `;
+  if (!pinInput || !confirmacionInput) {
+    mostrarNotificacion('❌ Error: No se encontraron los campos requeridos', 'error');
     return;
   }
 
-  lista.innerHTML = comisiones.map(comision => {
-    const fecha = parseFechaLocal(comision.fecha).toLocaleDateString('es-ES', { 
-      day: 'numeric', 
-      month: 'short',
-      year: 'numeric'
+  const pin = pinInput.value.trim();
+  const confirmacion = confirmacionInput.value.trim();
+
+  // Validar PIN
+  if (!pin) {
+    mostrarNotificacion('❌ Debes ingresar tu PIN de administrador', 'error');
+    return;
+  }
+
+  // Validar confirmación
+  if (confirmacion !== 'ELIMINAR TODO') {
+    mostrarNotificacion('❌ Debes escribir exactamente "ELIMINAR TODO" para confirmar', 'error');
+    return;
+  }
+
+  // Verificar PIN de administrador
+  try {
+    const configDoc = await db.collection('configuracion').doc('sistema').get();
+    if (!configDoc.exists) {
+      mostrarNotificacion('❌ No se pudo verificar la configuración', 'error');
+      return;
+    }
+
+    const config = configDoc.data();
+    if (config.pinAdmin !== pin) {
+      mostrarNotificacion('❌ PIN de administrador incorrecto', 'error');
+      return;
+    }
+
+    // Confirmación final con diálogo nativo
+    const confirmacionFinal = confirm(
+      '⚠️ ÚLTIMA CONFIRMACIÓN ⚠️\n\n' +
+      'Estás a punto de ELIMINAR TODOS los gastos del sistema.\n' +
+      'Esta acción NO SE PUEDE DESHACER.\n\n' +
+      'Se eliminarán:\n' +
+      '• Todos los gastos pendientes\n' +
+      '• Todos los gastos reportados\n' +
+      '• Todos los gastos informados\n' +
+      '• Todas las comisiones\n\n' +
+      '¿Estás ABSOLUTAMENTE SEGURO de que deseas continuar?'
+    );
+
+    if (!confirmacionFinal) {
+      mostrarNotificacion('ℹ️ Operación cancelada', 'info');
+      return;
+    }
+
+    // Mostrar indicador de carga
+    mostrarNotificacion('🔄 Eliminando todos los gastos... Por favor espera', 'info');
+
+    // Obtener todos los gastos
+    const snapshot = await db.collection('gastos').get();
+    const totalGastos = snapshot.size;
+
+    if (totalGastos === 0) {
+      mostrarNotificacion('ℹ️ No hay gastos para eliminar', 'info');
+      pinInput.value = '';
+      confirmacionInput.value = '';
+      return;
+    }
+
+    // Eliminar todos los gastos en lote (batches)
+    const batch = db.batch();
+    let contador = 0;
+    
+    snapshot.forEach((doc) => {
+      batch.delete(doc.ref);
+      contador++;
     });
 
-    const informada = comision.comisionInformada || false;
-    const fechaInformada = comision.fechaComisionInformada 
-      ? (comision.fechaComisionInformada.toDate ? comision.fechaComisionInformada.toDate() : new Date(comision.fechaComisionInformada)).toLocaleDateString('es-ES', { 
-          day: 'numeric', 
-          month: 'short' 
-        })
-      : '';
+    // Ejecutar la eliminación
+    await batch.commit();
 
-    return `
-      <div class="comision-item ${informada ? 'comision-item-informada' : ''} rounded-xl p-4 hover:shadow-md transition-all">
-        <div class="flex items-start gap-4">
-          ${!informada ? `
-            <input type="checkbox" 
-              class="comision-checkbox mt-1 w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 cursor-pointer" 
-              data-comision-id="${comision.id}"
-              data-comision-monto="${comision.comision}">
-          ` : `
-            <div class="mt-1 w-5 h-5 bg-green-500 rounded flex items-center justify-center">
-              <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-              </svg>
-            </div>
-          `}
-          
-          <div class="flex-1">
-            <div class="flex items-start justify-between gap-3 mb-2">
-              <div>
-                <h4 class="comision-item-title text-sm font-bold mb-1">${comision.descripcion}</h4>
-                <div class="flex flex-wrap items-center gap-2 text-xs">
-                  <span class="flex items-center gap-1 comision-item-date">
-                    📅 ${fecha}
-                  </span>
-                  ${comision.organizacion ? `
-                    <span class="flex items-center gap-1 comision-item-date">
-                      🏢 ${comision.organizacion}
-                    </span>
-                  ` : ''}
-                </div>
-              </div>
-              <div class="text-right flex-shrink-0">
-                <p class="text-base font-bold text-purple-600 comision-item-amount">$${comision.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
-                <p class="text-xs comision-item-label">Comisión ML</p>
-              </div>
-            </div>
+    // Registrar el cierre fiscal en el historial (opcional)
+    await db.collection('historialCierres').add({
+      fecha: firebase.firestore.FieldValue.serverTimestamp(),
+      gastosEliminados: totalGastos,
+      administrador: 'Sistema',
+      tipo: 'cierre-fiscal'
+    });
 
-            ${comision.observaciones ? `
-              <p class="comision-item-note text-xs italic mt-2 p-2 rounded border-l-2">
-                📝 ${comision.observaciones}
-              </p>
-            ` : ''}
+    // Limpiar campos
+    pinInput.value = '';
+    confirmacionInput.value = '';
 
-            <div class="flex items-center gap-2 mt-3 pt-3 comision-item-footer">
-              <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold comision-badge ${
-                informada 
-                  ? 'comision-badge-informada' 
-                  : 'comision-badge-pendiente'
-              }">
-                ${informada ? '✅ Informada' : '⏳ Pendiente'}
-                ${informada && fechaInformada ? ` el ${fechaInformada}` : ''}
-              </span>
-              ${comision.monto ? `
-                <span class="text-xs comision-item-gasto-label">
-                  Gasto: $${comision.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}
-                </span>
-              ` : ''}
-            </div>
-          </div>
+    // Recargar los datos
+    await cargarGastosSeparados();
+    await actualizarDashboard();
+
+    mostrarNotificacion(
+      `✅ Cierre de año fiscal completado. Se eliminaron ${totalGastos} gasto(s) exitosamente`,
+      'success'
+    );
+
+    console.log(`✅ Cierre fiscal: ${totalGastos} gastos eliminados`);
+
+  } catch (error) {
+    console.error('❌ Error durante el cierre fiscal:', error);
+    mostrarNotificacion('❌ Error al realizar el cierre fiscal: ' + error.message, 'error');
+  }
+}
+
+// Función para descargar el detalle del gasto en PDF
+function descargarDetallePDF() {
+  if (!gastoActualDetalle) {
+    alert('No hay gasto para descargar');
+    return;
+  }
+
+  const gasto = gastoActualDetalle;
+  
+  // Categorías
+  const categoriaInfo = {
+    'viaticos': { emoji: '🚗', label: 'Viáticos' },
+    'presupuesto': { emoji: '💰', label: 'Presupuesto' }
+  };
+  
+  const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria };
+  
+  // Formatear fecha
+  const fecha = parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+
+  // Calcular montos
+  const montoReal = gasto.monto || 0;
+  const comision = gasto.comision || 0;
+  const tieneComision = gasto.tieneComision || false;
+  const total = montoReal + comision;
+  
+  // Obtener organización formateada
+  const organizaciones = {
+    'hombres-mujeres-jovenes': 'Hombres y mujeres jóvenes',
+    'primaria': 'Primaria',
+    'sociedad-socorro': 'Sociedad de socorro',
+    'escuela-dominical': 'Escuela dominical',
+    'quorum-elderes': 'Quórum de Elderes',
+    'gastos-presupuesto': 'Gastos de Presupuesto',
+    'adultos-solteros': 'Adultos solteros',
+    'viajes-aprobados': 'Viajes aprobados',
+    'meetup': 'Meet up (externo)',
+    'pfj': 'PFJ (externo)',
+    'area': 'AREA (externo)'
+  };
+  const orgFormateada = organizaciones[gasto.organizacion] || gasto.organizacion || 'No especificada';
+
+  // Crear contenido HTML para el PDF
+  const contenidoPDF = `
+    <div style="font-family: 'Arial', 'Helvetica', sans-serif; padding: 40px 30px; max-width: 700px; margin: 0 auto; background: white;">
+      
+      <!-- ENCABEZADO -->
+      <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 4px solid #1f2937;">
+        <h1 style="font-size: 24px; color: #1f2937; margin: 0; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Detalle del Gasto</h1>
+      </div>
+
+      <!-- INFORMACIÓN DEL DOCUMENTO -->
+      <div style="background: #f9fafb; padding: 15px 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #3b82f6;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 6px 0; font-size: 11px; color: #6b7280; font-weight: 600;">Fecha del Gasto:</td>
+            <td style="padding: 6px 0; font-size: 11px; color: #1f2937; font-weight: bold;">${fecha}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 11px; color: #6b7280; font-weight: 600;">Categoría:</td>
+            <td style="padding: 6px 0; font-size: 11px; color: #1f2937; font-weight: bold;">${cat.emoji} ${cat.label}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 11px; color: #6b7280; font-weight: 600;">Organización:</td>
+            <td style="padding: 6px 0; font-size: 11px; color: #1f2937; font-weight: bold;">${orgFormateada}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-size: 11px; color: #6b7280; font-weight: 600;">Estado:</td>
+            <td style="padding: 6px 0; font-size: 11px; font-weight: bold; color: ${gasto.registrado ? '#059669' : '#f59e0b'};">${gasto.registrado ? '✓ Registrado' : '⏳ Sin registrar'}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- DESCRIPCIÓN DEL GASTO -->
+      <div style="margin-bottom: 25px;">
+        <div style="background: #1f2937; color: white; padding: 8px 12px; margin-bottom: 10px; border-radius: 4px;">
+          <p style="margin: 0; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Descripción del Gasto</p>
+        </div>
+        <div style="padding: 15px; background: #f9fafb; border-radius: 4px; border: 1px solid #e5e7eb;">
+          <p style="font-size: 13px; color: #1f2937; margin: 0; line-height: 1.6;">${gasto.descripcion}</p>
         </div>
       </div>
-    `;
-  }).join('');
-}
 
-// Actualizar resumen de comisiones
-function actualizarResumenComisiones(comisiones) {
-  const total = comisiones.reduce((sum, c) => sum + (c.comision || 0), 0);
-  const pendientes = comisiones.filter(c => !c.comisionInformada);
-  const totalPendientes = pendientes.reduce((sum, c) => sum + (c.comision || 0), 0);
-  const informadas = comisiones.filter(c => c.comisionInformada);
-  const totalInformadas = informadas.reduce((sum, c) => sum + (c.comision || 0), 0);
+      <!-- DESGLOSE FINANCIERO -->
+      <div style="margin-bottom: 25px;">
+        <div style="background: #1f2937; color: white; padding: 8px 12px; margin-bottom: 10px; border-radius: 4px;">
+          <p style="margin: 0; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Desglose Financiero</p>
+        </div>
+        
+        ${tieneComision ? `
+        <!-- Con comisión -->
+        <table style="width: 100%; border-collapse: collapse; background: white; border: 2px solid #e5e7eb;">
+          <thead>
+            <tr style="background: #f3f4f6;">
+              <th style="padding: 12px; text-align: left; font-size: 11px; color: #6b7280; font-weight: 600; border-bottom: 2px solid #e5e7eb;">CONCEPTO</th>
+              <th style="padding: 12px; text-align: right; font-size: 11px; color: #6b7280; font-weight: 600; border-bottom: 2px solid #e5e7eb;">IMPORTE (ARS)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #e5e7eb;">Monto Base</td>
+              <td style="padding: 12px; text-align: right; font-size: 14px; color: #111827; font-weight: bold; border-bottom: 1px solid #e5e7eb;">$${montoReal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            </tr>
+            <tr>
+              <td style="padding: 12px; font-size: 12px; color: #374151; border-bottom: 1px solid #e5e7eb;">Comisión por Transferencia (6.99%)</td>
+              <td style="padding: 12px; text-align: right; font-size: 14px; color: #9333ea; font-weight: bold; border-bottom: 1px solid #e5e7eb;">$${comision.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            </tr>
+            <tr style="background: #faf5ff;">
+              <td style="padding: 15px 12px; font-size: 13px; color: #1f2937; font-weight: bold; text-transform: uppercase;">${gasto.reembolsado ? 'Total Reembolsado' : 'Total a Pagar'}</td>
+              <td style="padding: 15px 12px; text-align: right; font-size: 18px; color: #7c3aed; font-weight: bold;">$${total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            </tr>
+          </tbody>
+        </table>
+        ` : `
+        <!-- Sin comisión -->
+        <table style="width: 100%; border-collapse: collapse; background: white; border: 2px solid #e5e7eb;">
+          <tbody>
+            <tr style="background: #f9fafb;">
+              <td style="padding: 15px 12px; font-size: 13px; color: #1f2937; font-weight: bold; text-transform: uppercase;">Monto Total</td>
+              <td style="padding: 15px 12px; text-align: right; font-size: 18px; color: #1f2937; font-weight: bold;">$${montoReal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            </tr>
+          </tbody>
+        </table>
+        `}
+      </div>
 
-  const elemTotal = document.getElementById('total-comisiones');
-  const elemPendientes = document.getElementById('total-comisiones-pendientes');
-  const elemInformadas = document.getElementById('total-comisiones-informadas');
+      ${gasto.observaciones ? `
+      <!-- OBSERVACIONES -->
+      <div style="margin-bottom: 25px;">
+        <div style="background: #1f2937; color: white; padding: 8px 12px; margin-bottom: 10px; border-radius: 4px;">
+          <p style="margin: 0; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Observaciones</p>
+        </div>
+        <div style="padding: 15px; background: #fffbeb; border-radius: 4px; border: 1px solid #fde047; border-left: 4px solid #eab308;">
+          <p style="font-size: 12px; color: #713f12; margin: 0; line-height: 1.6; font-style: italic;">${gasto.observaciones}</p>
+        </div>
+      </div>
+      ` : ''}
 
-  if (elemTotal) elemTotal.textContent = `$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-  if (elemPendientes) elemPendientes.textContent = `$${totalPendientes.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-  if (elemInformadas) elemInformadas.textContent = `$${totalInformadas.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-}
+      <!-- INFORMACIÓN DE VALIDACIÓN -->
+      <div style="margin-bottom: 25px;">
+        <div style="background: #1f2937; color: white; padding: 8px 12px; margin-bottom: 10px; border-radius: 4px;">
+          <p style="margin: 0; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Información de Validación</p>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;">
+          <tr>
+            <td style="padding: 10px 12px; font-size: 11px; color: #6b7280; font-weight: 600; width: 35%; border-bottom: 1px solid #e5e7eb;">Comprobante:</td>
+            <td style="padding: 10px 12px; font-size: 11px; font-weight: bold; border-bottom: 1px solid #e5e7eb; color: ${gasto.comprobanteAdjunto ? '#059669' : '#dc2626'};">${gasto.comprobanteAdjunto ? '✓ Adjuntado' : '✗ No adjuntado'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 12px; font-size: 11px; color: #6b7280; font-weight: 600;">Reembolsado:</td>
+            <td style="padding: 10px 12px; font-size: 11px; font-weight: bold; color: ${gasto.reembolsado ? '#059669' : '#6b7280'};">${gasto.reembolsado ? '✓ Sí' : '✗ No'}</td>
+          </tr>
+        </table>
+      </div>
 
-// Seleccionar todas las comisiones pendientes
-function seleccionarTodasComisiones() {
-  const checkboxes = document.querySelectorAll('.comision-checkbox');
-  checkboxes.forEach(checkbox => {
-    checkbox.checked = true;
-  });
-}
+      <!-- PIE DE PÁGINA -->
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+        <div style="text-align: center;">
+          <p style="font-size: 10px; color: #9ca3af; margin: 0 0 5px 0;">Sistema de Control de Gastos - Estaca Aldo Bonzi</p>
+          <p style="font-size: 10px; color: #9ca3af; margin: 0;">Fecha de generación: ${new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+        </div>
+      </div>
 
-// Deseleccionar todas las comisiones
-function deseleccionarTodasComisiones() {
-  const checkboxes = document.querySelectorAll('.comision-checkbox');
-  checkboxes.forEach(checkbox => {
-    checkbox.checked = false;
-  });
-}
+    </div>
+  `;
 
-// Marcar comisiones seleccionadas como informadas
-async function marcarComisionesComoInformadas() {
-  const checkboxes = document.querySelectorAll('.comision-checkbox:checked');
+  // Crear elemento temporal
+  const elemento = document.createElement('div');
+  elemento.innerHTML = contenidoPDF;
+  document.body.appendChild(elemento);
+
+  // Configuración de html2pdf
+  const fechaFormateada = gasto.fecha.replace(/-/g, '');
+  const idCorto = gasto.id ? gasto.id.substring(0, 8) : 'SIN_ID';
+  const descripcionCorta = gasto.descripcion.substring(0, 25).replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+  const nombreArchivo = `Comprobante_${fechaFormateada}_${idCorto}_${descripcionCorta}.pdf`;
   
-  if (checkboxes.length === 0) {
-    mostrarNotificacion('⚠️ Selecciona al menos una comisión para marcar como informada', 'warning');
-    return;
-  }
+  const opciones = {
+    margin: 10,
+    filename: nombreArchivo,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
 
-  if (!confirm(`¿Marcar ${checkboxes.length} comisión(es) como informadas?`)) {
-    return;
-  }
-
-  try {
-    const batch = db.batch();
-    const ahora = firebase.firestore.FieldValue.serverTimestamp();
-
-    checkboxes.forEach(checkbox => {
-      const id = checkbox.getAttribute('data-comision-id');
-      const ref = db.collection('gastos').doc(id);
-      batch.update(ref, {
-        comisionInformada: true,
-        fechaComisionInformada: ahora,
-        informadaPor: usuarioActual
-      });
-    });
-
-    await batch.commit();
-    
-    mostrarNotificacion(`✅ ${checkboxes.length} comisión(es) marcadas como informadas`, 'success');
-    
-    // Recargar comisiones
-    await cargarComisiones();
-
-  } catch (error) {
-    console.error('Error al marcar comisiones:', error);
-    mostrarNotificacion('❌ Error al marcar las comisiones: ' + error.message, 'error');
-  }
+  // Generar y descargar el PDF
+  html2pdf().set(opciones).from(elemento).save().then(() => {
+    // Remover elemento temporal
+    document.body.removeChild(elemento);
+  });
 }
-
-// Exponer funciones globalmente
-window.mostrarModalComisiones = mostrarModalComisiones;
-window.cerrarModalComisiones = cerrarModalComisiones;
-window.seleccionarTodasComisiones = seleccionarTodasComisiones;
-window.deseleccionarTodasComisiones = deseleccionarTodasComisiones;
-window.marcarComisionesComoInformadas = marcarComisionesComoInformadas;
 
 // La función cargarGastos() ahora usa el sistema separado
 // Se mantiene la referencia original para compatibilidad
+
+// ==================== SISTEMA OCR DE RECIBOS ====================
+let imagenReciboCapturada = null;
+let urlImagenRecibo = null;
+
+// Activar captura de foto del recibo
+function activarCapturaRecibo() {
+  const input = document.getElementById('input-foto-recibo');
+  if (input) {
+    input.click();
+  }
+}
+
+// Procesar imagen capturada con OCR
+async function procesarImagenOCR(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // Validar que sea una imagen
+  if (!file.type.startsWith('image/')) {
+    mostrarNotificacion('❌ Por favor selecciona una imagen válida', 'error');
+    return;
+  }
+
+  // Mostrar preview
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    imagenReciboCapturada = file;
+    urlImagenRecibo = e.target.result;
+    
+    // Mostrar preview
+    const previewImg = document.getElementById('ocr-preview-image');
+    const previewContainer = document.getElementById('ocr-preview-container');
+    const progressDiv = document.getElementById('ocr-progress');
+    const resultsDiv = document.getElementById('ocr-results');
+    
+    if (previewImg && previewContainer) {
+      previewImg.src = urlImagenRecibo;
+      previewContainer.classList.remove('hidden');
+      progressDiv.classList.remove('hidden');
+      resultsDiv.classList.add('hidden');
+    }
+
+    // Ejecutar OCR
+    try {
+      await extraerDatosConOCR(urlImagenRecibo);
+    } catch (error) {
+      console.error('Error en OCR:', error);
+      progressDiv.classList.add('hidden');
+      mostrarNotificacion('⚠️ No se pudieron extraer datos del recibo. Completa manualmente.', 'error');
+    }
+  };
+  
+  reader.readAsDataURL(file);
+}
+
+// Extraer datos del recibo usando Tesseract OCR
+async function extraerDatosConOCR(imagenUrl) {
+  const progressBar = document.getElementById('ocr-progress-bar');
+  const statusText = document.getElementById('ocr-status-text');
+  const progressDiv = document.getElementById('ocr-progress');
+  const resultsDiv = document.getElementById('ocr-results');
+
+  try {
+    // Configurar Tesseract
+    const { createWorker } = Tesseract;
+    const worker = await createWorker('spa', 1, {
+      logger: info => {
+        if (info.status === 'recognizing text') {
+          const progress = Math.round(info.progress * 100);
+          if (progressBar) progressBar.style.width = `${progress}%`;
+          if (statusText) statusText.textContent = `Analizando imagen... ${progress}%`;
+        }
+      },
+    });
+
+    // Ejecutar reconocimiento
+    const { data: { text, confidence } } = await worker.recognize(imagenUrl);
+    await worker.terminate();
+
+    console.log('📄 Texto extraído del recibo:', text);
+    console.log(`✅ Confianza: ${Math.round(confidence)}%`);
+
+    // Extraer datos del texto
+    const datosExtraidos = extraerDatosDeTexto(text);
+    
+    // Auto-completar formulario
+    if (datosExtraidos.monto) {
+      document.getElementById('monto').value = datosExtraidos.monto;
+    }
+    
+    if (datosExtraidos.fecha) {
+      document.getElementById('fecha').value = datosExtraidos.fecha;
+    }
+    
+    if (datosExtraidos.descripcion) {
+      const descripcionInput = document.getElementById('descripcion');
+      if (!descripcionInput.value) { // Solo si está vacío
+        descripcionInput.value = datosExtraidos.descripcion;
+      }
+    }
+
+    // Mostrar resultados
+    if (progressDiv) progressDiv.classList.add('hidden');
+    if (resultsDiv) resultsDiv.classList.remove('hidden');
+
+    const tieneDatos = datosExtraidos.monto || datosExtraidos.fecha;
+    const mensaje = tieneDatos 
+      ? '✅ Datos extraídos y cargados en el formulario' 
+      : '⚠️ No se detectaron datos claros. Completa manualmente';
+    
+    mostrarNotificacion(mensaje, tieneDatos ? 'success' : 'warning');
+
+  } catch (error) {
+    console.error('Error en OCR:', error);
+    if (progressDiv) progressDiv.classList.add('hidden');
+    mostrarNotificacion('❌ Error al procesar la imagen. Completa manualmente.', 'error');
+  }
+}
+
+// Extraer datos estructurados del texto OCR
+function extraerDatosDeTexto(texto) {
+  const datos = {
+    monto: null,
+    fecha: null,
+    descripcion: null
+  };
+
+  // Normalizar texto
+  const textoLimpio = texto.replace(/\s+/g, ' ').trim();
+
+  // 1. Extraer MONTO
+  // Patrones comunes: $1,234.56 | 1234.56 | 1.234,56 | Total: $XXX
+  const patronesMonto = [
+    /\$\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)/gi,  // $1,234.56
+    /(?:total|importe|monto|precio|costo)[:\s]*\$?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)/gi,  // Total: 1234
+    /(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2}))\s*(?:pesos|ars|$)/gi  // 1234.56 pesos
+  ];
+
+  for (const patron of patronesMonto) {
+    const match = patron.exec(textoLimpio);
+    if (match) {
+      let montoStr = match[1] || match[0];
+      montoStr = montoStr.replace(/[^\d.,]/g, '');  // Limpiar
+      montoStr = montoStr.replace(/\./g, '');  // Quitar separadores de miles
+      montoStr = montoStr.replace(',', '.');  // Convertir coma decimal a punto
+      const monto = parseFloat(montoStr);
+      if (!isNaN(monto) && monto > 0 && monto < 10000000) {  // Validar rango razonable
+        datos.monto = monto.toFixed(2);
+        break;
+      }
+    }
+  }
+
+  // 2. Extraer FECHA
+  // Patrones: DD/MM/YYYY | DD-MM-YYYY | YYYY-MM-DD
+  const patronesFecha = [
+    /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/,  // DD/MM/YYYY o DD-MM-YYYY
+    /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/   // YYYY-MM-DD
+  ];
+
+  for (const patron of patronesFecha) {
+    const match = textoLimpio.match(patron);
+    if (match) {
+      let year, month, day;
+      
+      if (match[1].length === 4) {
+        // Formato YYYY-MM-DD
+        year = match[1];
+        month = match[2].padStart(2, '0');
+        day = match[3].padStart(2, '0');
+      } else {
+        // Formato DD/MM/YYYY
+        day = match[1].padStart(2, '0');
+        month = match[2].padStart(2, '0');
+        year = match[3];
+      }
+
+      // Validar fecha razonable
+      const fechaNum = parseInt(year + month + day);
+      if (fechaNum >= 20200101 && fechaNum <= 20301231) {
+        datos.fecha = `${year}-${month}-${day}`;
+        break;
+      }
+    }
+  }
+
+  // 3. Extraer DESCRIPCIÓN (primera línea con texto sustancial)
+  const lineas = textoLimpio.split(/[\n\r]+/);
+  for (const linea of lineas) {
+    const lineaLimpia = linea.trim();
+    // Buscar una línea con texto sustancial (no solo números)
+    if (lineaLimpia.length > 5 && lineaLimpia.length < 100 && /[a-zA-ZáéíóúñÑ]{3,}/.test(lineaLimpia)) {
+      // Evitar líneas que sean solo direcciones o RUC/CUIT
+      if (!/^[\d\s\-\/]+$/.test(lineaLimpia) && !/(?:cuit|rut|ruc|nit)/i.test(lineaLimpia)) {
+        datos.descripcion = lineaLimpia.substring(0, 80);  // Limitar longitud
+        break;
+      }
+    }
+  }
+
+  console.log('📊 Datos extraídos:', datos);
+  return datos;
+}
+
+// Limpiar captura y resetear
+function limpiarCaptura() {
+  imagenReciboCapturada = null;
+  urlImagenRecibo = null;
+  
+  const previewContainer = document.getElementById('ocr-preview-container');
+  const inputFoto = document.getElementById('input-foto-recibo');
+  const progressDiv = document.getElementById('ocr-progress');
+  const resultsDiv = document.getElementById('ocr-results');
+  
+  if (previewContainer) previewContainer.classList.add('hidden');
+  if (progressDiv) progressDiv.classList.add('hidden');
+  if (resultsDiv) resultsDiv.classList.add('hidden');
+  if (inputFoto) inputFoto.value = '';
+}
+
+// Exponer funciones globalmente
+window.activarCapturaRecibo = activarCapturaRecibo;
+window.procesarImagenOCR = procesarImagenOCR;
+window.limpiarCaptura = limpiarCaptura;
+
 // ==================== INICIALIZACIÓN DE FIREBASE ====================

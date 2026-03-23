@@ -24,6 +24,11 @@
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-storage-compat.js"></script>
   <script src="./firebase-config.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <!-- SweetAlert2 para modales elegantes -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- Tesseract.js para OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
   
   <style>
     /* ==================== VARIABLES CSS ==================== */
@@ -727,6 +732,90 @@
         border: 1px solid #fed7aa;
     }
     
+    /* ==================== MONTOS DE COMISIONES ==================== */
+    .comision-montos-container {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+    }
+    
+    .comision-monto-box {
+        background-color: #eff6ff;
+        border: 1px solid #bfdbfe;
+    }
+    
+    .comision-monto-label {
+        color: #1e40af;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+    
+    .comision-monto-value {
+        color: #1e40af;
+    }
+    
+    .comision-comision-box {
+        background-color: #faf5ff;
+        border: 1px solid #e9d5ff;
+    }
+    
+    .comision-comision-label {
+        color: #7c3aed;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+    }
+    
+    /* ==================== PESTAÑAS DE COMISIONES ==================== */
+    .tab-comision {
+        background: transparent;
+        color: #64748b;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .tab-comision:hover {
+        color: #3b82f6;
+        background-color: rgba(59, 130, 246, 0.05);
+    }
+    
+    .tab-comision-active {
+        color: #3b82f6;
+        border-bottom-color: #3b82f6;
+        background-color: rgba(59, 130, 246, 0.05);
+    }
+    
+    .badge-tab {
+        background-color: #e2e8f0;
+        color: #475569;
+        font-size: 0.7rem;
+        min-width: 1.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .tab-comision-active .badge-tab {
+        background-color: #3b82f6;
+        color: white;
+    }
+    
+    .tab-content {
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
     /* ==================== ITEMS DE COMISIÓN - MODO OSCURO ==================== */
     [data-theme="dark"] .comision-item {
         background-color: #1e293b;
@@ -765,6 +854,33 @@
         border-top-color: #334155;
     }
     
+    [data-theme="dark"] .comision-montos-container {
+        background-color: #0f172a;
+        border-color: #334155;
+    }
+    
+    [data-theme="dark"] .comision-monto-box {
+        background-color: rgba(59, 130, 246, 0.1);
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+    
+    [data-theme="dark"] .comision-monto-label {
+        color: #60a5fa;
+    }
+    
+    [data-theme="dark"] .comision-monto-value {
+        color: #93c5fd;
+    }
+    
+    [data-theme="dark"] .comision-comision-box {
+        background-color: rgba(139, 92, 246, 0.1);
+        border-color: rgba(139, 92, 246, 0.3);
+    }
+    
+    [data-theme="dark"] .comision-comision-label {
+        color: #a78bfa;
+    }
+    
     [data-theme="dark"] .comision-badge-informada {
         background-color: rgba(34, 197, 94, 0.2);
         color: #86efac;
@@ -787,10 +903,43 @@
         border-color: #8b5cf6;
     }
     
+    /* ==================== PESTAÑAS DE COMISIONES - MODO OSCURO ==================== */
+    [data-theme="dark"] .tab-comision {
+        color: #94a3b8;
+        border-bottom-color: transparent;
+    }
+    
+    [data-theme="dark"] .tab-comision:hover {
+        color: #60a5fa;
+        background-color: rgba(59, 130, 246, 0.1);
+    }
+    
+    [data-theme="dark"] .tab-comision-active {
+        color: #60a5fa;
+        border-bottom-color: #60a5fa;
+        background-color: rgba(59, 130, 246, 0.15);
+    }
+    
+    [data-theme="dark"] .badge-tab {
+        background-color: #334155;
+        color: #cbd5e1;
+    }
+    
+    [data-theme="dark"] .tab-comision-active .badge-tab {
+        background-color: #3b82f6;
+        color: white;
+    }
+    
     /* ==================== GASTOS POR ORGANIZACIÓN - MODO OSCURO ==================== */
-    /* Corregir hover en lista de organizaciones para modo oscuro */
-    [data-theme="dark"] #lista-organizaciones .hover\:bg-gray-50:hover {
-        background-color: #1e293b !important;
+    /* Card container oscuro */
+    [data-theme="dark"] .card-dark {
+        background-color: #1e293b;
+        border-color: #334155;
+    }
+    
+    /* Hover en lista de organizaciones para modo oscuro */
+    [data-theme="dark"] #lista-organizaciones .hover\:bg-blue-50:hover {
+        background-color: rgba(59, 130, 246, 0.1) !important;
     }
     
     [data-theme="dark"] #lista-organizaciones .border-gray-50 {
@@ -810,7 +959,63 @@
     }
     
     [data-theme="dark"] #lista-organizaciones .bg-gray-100 {
-        background-color: rgba(148, 163, 184, 0.15) !important;
+        background-color: rgba(148, 163, 184, 0.2) !important;
+    }
+    
+    /* Hover para items en modo oscuro */
+    [data-theme="dark"] #lista-organizaciones .group:hover .group-hover\:text-blue-600 {
+        color: #60a5fa !important;
+    }
+    
+    /* Círculo de fondo del gráfico */
+    [data-theme="dark"] #chart-dona circle[stroke="#e5e7eb"] {
+        stroke: #334155 !important;
+    }
+    
+    /* Botón ver más en móviles */
+    .btn-ver-mas-org {
+        background: linear-gradient(to right, #3b82f6, #2563eb);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        margin: 0.75rem auto 0;
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .btn-ver-mas-org:hover {
+        background: linear-gradient(to right, #2563eb, #1d4ed8);
+        box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+        transform: translateY(-1px);
+    }
+    
+    [data-theme="dark"] .btn-ver-mas-org {
+        background: linear-gradient(to right, #3b82f6, #2563eb);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+    
+    [data-theme="dark"] .btn-ver-mas-org:hover {
+        background: linear-gradient(to right, #60a5fa, #3b82f6);
+        box-shadow: 0 2px 6px rgba(59, 130, 246, 0.5);
+    }
+    
+    /* Ocultar items extras en móviles */
+    @media (max-width: 768px) {
+        .org-item-hidden {
+            display: none !important;
+        }
+        
+        .org-item-hidden.org-item-hidden-active {
+            display: flex !important;
+        }
     }
     
     /* ==================== BOTONES Y ELEMENTOS CON HOVER:BG-WHITE - MODO OSCURO ==================== */
@@ -913,6 +1118,173 @@
     
     [data-theme="dark"] #pin-screen .border-gray-100 {
       border-color: #334155 !important;
+    }
+    
+    /* ==================== HISTORIAL - MODO OSCURO ==================== */
+    /* Acordeones de grupos del historial */
+    [data-theme="dark"] #historial-reportados .bg-gradient-to-r.from-sky-100 {
+      background: linear-gradient(to right, rgba(56, 189, 248, 0.15), rgba(59, 130, 246, 0.15)) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .bg-gradient-to-r.from-sky-100:hover {
+      background: linear-gradient(to right, rgba(56, 189, 248, 0.25), rgba(59, 130, 246, 0.25)) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .bg-gradient-to-r h3,
+    [data-theme="dark"] #historial-reportados .text-gray-800 {
+      color: #f1f5f9 !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .text-gray-600 {
+      color: #cbd5e1 !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .text-sky-600 {
+      color: #38bdf8 !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .border-gray-200 {
+      border-color: #334155 !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .bg-gray-50 {
+      background-color: #0f172a !important;
+    }
+    
+    /* Tarjetas de gastos reportados */
+    [data-theme="dark"] #historial-reportados .bg-gradient-to-br.from-white {
+      background: linear-gradient(to bottom right, #1e293b, #0f172a) !important;
+      border-color: #334155 !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .bg-gradient-to-br.from-white:hover {
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .text-gray-900 {
+      color: #f1f5f9 !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .text-gray-400 {
+      color: #94a3b8 !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .text-gray-500 {
+      color: #cbd5e1 !important;
+    }
+    
+    /* Badges en tarjetas del historial */
+    [data-theme="dark"] #historial-reportados .bg-green-100 {
+      background-color: rgba(34, 197, 94, 0.15) !important;
+      border-color: rgba(34, 197, 94, 0.3) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .text-green-800 {
+      color: #86efac !important;
+    }
+    
+    /* Botones de editar y eliminar en tarjetas reportadas */
+    [data-theme="dark"] #historial-reportados .bg-blue-100 {
+      background-color: rgba(59, 130, 246, 0.15) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .bg-blue-100:hover {
+      background-color: rgba(59, 130, 246, 0.25) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .text-blue-600,
+    [data-theme="dark"] #historial-reportados .text-blue-700 {
+      color: #60a5fa !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .bg-red-100 {
+      background-color: rgba(239, 68, 68, 0.15) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .bg-red-100:hover {
+      background-color: rgba(239, 68, 68, 0.25) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados .text-red-600,
+    [data-theme="dark"] #historial-reportados .text-red-700 {
+      color: #f87171 !important;
+    }
+    
+    /* Badges de categorías en historial */
+    [data-theme="dark"] #historial-reportados [class*="bg-green-"] {
+      background-color: rgba(34, 197, 94, 0.15) !important;
+      border-color: rgba(34, 197, 94, 0.3) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados [class*="text-green-"] {
+      color: #86efac !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados [class*="bg-orange-"] {
+      background-color: rgba(249, 115, 22, 0.15) !important;
+      border-color: rgba(249, 115, 22, 0.3) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados [class*="text-orange-"] {
+      color: #fdba74 !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados [class*="bg-purple-"] {
+      background-color: rgba(168, 85, 247, 0.15) !important;
+      border-color: rgba(168, 85, 247, 0.3) !important;
+    }
+    
+    [data-theme="dark"] #historial-reportados [class*="text-purple-"] {
+      color: #c084fc !important;
+    }
+    
+    /* Tabs del historial (Mes, Trimestre, Año) */
+    [data-theme="dark"] #contenido-reportados .tab-btn {
+      color: #94a3b8 !important;
+    }
+    
+    [data-theme="dark"] #contenido-reportados .tab-btn.text-gray-500 {
+      color: #94a3b8 !important;
+    }
+    
+    [data-theme="dark"] #contenido-reportados .tab-btn.text-gray-800 {
+      color: #f1f5f9 !important;
+      border-color: #38bdf8 !important;
+    }
+    
+    [data-theme="dark"] #contenido-reportados .tab-btn:hover {
+      color: #f1f5f9 !important;
+    }
+    
+    [data-theme="dark"] #contenido-reportados .border-gray-200 {
+      border-color: #334155 !important;
+    }
+    
+    /* Filtros de categoría en historial */
+    [data-theme="dark"] #contenido-reportados .filtro-btn.bg-gray-100 {
+      background-color: #1e293b !important;
+      color: #cbd5e1 !important;
+      border: 1px solid #334155;
+    }
+    
+    [data-theme="dark"] #contenido-reportados .filtro-btn.bg-gray-100:hover {
+      background-color: #334155 !important;
+      color: #f1f5f9 !important;
+    }
+    
+    /* Encabezado del historial */
+    [data-theme="dark"] #icon-reportados,
+    [data-theme="dark"] #count-reportados {
+      color: #94a3b8 !important;
+    }
+    
+    [data-theme="dark"] #count-reportados {
+      background-color: rgba(148, 163, 184, 0.15) !important;
+    }
+    
+    /* Mensaje vacío del historial */
+    [data-theme="dark"] #historial-reportados .text-center .text-gray-400 {
+      color: #94a3b8 !important;
     }
     
     /* Botón de tema */
@@ -1583,11 +1955,11 @@
       }
       
       #chart-evolucion-trimestres {
-        height: 160px !important;
+        height: 180px !important;
       }
       
       #chart-evolucion-trimestres > div {
-        min-height: 12px !important;
+        min-height: 18px !important;
       }
 
       #lista-organizaciones {
@@ -1657,11 +2029,11 @@
       }
       
       #chart-evolucion-trimestres {
-        height: 140px !important;
+        height: 160px !important;
       }
       
       #chart-evolucion-trimestres > div {
-        min-height: 10px !important;
+        min-height: 16px !important;
       }
 
       /* Lista de organizaciones más compacta */
@@ -1819,9 +2191,14 @@
           <p class="px-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Sistema</p>
         </div>
         
-        <button id="btn-comisiones" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-100 group transition-colors text-left mb-2">
-           <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-purple-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-           Comisiones ML
+        <button onclick="mostrarModalComisiones()" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-100 group transition-colors text-left mb-2">
+           <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-purple-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+           <span class="font-medium">Comisiones ML</span>
+        </button>
+
+        <button onclick="abrirBusquedaAvanzada()" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-100 group transition-colors text-left mb-2">
+           <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+           <span class="font-medium">Búsqueda Avanzada</span>
         </button>
         
         <button id="btn-panel-admin" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-100 group transition-colors text-left hidden mb-2">
@@ -1883,8 +2260,11 @@
                 <button id="btn-nuevo-gasto-mobile" class="w-full btn-primary text-white font-bold px-4 py-3 rounded-xl text-left flex items-center shadow-lg" onclick="toggleMobileMenu()"> 
                 <span class="mr-3">➕</span> Nuevo Gasto 
                 </button>
-                <button id="btn-comisiones-mobile" class="w-full bg-slate-800 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center border border-slate-700" onclick="toggleMobileMenu()"> 
-                <span class="mr-3">💳</span> Comisiones ML 
+                <button onclick="mostrarModalComisiones(); toggleMobileMenu()" class="w-full bg-purple-900/50 text-purple-100 font-bold px-4 py-3 rounded-xl text-left flex items-center border border-purple-800hover:bg-purple-900 transition-colors"> 
+                <span class="mr-3">💰</span> Comisiones ML 
+                </button>
+                <button onclick="abrirBusquedaAvanzada(); toggleMobileMenu()" class="w-full bg-blue-900/50 text-blue-100 font-bold px-4 py-3 rounded-xl text-left flex items-center border border-blue-800 hover:bg-blue-900 transition-colors">
+                <span class="mr-3">🔍</span> Búsqueda Avanzada
                 </button>
                 <button id="btn-panel-admin-mobile" class="hidden w-full bg-slate-800 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center border border-slate-700" onclick="toggleMobileMenu()"> 
                 <span class="mr-3">⚙️</span> Configuración 
@@ -1947,17 +2327,18 @@
                 <svg class="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <div>
-              <p class="text-xs lg:text-sm font-semibold text-gray-700 leading-tight">Disponible Actual</p>
-              <p class="text-[10px] lg:text-xs text-green-500 font-medium">General</p>
+              <p class="text-xs lg:text-sm font-semibold text-gray-700 leading-tight">Disponible Real</p>
+              <p class="text-[10px] lg:text-xs text-green-500 font-medium">Solo registrados</p>
             </div>
           </div>
           <div class="text-center">
             <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="presupuesto-disponible">$0,00</p>
+            <p class="text-sm md:text-base text-gray-500 mt-2" id="presupuesto-proyectado">($0,00 con pendientes)</p>
           </div>
            <p class="text-xs text-gray-400 mt-3 text-center">Restante del trimestre</p>
         </div>
 
-        <!-- Viáticos (Disponible) -->
+        <!-- Viáticos (Unificado) -->
         <div class="card-dark p-4 lg:p-5 transition-all duration-200 hover:shadow-md border border-gray-100">
           <div class="flex items-center justify-center mb-3">
             <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 mr-2 lg:mr-3">
@@ -1970,30 +2351,188 @@
           </div>
           <div class="text-center">
             <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="viaticos-disponible">$0,00</p>
+            <p class="text-sm md:text-base text-gray-500 mt-2" id="viaticos-gastados-texto">Gastado: $0,00</p>
           </div>
            <p class="text-xs text-gray-400 mt-3 text-center">Saldo exclusivo viajes</p>
         </div>
 
-        <!-- Viáticos Gastados -->
-        <div class="card-dark p-4 lg:p-5 transition-all duration-200 hover:shadow-md border border-gray-100">
+        <!-- Gastos Externos -->
+        <div onclick="abrirModalGastosExternos()" class="card-dark p-4 lg:p-5 transition-all duration-200 hover:shadow-lg border border-gray-100 cursor-pointer hover:border-blue-300">
           <div class="flex items-center justify-center mb-3">
-            <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600 mr-2 lg:mr-3">
-                <svg class="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+            <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 mr-2 lg:mr-3">
+                <svg class="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
             </div>
             <div>
-              <p class="text-xs lg:text-sm font-semibold text-gray-700 leading-tight">Viáticos Gastados</p>
-              <p class="text-[10px] lg:text-xs text-orange-500 font-medium">Viajes</p>
+              <p class="text-xs lg:text-sm font-semibold text-gray-700 leading-tight">Gastos Externos</p>
+              <p class="text-[10px] lg:text-xs text-blue-500 font-medium">Meetup • PFJ • Área</p>
             </div>
           </div>
           <div class="text-center">
-            <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="viaticos-gastados-kpi">$0,00</p>
+            <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="gastos-externos-monto">$0,00</p>
+            <p class="text-sm md:text-base text-gray-500 mt-2">No afectan presupuesto</p>
           </div>
-           <p class="text-xs mt-3 text-center"><span class="text-gray-500">Quedan:</span> <span class="font-semibold text-green-600" id="viaticos-restantes-texto">$0,00</span></p>
+           <p class="text-xs text-gray-400 mt-3 text-center">Click para ver detalle</p>
+        </div>
+      </div>
+
+      <!-- ==================== MODAL DE BÚSQUEDA AVANZADA ==================== -->
+      <div id="modal-busqueda-avanzada" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50 p-4">
+        <div class="card-dark rounded-2xl p-5 lg:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+          <!-- Header -->
+          <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-md">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+              </div>
+              <div>
+                <h3 class="text-lg lg:text-xl font-bold text-gray-900">Búsqueda Avanzada</h3>
+                <p class="text-xs text-gray-500">Encuentra gastos específicos con filtros combinados</p>
+              </div>
+            </div>
+            <button onclick="cerrarBusquedaAvanzada()" class="w-10 h-10 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700 flex items-center justify-center transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
+
+          <!-- Panel de Filtros -->
+          <div class="space-y-4">
+            <!-- Barra de Búsqueda -->
+            <div class="relative">
+              <input 
+                type="text" 
+                id="busqueda-texto" 
+                placeholder="Buscar por descripción, categoría, nro recibo..." 
+                class="input-dark w-full pl-10 pr-4 py-2.5"
+                oninput="aplicarBusquedaAvanzada()"
+              />
+              <svg class="w-5 h-5 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+
+            <!-- Filtros Detallados -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <!-- Filtro Fecha Desde -->
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1.5">Fecha Desde</label>
+                <input 
+                  type="date" 
+                  id="filtro-fecha-desde" 
+                  class="input-dark w-full text-sm"
+                  onchange="aplicarBusquedaAvanzada()"
+                />
+              </div>
+
+              <!-- Filtro Fecha Hasta -->
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1.5">Fecha Hasta</label>
+                <input 
+                  type="date" 
+                  id="filtro-fecha-hasta" 
+                  class="input-dark w-full text-sm"
+                  onchange="aplicarBusquedaAvanzada()"
+                />
+              </div>
+
+              <!-- Filtro Categoría -->
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1.5">Categoría</label>
+                <select 
+                  id="filtro-categoria-avanzado" 
+                  class="input-dark w-full text-sm"
+                  onchange="aplicarBusquedaAvanzada()"
+                >
+                  <option value="">Todas</option>
+                  <option value="presupuesto">Presupuesto</option>
+                  <option value="viaticos">Viáticos</option>
+                  <option value="meetup">MeetUp</option>
+                  <option value="pfj">PFJ</option>
+                  <option value="area">Área</option>
+                </select>
+              </div>
+
+              <!-- Filtro Estado -->
+              <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1.5">Estado</label>
+                <select 
+                  id="filtro-estado-avanzado" 
+                  class="input-dark w-full text-sm"
+                  onchange="aplicarBusquedaAvanzada()"
+                >
+                  <option value="">Todos</option>
+                  <option value="pendiente">Pendiente</option>
+                  <option value="registrado">Registrado</option>
+                </select>
+              </div>
+
+              <!-- Filtro Organización -->
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-medium text-gray-700 mb-1.5">Organización</label>
+                <select 
+                  id="filtro-organizacion" 
+                  class="input-dark w-full text-sm"
+                  onchange="aplicarBusquedaAvanzada()"
+                >
+                  <option value="">Todas</option>
+                  <option value="Instituto">Instituto</option>
+                  <option value="Primaria">Primaria</option>
+                  <option value="Adultos solteros">Adultos solteros</option>
+                  <option value="JAMAS">JAMAS</option>
+                  <option value="Sociedad de Socorro">Sociedad de Socorro</option>
+                  <option value="Hombres jóvenes">Hombres jóvenes</option>
+                  <option value="Mujeres jóvenes">Mujeres jóvenes</option>
+                  <option value="Meetup">Meetup</option>
+                  <option value="Actividades Multistacas">Actividades Multistacas</option>
+                  <option value="Gastos Misión">Gastos Misión</option>
+                  <option value="Área coordinadora">Área coordinadora</option>
+                  <option value="PFJ">PFJ</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Chips de Filtros Activos -->
+            <div id="filtros-activos" class="flex flex-wrap gap-2 min-h-[32px]">
+              <p class="text-xs text-gray-400 italic">No hay filtros activos</p>
+            </div>
+
+            <!-- Resultados -->
+            <div id="resultados-busqueda-avanzada" class="hidden">
+              <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-100">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                    <span class="text-sm font-semibold text-blue-900">
+                      <span id="count-resultados">0</span> resultados encontrados
+                    </span>
+                  </div>
+                  <span class="text-sm font-bold text-blue-700" id="total-resultados">$0,00</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Acciones -->
+            <div class="flex flex-wrap gap-2 pt-3 border-t border-gray-200">
+              <button onclick="limpiarFiltros()" class="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                Limpiar Filtros
+              </button>
+              <button onclick="guardarFiltroFavorito()" class="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+                Guardar Filtro
+              </button>
+              <button onclick="cargarFiltrosFavoritos()" class="flex items-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                Mis Filtros
+              </button>
+              <button onclick="exportarResultadosCSV()" class="flex items-center gap-2 px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg transition-colors text-sm font-medium ml-auto">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Exportar CSV
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Dashboard de Análisis -->
-      <!-- Fila 1: Evolución y Gastos -->
+      <!-- Fila 1: Evolución y Gastos por Organización -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mb-4 lg:mb-6">
         
         <!-- Evolución de los gastos -->
@@ -2052,10 +2591,10 @@
           <!-- Gráfico por trimestres (Móvil) -->
           <div class="h-48 flex items-end justify-between gap-3 sm:hidden" id="chart-evolucion-trimestres">
             <!-- Las barras se generarán dinámicamente con JavaScript -->
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 8%; min-height: 10px;" data-trimestre="0" title="Q1 '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 8%; min-height: 10px;" data-trimestre="1" title="Q2 '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 8%; min-height: 10px;" data-trimestre="2" title="Q3 '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 8%; min-height: 10px;" data-trimestre="3" title="Q4 '26"></div>
+            <div class="flex-1 bg-gray-300 rounded-t transition-all duration-500" style="height: 15%; min-height: 20px;" data-trimestre="0" title="Q1 '26"></div>
+            <div class="flex-1 bg-gray-300 rounded-t transition-all duration-500" style="height: 15%; min-height: 20px;" data-trimestre="1" title="Q2 '26"></div>
+            <div class="flex-1 bg-gray-300 rounded-t transition-all duration-500" style="height: 15%; min-height: 20px;" data-trimestre="2" title="Q3 '26"></div>
+            <div class="flex-1 bg-gray-300 rounded-t transition-all duration-500" style="height: 15%; min-height: 20px;" data-trimestre="3" title="Q4 '26"></div>
           </div>
           <div class="grid grid-cols-4 gap-1 mt-2 text-xs text-gray-500 text-center sm:hidden">
             <span>Q1</span>
@@ -2070,10 +2609,10 @@
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 lg:mb-4 gap-2">
             <div>
               <h3 class="text-sm lg:text-base font-semibold text-gray-900 leading-tight">Gastos por Organización</h3>
-              <p class="text-[10px] lg:text-xs text-gray-400 mt-0.5">1 ene 2026 - 31 dic 2026</p>
+              <p class="text-[10px] lg:text-xs text-gray-400 mt-0.5" id="indicador-trimestre-actual">Cargando trimestre...</p>
             </div>
             <div class="text-left sm:text-right">
-              <p class="text-xs text-gray-500 mb-0.5">Total</p>
+              <p class="text-xs text-gray-500 mb-0.5">Total Trimestre</p>
               <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="total-gastos-chart">$0</p>
             </div>
           </div>
@@ -2149,6 +2688,28 @@
               </div>
             </div>
         </div>
+
+      </div>
+
+      <!-- Trimestres Archivados -->
+      <div class="mb-4 lg:mb-6">
+        <div class="card-dark p-4 lg:p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-sm lg:text-base font-semibold text-gray-900 leading-tight">Trimestres Anteriores</h3>
+              <p class="text-[10px] lg:text-xs text-gray-400 mt-0.5">Histórico de gastos por trimestre</p>
+            </div>
+            <div class="bg-blue-50 text-blue-600 rounded-full px-3 py-1 text-xs font-medium">
+              📊 Archivo
+            </div>
+          </div>
+          <div id="trimestres-archivados" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            <div class="text-center py-6 col-span-full text-gray-400">
+              <p class="text-sm font-medium">Nada por mostrar por el momento</p>
+              <p class="text-xs mt-1 opacity-70">El primer trimestre se archivará el 2° viernes de abril</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Fila 2: Pendientes e Historial -->
@@ -2217,16 +2778,18 @@
               </div>
 
               <!-- Filtros de Categoría para Reportados -->
-              <div class="flex space-x-1.5 mb-4 overflow-x-auto pb-1">
-                <button onclick="filtrarReportadosPorCategoria('todos')" id="cat-reportados-todos" class="filtro-btn btn-primary px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium whitespace-nowrap text-xs lg:text-sm transition-all">
-                  Todos
-                </button>
-                <button onclick="filtrarReportadosPorCategoria('presupuesto')" id="cat-reportados-presupuesto" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
-                  Presupuesto
-                </button>
-                <button onclick="filtrarReportadosPorCategoria('viaticos')" id="cat-reportados-viaticos" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
-                  Viáticos
-                </button>
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex space-x-1.5 overflow-x-auto pb-1">
+                  <button onclick="filtrarReportadosPorCategoria('todos')" id="cat-reportados-todos" class="filtro-btn btn-primary px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium whitespace-nowrap text-xs lg:text-sm transition-all">
+                    Todos
+                  </button>
+                  <button onclick="filtrarReportadosPorCategoria('presupuesto')" id="cat-reportados-presupuesto" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
+                    Presupuesto
+                  </button>
+                  <button onclick="filtrarReportadosPorCategoria('viaticos')" id="cat-reportados-viaticos" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
+                    Viáticos
+                  </button>
+                </div>
               </div>
               
               <div id="historial-reportados" class="space-y-2">
@@ -2258,6 +2821,63 @@
         <button onclick="cerrarModal()" class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
+      </div>
+
+      <!-- Sección de Captura OCR -->
+      <div id="ocr-section" class="mb-5">
+        <!-- Botón de Captura -->
+        <div class="flex flex-col sm:flex-row gap-3 mb-4">
+          <button type="button" onclick="activarCapturaRecibo()" 
+            class="flex-1 flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold hover:from-indigo-600 hover:to-purple-700 transform hover:scale-[1.02] transition-all shadow-lg hover:shadow-xl">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+            <span>📸 Escanear Recibo (OCR)</span>
+          </button>
+          <input type="file" id="input-foto-recibo" accept="image/*" capture="environment" class="hidden" onchange="procesarImagenOCR(this)">
+        </div>
+
+        <!-- Área de Preview y Progreso -->
+        <div id="ocr-preview-container" class="hidden">
+          <!-- Preview de Imagen -->
+          <div class="relative rounded-xl overflow-hidden bg-gray-100 border-2 border-dashed border-gray-300 mb-4">
+            <img id="ocr-preview-image" class="w-full h-auto max-h-64 object-contain">
+            <button type="button" onclick="limpiarCaptura()" 
+              class="absolute top-2 right-2 w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 shadow-lg">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Indicador de Progreso OCR -->
+          <div id="ocr-progress" class="hidden bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div class="flex items-center gap-3 mb-2">
+              <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
+              <span class="font-semibold text-gray-700">Extrayendo datos del recibo...</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div id="ocr-progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p id="ocr-status-text" class="text-xs text-gray-500 mt-2">Inicializando OCR...</p>
+          </div>
+
+          <!-- Resultados Extraídos -->
+          <div id="ocr-results" class="hidden bg-green-50 border border-green-200 rounded-lg p-4">
+            <div class="flex items-start gap-2 mb-2">
+              <svg class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+              <div class="flex-1">
+                <p class="font-semibold text-green-800 mb-1">✅ Datos extraídos correctamente</p>
+                <p class="text-sm text-gray-600">Revisa y ajusta los campos si es necesario</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <form id="form-gasto" class="space-y-4">
@@ -2302,6 +2922,10 @@
               <option value="gastos-presupuesto">Gastos de Presupuesto</option>
               <option value="adultos-solteros">Adultos solteros</option>
               <option value="viajes-aprobados">Viajes aprobados</option>
+              <option value="" disabled>──────────────────</option>
+              <option value="meetup">🔷 Meet up (externo)</option>
+              <option value="pfj">🔷 PFJ (externo)</option>
+              <option value="area">🔷 AREA (externo)</option>
             </select>
           </div>
 
@@ -2337,7 +2961,7 @@
                   onchange="toggleOpcionIncluyeComision()">
                 <div class="flex flex-col">
                   <span class="text-sm font-bold text-gray-800 group-hover:text-purple-700 transition-colors">Aplica Comisión (6.99%)</span>
-                  <span class="text-xs text-gray-500">Marcar si es transferencia</span>
+                  <span class="text-xs text-gray-500">Para calcular el total con comisión</span>
                 </div>
               </label>
 
@@ -2368,11 +2992,22 @@
                 <span class="text-sm font-medium text-gray-700 group-hover:text-sky-700 transition-colors">Adjunté comprobante</span>
               </label>
               
-              <label class="flex items-center cursor-pointer gap-2 group">
-                <input type="checkbox" id="reembolsado" 
-                  class="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer">
-                <span class="text-sm font-medium text-gray-700 group-hover:text-green-700 transition-colors">✅ Reembolsado</span>
-              </label>
+              <!-- Selector de Tipo de Pago -->
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-gray-700">Tipo de pago:</span>
+                <div class="flex gap-2">
+                  <label class="flex items-center cursor-pointer gap-1 group">
+                    <input type="radio" name="tipoPago" value="pagoDirecto" id="tipo-pago"
+                      class="w-4 h-4 border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                    <span class="text-xs font-medium text-gray-600 group-hover:text-blue-700 transition-colors">💵 Pago Directo</span>
+                  </label>
+                  <label class="flex items-center cursor-pointer gap-1 group">
+                    <input type="radio" name="tipoPago" value="reembolsado" id="tipo-reembolsado"
+                      class="w-4 h-4 border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer">
+                    <span class="text-xs font-medium text-gray-600 group-hover:text-green-700 transition-colors">✅ Reembolsado</span>
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div class="flex items-center gap-3 w-full md:w-auto">
@@ -2399,6 +3034,9 @@
       <div class="relative bg-gradient-to-r from-gray-50 to-white px-6 py-5 border-b border-gray-100">
         <button onclick="cerrarModalDetalle()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:shadow-md transition-all z-10">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+        <button onclick="descargarDetallePDF()" class="absolute top-4 right-14 w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-purple-500 hover:text-purple-700 hover:shadow-md transition-all z-10" title="Descargar PDF">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
         </button>
         <h3 class="text-xl font-bold text-gray-800 pr-10">Detalle del Gasto</h3>
       </div>
@@ -2448,28 +3086,81 @@
           </div>
         </div>
 
-        <!-- Acciones -->
-        <div class="flex flex-wrap gap-3 mb-6">
-          <button onclick="seleccionarTodasComisiones()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-sm font-semibold shadow-md">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-            Seleccionar Todas
-          </button>
-          <button onclick="deseleccionarTodasComisiones()" class="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all text-sm font-semibold shadow-md">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            Deseleccionar Todas
-          </button>
-          <button onclick="marcarComisionesComoInformadas()" class="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all text-sm font-semibold ml-auto shadow-md">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-            <span>Marcar Seleccionadas como Informadas</span>
-          </button>
+        <!-- Pestañas de Comisiones -->
+        <div class="mb-6">
+          <div class="flex gap-2 border-b border-gray-200" role="tablist">
+            <button 
+              id="tab-pendientes" 
+              onclick="cambiarTabComisiones('pendientes')" 
+              class="tab-comision tab-comision-active px-6 py-3 font-semibold text-sm transition-all relative"
+              role="tab"
+              aria-selected="true">
+              <span class="flex items-center gap-2">
+                ⏳ Pendientes
+                <span id="badge-pendientes" class="badge-tab px-2 py-0.5 rounded-full text-xs font-bold">0</span>
+              </span>
+            </button>
+            <button 
+              id="tab-informadas" 
+              onclick="cambiarTabComisiones('informadas')" 
+              class="tab-comision px-6 py-3 font-semibold text-sm transition-all relative"
+              role="tab"
+              aria-selected="false">
+              <span class="flex items-center gap-2">
+                ✅ Informadas
+                <span id="badge-informadas" class="badge-tab px-2 py-0.5 rounded-full text-xs font-bold">0</span>
+              </span>
+            </button>
+          </div>
         </div>
 
-        <!-- Lista de Comisiones -->
-        <div class="space-y-3" id="lista-comisiones">
-          <div class="text-center modal-comisiones-empty py-8">
-            <span class="text-4xl mb-2 block">💳</span>
-            <p class="text-sm mb-1 font-medium">No hay comisiones registradas</p>
-            <p class="text-xs">Las comisiones de MercadoLibre aparecerán aquí</p>
+        <!-- Contenedor de Pestañas -->
+        <div id="tab-content-pendientes" class="tab-content">
+          <!-- Acciones para Pendientes -->
+          <div class="bg-gradient-to-r from-blue-50 to-white p-4 rounded-xl border border-blue-100 mb-6">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <!-- Grupo de botones de selección -->
+              <div class="flex flex-wrap gap-2">
+                <button onclick="seleccionarTodasComisiones()" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition-all text-sm font-semibold shadow-sm">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                  <span>Seleccionar Todas</span>
+                </button>
+                <button onclick="deseleccionarTodasComisiones()" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 active:scale-95 transition-all text-sm font-semibold shadow-sm">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  <span>Deseleccionar</span>
+                </button>
+                <button onclick="excluirComisionesSeleccionadas()" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 active:scale-95 transition-all text-sm font-semibold shadow-sm" title="Ocultar permanentemente las comisiones seleccionadas">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>
+                  <span>Excluir</span>
+                </button>
+              </div>
+              
+              <!-- Botón principal de acción -->
+              <button onclick="marcarComisionesComoInformadas()" class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-lg hover:from-green-700 hover:to-green-600 active:scale-95 transition-all text-sm font-bold shadow-md">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                <span>Marcar como Informadas</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Lista de Comisiones Pendientes -->
+          <div class="space-y-3" id="lista-comisiones-pendientes">
+            <div class="text-center modal-comisiones-empty py-8">
+              <span class="text-4xl mb-2 block">💳</span>
+              <p class="text-sm mb-1 font-medium">No hay comisiones pendientes</p>
+              <p class="text-xs">Las comisiones por informar aparecerán aquí</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-content-informadas" class="tab-content hidden">
+          <!-- Lista de Comisiones Informadas -->
+          <div class="space-y-3" id="lista-comisiones-informadas">
+            <div class="text-center modal-comisiones-empty py-8">
+              <span class="text-4xl mb-2 block">✅</span>
+              <p class="text-sm mb-1 font-medium">No hay comisiones informadas</p>
+              <p class="text-xs">Las comisiones notificadas al sistema aparecerán aquí</p>
+            </div>
           </div>
         </div>
       </div>
@@ -2639,6 +3330,69 @@
             Actualizar Seguridad
           </button>
         </div>
+
+        <!-- Cierre de Año Fiscal -->
+        <div class="space-y-4 lg:space-y-6 bg-gradient-to-br from-red-900 to-red-950 rounded-2xl p-5 lg:p-6 mt-6">
+          <h4 class="text-lg lg:text-xl font-semibold text-white flex items-center">
+            <svg class="w-5 h-5 mr-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+            </svg>
+            Cierre de Año Fiscal
+          </h4>
+
+          <!-- Alerta Importante -->
+          <div class="bg-red-800/40 border border-red-600/50 rounded-lg p-4">
+            <p class="text-sm text-red-200 font-semibold mb-2">⚠️ ACCIÓN IRREVERSIBLE</p>
+            <p class="text-xs text-red-300 leading-relaxed">
+              Esta función eliminará <strong>TODOS</strong> los gastos registrados en el sistema (pendientes, reportados e informados). 
+              Esta acción <strong>NO SE PUEDE DESHACER</strong>. Se recomienda descargar un respaldo antes de continuar.
+            </p>
+          </div>
+
+          <!-- Instrucciones -->
+          <div class="bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-3">
+            <p class="text-xs text-yellow-300 leading-relaxed">
+              <strong>📋 Cuándo usar:</strong> Al cierre del año fiscal, después de haber informado todos los gastos y completado los reportes anuales.
+            </p>
+          </div>
+
+          <!-- Confirmación -->
+          <div>
+            <label class="block text-sm font-medium text-red-200 mb-2">
+              PIN de Administrador <span class="text-red-400">*</span>
+            </label>
+            <input type="password" id="pin-cierre-fiscal" 
+              inputmode="numeric"
+              pattern="[0-9]*"
+              class="input-dark w-full rounded-lg px-3 py-2 text-sm bg-white border border-gray-300 placeholder-gray-400 text-black"
+              placeholder="Ingresa tu PIN para confirmar"
+              required>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-red-200 mb-2">
+              Escribe "ELIMINAR TODO" para confirmar <span class="text-red-400">*</span>
+            </label>
+            <input type="text" id="confirmacion-cierre-fiscal" 
+              class="input-dark w-full rounded-lg px-3 py-2 text-sm bg-white border border-gray-300 placeholder-gray-400 text-black"
+              placeholder="ELIMINAR TODO"
+              required>
+            <p class="text-xs text-red-300 mt-2">Escribe exactamente las palabras indicadas (en mayúsculas)</p>
+          </div>
+
+          <!-- Botón de Cierre -->
+          <button onclick="cerrarAnoFiscal()" 
+            class="w-full inline-flex items-center justify-center gap-3 bg-gradient-to-r from-red-700 to-red-800 text-white font-bold py-3 rounded-lg text-sm hover:from-red-800 hover:to-red-900 transition-all border-2 border-red-600 shadow-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+            ELIMINAR TODOS LOS GASTOS DEL AÑO
+          </button>
+
+          <p class="text-xs text-center text-red-300 italic">
+            Se recomienda hacer una copia de seguridad mediante la exportación de datos antes de proceder
+          </p>
+        </div>
       </div>
 
       <!-- Gestión de Gastos -->
@@ -2650,6 +3404,282 @@
         <div id="lista-gastos-admin" class="space-y-4 max-h-80 overflow-y-auto bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-4 lg:p-6 border border-gray-700">
         </div>
       </div> -->
+    </div>
+  </div>
+
+  <!-- ==================== MODAL GASTOS INFORMADOS ==================== -->
+  <div id="modal-gastos-informados" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+      
+      <!-- Header del Modal -->
+      <div class="bg-gradient-to-r from-purple-600 to-purple-700 p-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white bg-opacity-20 flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold text-white">Gastos Informados</h3>
+            <p class="text-sm text-purple-100" id="total-informados-text">Cargando...</p>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <!-- Botón Descargar PDF -->
+          <button onclick="descargarPDFGastosInformados()" class="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            PDF
+          </button>
+          
+          <!-- Botón Imprimir -->
+          <button onclick="imprimirGastosInformados()" class="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+            </svg>
+            Imprimir
+          </button>
+          
+          <!-- Botón Cerrar -->
+          <button onclick="cerrarModalGastosInformados()" class="w-10 h-10 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 flex items-center justify-center text-white transition-colors">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Contenido del Modal -->
+      <div class="p-6 overflow-y-auto flex-1 bg-gray-50" id="contenido-gastos-informados">
+        <div class="text-center py-12 text-gray-400">
+          <svg class="w-12 h-12 mx-auto mb-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p class="text-sm">Cargando gastos informados...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL GASTOS POR ORGANIZACIÓN ==================== -->
+  <div id="modal-gastos-organizacion" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+      
+      <!-- Header del Modal -->
+      <div class="bg-gradient-to-r from-blue-600 to-blue-700 p-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white bg-opacity-20 flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold text-white" id="titulo-organizacion">Gastos por Organización</h3>
+            <p class="text-sm text-blue-100" id="subtitulo-organizacion">Selecciona una organización</p>
+          </div>
+        </div>
+        
+        <button onclick="cerrarModalGastosOrganizacion()" class="w-10 h-10 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 flex items-center justify-center text-white transition-colors">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Contenido del Modal -->
+      <div class="p-6 overflow-y-auto flex-1 bg-gray-50" id="contenido-gastos-organizacion">
+        <div class="text-center py-12 text-gray-400">
+          <p class="text-sm">Selecciona una organización para ver sus gastos</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL TRIMESTRE ARCHIVADO ==================== -->
+  <div id="modal-trimestre-archivado" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+      
+      <!-- Header del Modal -->
+      <div class="bg-gradient-to-r from-purple-600 to-purple-700 p-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white bg-opacity-20 flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold text-white" id="titulo-trimestre-archivado">Trimestre Archivado</h3>
+            <p class="text-sm text-purple-100" id="meses-trimestre-archivado">Enero, Febrero, Marzo</p>
+          </div>
+        </div>
+        
+        <button onclick="cerrarModalTrimestreArchivado()" class="w-10 h-10 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 flex items-center justify-center text-white transition-colors">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Contenido del Modal -->
+      <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
+        <div class="bg-white rounded-lg p-6 shadow-sm">
+          <h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+            </svg>
+            Gastos por Organización
+          </h4>
+          <div id="lista-organizaciones-archivadas">
+            <!-- Las organizaciones se cargarán aquí dinámicamente -->
+            <div class="text-center py-8 text-gray-400 text-sm">
+              <p>Cargando datos...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL COMISIONES ML ==================== -->
+  <div id="modal-comisiones-ml" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+      
+      <!-- Header del Modal-->
+      <div class="bg-gradient-to-r from-blue-600 via-sky-600 to-cyan-600 p-4 sm:p-6 flex items-center justify-between">
+        <div class="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-white bg-opacity-20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+            <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 class="text-lg sm:text-xl md:text-2xl font-bold text-white truncate">💳 Comisiones ML</h3>
+            <p class="text-xs sm:text-sm text-sky-100 font-medium truncate" id="subtitulo-comisiones">Comisiones del 6.99%</p>
+          </div>
+        </div>
+        
+        <button onclick="cerrarModalComisionesML()" class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white bg-opacity-20 hover:bg-opacity-30 flex items-center justify-center text-white transition-all hover:scale-105 active:scale-95 flex-shrink-0">
+          <svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Contenido del Modal -->
+      <div class="p-3 sm:p-4 md:p-6 overflow-y-auto flex-1 bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50">
+        <!-- KPIs de resumen mejorados -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 md:gap-5 mb-4 sm:mb-6">
+          <div class="bg-white p-4 sm:p-5 rounded-xl sm:rounded-2xl border-2 border-blue-100 hover:border-blue-200 transition-colors shadow-sm hover:shadow-md">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">Gastos c/ Comisión</p>
+              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+              </div>
+            </div>
+            <p class="text-2xl sm:text-3xl font-bold text-blue-600" id="kpi-total-comisiones-gastos">$0</p>
+          </div>
+          <div class="bg-white p-4 sm:p-5 rounded-xl sm:rounded-2xl border-2 border-orange-100 hover:border-orange-200 transition-colors shadow-sm hover:shadow-md">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Comisiones</p>
+              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </div>
+            </div>
+            <p class="text-2xl sm:text-3xl font-bold text-orange-600" id="kpi-total-comisiones-pagadas">$0</p>
+          </div>
+          <div class="bg-white p-4 sm:p-5 rounded-xl sm:rounded-2xl border-2 border-green-100 hover:border-green-200 transition-colors shadow-sm hover:shadow-md">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">Transacciones</p>
+              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+              </div>
+            </div>
+            <p class="text-2xl sm:text-3xl font-bold text-green-600" id="kpi-cantidad-comisiones">0</p>
+          </div>
+        </div>
+        
+        <!-- Lista de gastos con comisión -->
+        <div id="contenido-comisiones-ml" class="bg-white rounded-xl sm:rounded-2xl border border-gray-200 p-3 sm:p-4 md:p-5 min-h-[250px] sm:min-h-[300px]">
+          <div class="text-center py-12 text-gray-400">
+            <svg class="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 animate-spin text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="text-sm font-medium">Cargando comisiones...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL GASTOS EXTERNOS ==================== -->
+  <div id="modal-gastos-externos" class="fixed inset-0 bg-black bg-opacity-80 hidden flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+      
+      <!-- Header del Modal -->
+      <div class="bg-gradient-to-r from-amber-600 to-amber-700 p-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white bg-opacity-20 flex items-center justify-center">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold text-white">Gastos Externos</h3>
+            <p class="text-sm text-amber-100" id="subtitulo-gastos-externos">No afectan presupuesto ni viáticos</p>
+          </div>
+        </div>
+        
+        <button onclick="cerrarModalGastosExternos()" class="w-10 h-10 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 flex items-center justify-center text-white transition-colors">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Contenido del Modal -->
+      <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
+        <!-- KPIs de resumen -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="bg-white p-4 rounded-xl border border-amber-200">
+            <p class="text-xs text-gray-500 mb-1">Total Gastos Externos</p>
+            <p class="text-2xl font-bold text-amber-600" id="kpi-total-externos">$0</p>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-amber-200">
+            <p class="text-xs text-gray-500 mb-1">Cantidad de Gastos</p>
+            <p class="text-2xl font-bold text-blue-600" id="kpi-cantidad-externos">0</p>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-amber-200">
+            <p class="text-xs text-gray-500 mb-1">Organizaciones Activas</p>
+            <p class="text-2xl font-bold text-green-600" id="kpi-organizaciones-externas">0</p>
+          </div>
+        </div>
+        
+        <!-- Lista de gastos externos agrupados por organización -->
+        <div id="contenido-gastos-externos">
+          <div class="text-center py-12 text-gray-400">
+            <svg class="w-12 h-12 mx-auto mb-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="text-sm">Cargando gastos externos...</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
