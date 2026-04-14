@@ -24,7 +24,6 @@ function resetearTiempoInactividad() {
   // Solo configurar el timeout si hay un usuario activo
   if (usuarioActual) {
     tiempoInactividad = setTimeout(() => {
-      console.log('⏱️ Sesión cerrada por inactividad');
       alert('Tu sesión ha expirado por inactividad. Serás redirigido al inicio de sesión.');
       cerrarSesion();
     }, TIEMPO_INACTIVIDAD_MS);
@@ -110,25 +109,27 @@ function initTheme() {
   
   if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
     document.documentElement.setAttribute('data-theme', 'dark');
-    updateThemeIcons(true);
-  } else {
-    document.documentElement.setAttribute('data-theme', 'light');
-    updateThemeIcons(false);
+      document.documentElement.classList.add('dark');
+      updateThemeIcons(true);
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      document.documentElement.classList.remove('dark');
+      updateThemeIcons(false);
+    }
   }
-}
-
-function toggleTheme() {
-  const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') === 'dark';
   
-  if (isDark) {
-    html.setAttribute('data-theme', 'light');
-    localStorage.setItem('theme', 'light');
-    updateThemeIcons(false);
-  } else {
-    html.setAttribute('data-theme', 'dark');
-    localStorage.setItem('theme', 'dark');
-    updateThemeIcons(true);
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    
+    if (isDark) {
+      html.setAttribute('data-theme', 'light');
+      html.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+      updateThemeIcons(false);
+    } else {
+      html.setAttribute('data-theme', 'dark');
+      html.classList.add('dark');
   }
 }
 
@@ -158,7 +159,6 @@ window.addEventListener('beforeunload', () => {
   localStorage.removeItem('sesionActiva');
   localStorage.removeItem('esAdmin');
   localStorage.removeItem('usuarioActual');
-  console.log('🔒 Sesión cerrada automáticamente');
 });
 
 // Alternativa con pagehide (más confiable en algunos navegadores móviles)
@@ -639,16 +639,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
 
   try {
-    console.log('🔥 Iniciando Firebase...');
-    console.log('📊 Configuración:', firebaseConfig);
+    // No loguear firebaseConfig por seguridad
     
     // Inicializar Firebase
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     storage = firebase.storage();
-    
-    console.log('✅ Firebase inicializado correctamente');
-    console.log('📂 Firestore conectado:', db);
     
     // Verificar si hay sesión guardada
     const sesionGuardada = localStorage.getItem('sesionActiva');
@@ -657,7 +653,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       usuarioActual = localStorage.getItem('usuarioActual');
       
       if (usuarioActual) {
-        console.log('🔐 Sesión restaurada:', usuarioActual);
         document.getElementById('pin-screen').classList.add('hidden');
         
         if (esAdmin) {
@@ -691,8 +686,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       message: 'Conexión exitosa'
     });
-    
-    console.log('🔗 Conexión a Firestore verificada');
     
     // Inicializar configuración del sistema si no existe
     await inicializarConfiguracion();
@@ -750,7 +743,6 @@ async function inicializarConfiguracion() {
         emailRecuperacion: '',
         fechaCreacion: firebase.firestore.FieldValue.serverTimestamp()
       });
-      console.log('Configuración inicial creada');
     }
   } catch (error) {
     console.error('Error al inicializar configuración:', error);
@@ -803,19 +795,15 @@ async function validarPIN() {
   loginBtn.disabled = true;
 
   try {
-    console.log('🔍 Verificando PIN...');
-    
     // Verificar si Firebase está inicializado
     if (!db) {
       throw new Error('Firebase no está inicializado correctamente');
     }
     
-    console.log('📖 Leyendo configuración de sistema...');
     const configDoc = await db.collection('configuracion').doc('sistema').get();
     
     let config;
     if (!configDoc.exists) {
-      console.log('⚠️ Configuración no existe, creando valores por defecto...');
       config = {
         pinUsuario: '123456',
         pinAdmin: 'admin1',
@@ -829,10 +817,8 @@ async function validarPIN() {
         fechaCreacion: firebase.firestore.FieldValue.serverTimestamp()
       });
       
-      console.log('✅ Configuración inicial creada');
     } else {
       config = configDoc.data();
-      console.log('✅ Configuración encontrada:', config);
     }
 
     // Normalizar datos para comparación segura (convertir a string y quitar espacios)
@@ -962,10 +948,11 @@ async function calcularGastos() {
       .get();
     
     let totalPresupuesto = 0;
-    let totalPresupuestoRegistrado = 0; // Solo gastos ya registrados
+    let totalPresupuestoAprobado = 0; // Solo gastos aprobados (descuentan del disponible real)
     let totalViaticos = 0;
     let totalGastosExternos = 0; // Gastos de organizaciones externas
-    let totalGastosTrimestre = 0; // Total solo del trimestre actual
+    let totalGastosTrimestre = 0; // Total solo del trimestre actual (aprobados)
+    let totalPresupuestoNoAprobado = 0; // Todos los gastos de presupuesto NO aprobados (cualquier trimestre) para simulado
 
     // Calcular trimestre actual
     const ahora = new Date();
@@ -982,7 +969,7 @@ async function calcularGastos() {
       const gasto = doc.data();
       const fechaGasto = parseFechaLocal(gasto.fecha);
       const organizacion = gasto.organizacion || '';
-      const esRegistrado = gasto.registrado === true;
+      const esAprobado = gasto.aprobado === true;
       
       // Verificar si es una organización externa que no afecta presupuesto/viáticos
       const esOrganizacionExterna = ORGANIZACIONES_EXTERNAS.includes(organizacion);
@@ -992,20 +979,28 @@ async function calcularGastos() {
         totalGastosExternos += gasto.monto || 0;
       } else {
         // Sumar para presupuesto y viáticos según la CATEGORÍA únicamente
+        const esAñoActual = fechaGasto.getFullYear() === añoActual;
+        const enTrimestre = fechaGasto >= inicioTrimestre && fechaGasto <= finTrimestre;
+        
         if (gasto.categoria === 'presupuesto') {
-          totalPresupuesto += gasto.monto || 0;
-          // Solo sumar a registrados si está marcado como registrado
-          if (esRegistrado) {
-            totalPresupuestoRegistrado += gasto.monto || 0;
+          // Para simulado: todos los gastos de presupuesto NO aprobados (cualquier trimestre)
+          if (!esAprobado) {
+            totalPresupuestoNoAprobado += gasto.monto || 0;
+          }
+          if (enTrimestre) {
+            totalPresupuesto += gasto.monto || 0;
+            if (esAprobado) {
+              // Solo aprobados del trimestre descuentan del disponible real
+              totalPresupuestoAprobado += gasto.monto || 0;
+              totalGastosTrimestre += gasto.monto || 0;
+            }
           }
         } else if (gasto.categoria === 'viaticos') {
-          totalViaticos += gasto.monto || 0;
+          // Viáticos usa scope anual (fondo independiente del trimestre)
+          if (esAñoActual) {
+            totalViaticos += gasto.monto || 0;
+          }
         }
-      }
-      
-      // Sumar solo gastos del trimestre actual para el KPI "Total Gastado" - EXCLUIR organizaciones externas
-      if (!esOrganizacionExterna && fechaGasto >= inicioTrimestre && fechaGasto <= finTrimestre) {
-        totalGastosTrimestre += gasto.monto || 0;
       }
     });
 
@@ -1030,10 +1025,10 @@ async function calcularGastos() {
     }
     
     // ==================== ACTUALIZAR KPI: PRESUPUESTO DISPONIBLE ====================
-    // Disponible REAL = solo gastos registrados informados
-    const disponibleReal = presupuestoTotal - totalPresupuestoRegistrado;
-    // Disponible PROYECTADO = con todos los gastos (registrados + pendientes)
-    const disponibleProyectado = presupuestoTotal - totalPresupuesto;
+    // Disponible REAL = solo gastos aprobados por tercero
+    const disponibleReal = presupuestoTotal - totalPresupuestoAprobado;
+    // Disponible SIMULADO = Disponible Real - todos los gastos de presupuesto no aprobados (pendientes + registrados)
+    const disponibleProyectado = disponibleReal - totalPresupuestoNoAprobado;
     
     const presupuestoDisponibleEl = document.getElementById('presupuesto-disponible');
     if (presupuestoDisponibleEl) {
@@ -1048,10 +1043,10 @@ async function calcularGastos() {
       }
     }
     
-    // Actualizar presupuesto proyectado (con pendientes)
+    // Actualizar presupuesto proyectado/simulado (con pendientes)
     const presupuestoProyectadoEl = document.getElementById('presupuesto-proyectado');
     if (presupuestoProyectadoEl) {
-      presupuestoProyectadoEl.textContent = `($${disponibleProyectado.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} con pendientes)`;
+      presupuestoProyectadoEl.textContent = `$${disponibleProyectado.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
       // Colorear según estado proyectado
       if (disponibleProyectado < 0) {
         presupuestoProyectadoEl.className = 'text-sm md:text-base text-red-500 mt-2 font-medium';
@@ -1152,13 +1147,11 @@ async function calcularGastos() {
     // ==================== ALERTAS VISUALES ====================
     // Mostrar alerta si se supera el 80% del presupuesto
     if (porcentajePresupuesto >= 80 && porcentajePresupuesto < 100) {
-      console.warn(`⚠️ Presupuesto al ${porcentajePresupuesto.toFixed(1)}% de ejecución`);
     } else if (porcentajePresupuesto >= 100) {
       console.error(`🚨 Presupuesto excedido: ${porcentajePresupuesto.toFixed(1)}%`);
     }
 
     if (porcentajeViaticos >= 80 && porcentajeViaticos < 100) {
-      console.warn(`⚠️ Viáticos al ${porcentajeViaticos.toFixed(1)}% de ejecución`);
     } else if (porcentajeViaticos >= 100) {
       console.error(`🚨 Viáticos excedidos: ${porcentajeViaticos.toFixed(1)}%`);
     }
@@ -1180,7 +1173,6 @@ async function calcularEstadisticasDashboard() {
       gastos.push({ id: doc.id, ...doc.data() });
     });
 
-    console.log(`📊 Dashboard: calculando estadísticas para ${gastos.length} gastos`);
 
     // Calcular gastos por organización
     await calcularGastosPorOrganizacion(gastos);
@@ -1198,25 +1190,26 @@ async function calcularEstadisticasDashboard() {
 
 // ==================== VALIDACIÓN DE COHERENCIA ====================
 function validarCoherenciaKPIs(gastos) {
-  // Calcular totales desde los gastos
+  // Re-calcular con el mismo scope que calcularGastos: presupuesto registrado del trimestre
+  const ahora = new Date();
+  const trimestreActual = Math.floor(ahora.getMonth() / 3);
+  const inicioTrim = new Date(ahora.getFullYear(), trimestreActual * 3, 1);
+  const finTrim = new Date(ahora.getFullYear(), trimestreActual * 3 + 3, 0, 23, 59, 59);
+
   let totalPresupuestoGastos = 0;
-  let totalViaticosGastos = 0;
 
   gastos.forEach(gasto => {
     const organizacion = gasto.organizacion || '';
     const esOrganizacionExterna = ORGANIZACIONES_EXTERNAS.includes(organizacion);
-    
-    // Excluir organizaciones externas
-    if (!esOrganizacionExterna) {
-      if (gasto.categoria === 'presupuesto') {
-        totalPresupuestoGastos += gasto.monto || 0;
-      } else if (gasto.categoria === 'viaticos') {
-        totalViaticosGastos += gasto.monto || 0;
-      }
-    }
+    if (esOrganizacionExterna) return;
+    if (gasto.categoria !== 'presupuesto') return;
+    if (!gasto.aprobado) return;
+    const fecha = parseFechaLocal(gasto.fecha);
+    if (fecha < inicioTrim || fecha > finTrim) return;
+    totalPresupuestoGastos += gasto.monto || 0;
   });
 
-  const totalGastosCalculado = totalPresupuestoGastos + totalViaticosGastos;
+  const totalGastosCalculado = totalPresupuestoGastos;
 
   // Obtener el valor mostrado en el KPI
   const totalGastadoEl = document.getElementById('total-gastado');
@@ -1225,21 +1218,19 @@ function validarCoherenciaKPIs(gastos) {
 
   // Validar coherencia (con margen de 0.01 por redondeos)
   if (Math.abs(totalGastosCalculado - totalMostrado) > 0.01) {
-    console.warn(`⚠️ Inconsistencia detectada: 
-      Total calculado: $${totalGastosCalculado.toFixed(2)}
-      Total mostrado en KPI: $${totalMostrado.toFixed(2)}`);
   } else {
-    console.log(`✅ Coherencia validada: todos los números coinciden`);
   }
 }
 
 // ==================== CALCULAR GASTOS POR ORGANIZACIÓN ====================
 async function calcularGastosPorOrganizacion(gastos) {
-  // Filtrar solo gastos del trimestre actual
+  // Filtrar solo gastos de PRESUPUESTO, REPORTADOS, del trimestre actual
   const trimestreActual = calcularTrimestreActual();
   const gastosTrimestre = gastos.filter(gasto => {
     if (!gasto.fecha) return false;
-    const fechaGasto = gasto.fecha.toDate ? gasto.fecha.toDate() : new Date(gasto.fecha);
+    if (gasto.categoria !== 'presupuesto') return false; // excluir viáticos y otros
+    if (!gasto.registrado) return false; // solo reportados
+    const fechaGasto = gasto.fecha.toDate ? gasto.fecha.toDate() : parseFechaLocal(gasto.fecha);
     return fechaGasto >= trimestreActual.inicio && fechaGasto <= trimestreActual.fin;
   });
   
@@ -1549,7 +1540,6 @@ async function archivarTrimestreAnterior() {
       .get();
     
     if (docExistente.exists) {
-      console.log(`✅ Trimestre ${trimestreAArchivar.id} ya está archivado`);
       return;
     }
     
@@ -1602,8 +1592,6 @@ async function archivarTrimestreAnterior() {
       fechaArchivo: firebase.firestore.Timestamp.now(),
       archivoAutomatico: true
     });
-    
-    console.log(`✅ Trimestre ${trimestreAArchivar.id} archivado exitosamente`);
     
     // Recargar trimestres archivados en UI
     await cargarTrimestresArchivados();
@@ -1764,10 +1752,22 @@ async function mostrarGastosOrganizacion(organizacionKey, organizacionNombre) {
       ...doc.data()
     }));
 
-    // Filtrar gastos por organización
+    // Calcular límites del trimestre actual
+    const _ahora = new Date();
+    const _trim = Math.floor(_ahora.getMonth() / 3);
+    const _iniT = new Date(_ahora.getFullYear(), _trim * 3, 1);
+    const _finT = new Date(_ahora.getFullYear(), _trim * 3 + 3, 0, 23, 59, 59);
+
+    // Filtrar gastos por organización, categoría presupuesto y trimestre actual
     const gastosFiltrados = todosLosGastos.filter(gasto => {
+      if (gasto.eliminado) return false;
       const org = gasto.organizacion || 'gastos-presupuesto';
-      return org === organizacionKey && !gasto.eliminado;
+      if (org !== organizacionKey) return false;
+      if (gasto.categoria !== 'presupuesto') return false;
+      if (!gasto.registrado) return false; // Filtrar solo los registrados
+      if (!gasto.fecha) return false;
+      const f = parseFechaLocal(gasto.fecha);
+      return f >= _iniT && f <= _finT;
     });
 
     // Ordenar por fecha (más recientes primero)
@@ -1780,10 +1780,11 @@ async function mostrarGastosOrganizacion(organizacionKey, organizacionNombre) {
     // Calcular totales
     const totalGastos = gastosFiltrados.reduce((sum, g) => sum + (g.monto || 0), 0);
     const cantidadGastos = gastosFiltrados.length;
+    const nombreTrim = ['Q1 Ene–Mar', 'Q2 Abr–Jun', 'Q3 Jul–Sep', 'Q4 Oct–Dic'][Math.floor(new Date().getMonth() / 3)];
 
     // Actualizar subtítulo con resumen
     document.getElementById('subtitulo-organizacion').textContent = 
-      `${cantidadGastos} gasto${cantidadGastos !== 1 ? 's' : ''} • Total: $${totalGastos.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+      `${cantidadGastos} gasto${cantidadGastos !== 1 ? 's' : ''} • Total: $${totalGastos.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})} • ${nombreTrim} ${new Date().getFullYear()}`;
 
     // Renderizar gastos
     const contenido = document.getElementById('contenido-gastos-organizacion');
@@ -2061,13 +2062,11 @@ function cerrarModalComisionesML() {
 
 // ==================== MODAL COMISIONES COMPLETO ====================
 function mostrarModalComisiones() {
-  console.log('🔍 Abriendo modal de comisiones...');
   const modal = document.getElementById('modal-comisiones');
   if (modal) {
     modal.classList.remove('hidden');
     pestanaComisionActiva = 'pendientes'; // Resetear a pendientes al abrir
     cargarComisiones();
-    console.log('✅ Modal de comisiones abierto');
   } else {
     console.error('❌ No se encontró el modal de comisiones');
   }
@@ -2081,7 +2080,6 @@ function cerrarModalComisiones() {
 
 // Cambiar entre pestañas
 function cambiarTabComisiones(tab) {
-  console.log(`📑 Cambiando a pestaña: ${tab}`);
   pestanaComisionActiva = tab;
   
   // Actualizar estilos de pestañas
@@ -2109,7 +2107,6 @@ function cambiarTabComisiones(tab) {
 
 // Cargar comisiones desde Firebase
 async function cargarComisiones() {
-  console.log('📥 Cargando comisiones desde Firebase...');
   try {
     // Obtener todos los gastos y filtrar los que tienen comisión y NO están eliminados
     const snapshot = await db.collection('gastos')
@@ -2133,8 +2130,6 @@ async function cargarComisiones() {
         return fechaB - fechaA;
       });
 
-    console.log(`✅ Comisiones cargadas: ${comisiones.length}`);
-    
     // Separar comisiones en pendientes e informadas
     const comisionesPendientes = comisiones.filter(c => !c.comisionInformada);
     const comisionesInformadas = comisiones.filter(c => c.comisionInformada);
@@ -2675,7 +2670,13 @@ async function abrirModalGastosExternos() {
         id: doc.id,
         ...doc.data()
       }))
-      .filter(gasto => !gasto.eliminado && ORGANIZACIONES_EXTERNAS.includes(gasto.organizacion));
+      .filter(gasto => {
+        if (gasto.eliminado) return false;
+        if (!ORGANIZACIONES_EXTERNAS.includes(gasto.organizacion)) return false;
+        if (!gasto.fecha) return false;
+        const anio = gasto.fecha.substring(0, 4);
+        return anio === String(new Date().getFullYear());
+      });
 
     // Ordenar por fecha (más recientes primero)
     gastosExternos.sort((a, b) => {
@@ -2704,7 +2705,7 @@ async function abrirModalGastosExternos() {
     document.getElementById('kpi-organizaciones-externas').textContent = organizacionesActivas;
 
     document.getElementById('subtitulo-gastos-externos').textContent = 
-      `${cantidadGastos} gasto${cantidadGastos !== 1 ? 's' : ''} que no afectan presupuesto ni viáticos`;
+      `${cantidadGastos} gasto${cantidadGastos !== 1 ? 's' : ''} externos en ${new Date().getFullYear()}`;
 
     // Renderizar gastos por organización
     const contenido = document.getElementById('contenido-gastos-externos');
@@ -2730,9 +2731,9 @@ async function abrirModalGastosExternos() {
           
           html += `
             <div class="mb-6">
-              <div class="flex items-center justify-between mb-3 pb-2 border-b-2 border-amber-200">
+              <div class="flex items-center justify-between mb-3 pb-2 border-b-2 border-blue-200">
                 <h4 class="text-lg font-bold text-gray-800">${nombreOrg}</h4>
-                <span class="text-lg font-bold text-amber-600">$${totalOrg.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                <span class="text-lg font-bold text-blue-600">$${totalOrg.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
               </div>
               <div class="grid grid-cols-1 gap-3">
                 ${gastosOrg.map(gasto => crearTarjetaGastoExterno(gasto)).join('')}
@@ -2772,7 +2773,7 @@ function crearTarjetaGastoExterno(gasto) {
   const montoNeto = montoTotal - comision;
 
   return `
-    <div class="bg-white border border-amber-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+    <div class="bg-white border border-blue-200 rounded-xl p-4 hover:shadow-md transition-shadow">
       <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
         <div class="flex-1 min-w-0">
           <div class="flex flex-wrap items-center gap-2 mb-2">
@@ -2799,7 +2800,7 @@ function crearTarjetaGastoExterno(gasto) {
         <div class="flex-shrink-0 text-right">
           <div class="mb-2">
             <p class="text-xs text-gray-500">Monto Total</p>
-            <p class="text-2xl font-bold text-amber-600">$${montoTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <p class="text-2xl font-bold text-blue-600">$${montoTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
           </div>
           ${comision > 0 ? `
             <div class="p-2 bg-red-50 rounded-lg">
@@ -2820,7 +2821,216 @@ function cerrarModalGastosExternos() {
   }
 }
 
-// Exponer funciones globalmente
+// ==================== MODAL VIÁTICOS ====================
+async function abrirModalViaticos() {
+  const modal = document.getElementById('modal-viaticos');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  const lista = document.getElementById('lista-gastos-viaticos');
+  const kpiTotal = document.getElementById('kpi-total-viaticos');
+  const kpiCantidad = document.getElementById('kpi-cantidad-viaticos');
+  lista.innerHTML = '<p class="text-center text-gray-400 py-8">Cargando...</p>';
+
+  try {
+    const snap = await db.collection('gastos')
+      .where('eliminado', '==', false)
+      .where('categoria', '==', 'viaticos')
+      .where('registrado', '==', true)
+      .get();
+
+    const gastos = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => {
+        const fa = parseFechaLocal(a.fecha), fb = parseFechaLocal(b.fecha);
+        return fb - fa;
+      });
+
+    const total = gastos.reduce((s, g) => s + (g.monto || 0), 0);
+    if (kpiTotal) kpiTotal.textContent = '$' + total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (kpiCantidad) kpiCantidad.textContent = gastos.length;
+
+    if (gastos.length === 0) {
+      lista.innerHTML = '<div class="text-center py-12 text-gray-400"><p class="text-lg font-medium">Sin viáticos reportados</p></div>';
+      return;
+    }
+
+    lista.innerHTML = gastos.map(g => {
+      const fecha = g.fecha ? g.fecha.split('-').reverse().join('/') : '—';
+      const monto = '$' + (g.monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+      const org = g.organizacion || '—';
+      const desc = g.descripcion || '—';
+      return `<div class="flex items-start justify-between py-3 border-b border-gray-100 last:border-0 gap-3">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-gray-800 truncate">${desc}</p>
+          <p class="text-xs text-gray-400 mt-0.5">${fecha} · ${org}</p>
+        </div>
+        <span class="text-sm font-bold text-purple-600 whitespace-nowrap">${monto}</span>
+      </div>`;
+    }).join('');
+
+  } catch (err) {
+    console.error('Error cargando viáticos:', err);
+    lista.innerHTML = '<p class="text-center text-red-400 py-8">Error al cargar</p>';
+  }
+}
+
+function cerrarModalViaticos() {
+  const modal = document.getElementById('modal-viaticos');
+  if (modal) modal.classList.add('hidden');
+}
+
+// ==================== MODAL GASTOS PRESUPUESTO POR ORGANIZACIÓN ====================
+async function abrirModalGastosPorOrg() {
+  const modal = document.getElementById('modal-gastos-por-org');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  const lista = document.getElementById('lista-presupuesto-por-org');
+  const kpiTotal = document.getElementById('kpi-total-presupuesto-org');
+  const kpiCantidad = document.getElementById('kpi-cantidad-presupuesto-org');
+  lista.innerHTML = '<p class="text-center text-gray-400 py-8">Cargando...</p>';
+
+  try {
+    // Calcular límites del trimestre actual
+    const _ahora = new Date();
+    const _trim = Math.floor(_ahora.getMonth() / 3);
+    const _iniT = new Date(_ahora.getFullYear(), _trim * 3, 1);
+    const _finT = new Date(_ahora.getFullYear(), _trim * 3 + 3, 0, 23, 59, 59);
+
+    const snap = await db.collection('gastos')
+      .where('eliminado', '==', false)
+      .where('categoria', '==', 'presupuesto')
+      .get();
+
+    const gastos = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(g => {
+        if (!g.registrado) return false;
+        // Solo reportados cuya fecha cae en el trimestre actual
+        const f = parseFechaLocal(g.fecha);
+        return f >= _iniT && f <= _finT;
+      })
+      .sort((a, b) => {
+        const fa = parseFechaLocal(a.fecha), fb = parseFechaLocal(b.fecha);
+        return fb - fa;
+      });
+
+    const total = gastos.reduce((s, g) => s + (g.monto || 0), 0);
+    if (kpiTotal) kpiTotal.textContent = '$' + total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (kpiCantidad) kpiCantidad.textContent = gastos.length;
+
+    if (gastos.length === 0) {
+      lista.innerHTML = '<div class="text-center py-12 text-gray-400"><p class="text-lg font-medium">Sin gastos de presupuesto</p></div>';
+      return;
+    }
+
+    // Agrupar por organización
+    const porOrg = {};
+    gastos.forEach(g => {
+      const org = g.organizacion || 'Sin Organización';
+      if (!porOrg[org]) porOrg[org] = { gastos: [], total: 0 };
+      porOrg[org].gastos.push(g);
+      porOrg[org].total += g.monto || 0;
+    });
+
+    const orgsOrdenadas = Object.entries(porOrg).sort(([, a], [, b]) => b.total - a.total);
+
+    lista.innerHTML = orgsOrdenadas.map(([org, data]) => {
+      const orgTotal = '$' + data.total.toLocaleString('es-AR', { minimumFractionDigits: 2 });
+      const items = data.gastos.slice(0, 5).map(g => {
+        const fecha = g.fecha ? g.fecha.split('-').reverse().join('/') : '—';
+        const monto = '$' + (g.monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+        const estado = g.registrado ? '<span class="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">Reportado</span>' : '<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-semibold">Pendiente</span>';
+        return `<div class="flex items-center justify-between py-2 pl-4 border-l-2 border-blue-100 gap-2">
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-medium text-gray-700 truncate">${g.descripcion || '—'}</p>
+            <p class="text-[10px] text-gray-400">${fecha} ${estado}</p>
+          </div>
+          <span class="text-xs font-bold text-gray-800 whitespace-nowrap">${monto}</span>
+        </div>`;
+      }).join('');
+      const masGastos = data.gastos.length > 5 ? `<p class="text-xs text-gray-400 pl-4 py-1">+${data.gastos.length - 5} gastos más…</p>` : '';
+
+      return `<div class="mb-5 bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+        <div class="flex justify-between items-center mb-3">
+          <h4 class="text-sm font-bold text-gray-800 capitalize">${org.replace(/-/g, ' ')}</h4>
+          <span class="text-sm font-bold text-blue-600">${orgTotal}</span>
+        </div>
+        <div class="space-y-1">${items}</div>
+        ${masGastos}
+      </div>`;
+    }).join('');
+
+  } catch (err) {
+    console.error('Error cargando gastos por org:', err);
+    lista.innerHTML = '<p class="text-center text-red-400 py-8">Error al cargar</p>';
+  }
+}
+
+function cerrarModalGastosPorOrg() {
+  const modal = document.getElementById('modal-gastos-por-org');
+  if (modal) modal.classList.add('hidden');
+}
+
+// ==================== RECUPERAR GASTOS ELIMINADOS ====================
+async function cargarGastosEliminados() {
+  const lista = document.getElementById('lista-gastos-eliminados');
+  if (!lista) return;
+  lista.innerHTML = '<p class="text-center text-yellow-300/60 text-xs py-4">Buscando...</p>';
+
+  try {
+    const snap = await db.collection('gastos').where('eliminado', '==', true).get();
+    if (snap.empty) {
+      lista.innerHTML = '<p class="text-center text-gray-400 text-xs py-4">No hay gastos eliminados</p>';
+      return;
+    }
+
+    const gastos = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => {
+        const fa = a.fecha ? parseFechaLocal(a.fecha) : new Date(0);
+        const fb = b.fecha ? parseFechaLocal(b.fecha) : new Date(0);
+        return fb - fa;
+      });
+
+    lista.innerHTML = gastos.map(g => {
+      const fecha = g.fecha ? g.fecha.split('-').reverse().join('/') : '—';
+      const monto = '$' + (g.monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+      const cat = g.categoria || '—';
+      const desc = g.descripcion || 'Sin descripción';
+      return `<div class="flex items-center justify-between bg-[#1e1a0e] border border-yellow-700/30 rounded-xl px-3 py-2.5 gap-3">
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-semibold text-gray-200 truncate">${desc}</p>
+          <p class="text-[10px] text-gray-400">${fecha} · ${cat} · <span class="font-bold text-yellow-400">${monto}</span></p>
+        </div>
+        <button onclick="restaurarGasto('${g.id}')" class="flex-shrink-0 bg-yellow-600 hover:bg-yellow-500 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all">
+          Restaurar
+        </button>
+      </div>`;
+    }).join('');
+
+  } catch (err) {
+    console.error('Error cargando gastos eliminados:', err);
+    lista.innerHTML = '<p class="text-center text-red-400 text-xs py-4">Error al cargar</p>';
+  }
+}
+
+async function restaurarGasto(id) {
+  try {
+    await db.collection('gastos').doc(id).update({
+      eliminado: false,
+      fechaEliminacion: null,
+      eliminadoPor: null
+    });
+    mostrarNotificacion('✅ Gasto restaurado correctamente', 'success');
+    // Refrescar la lista
+    await cargarGastosEliminados();
+    await calcularGastos();
+    await cargarGastosSeparados();
+  } catch (err) {
+    console.error('Error restaurando gasto:', err);
+    mostrarNotificacion('❌ Error al restaurar: ' + err.message, 'error');
+  }
+}
+
 window.abrirModalGastosExternos = abrirModalGastosExternos;
 window.cerrarModalGastosExternos = cerrarModalGastosExternos;
 window.mostrarModalComisiones = mostrarModalComisiones;
@@ -2852,7 +3062,7 @@ async function calcularEvolucionGastos(gastos) {
 
   // Calcular total del año para validar coherencia
   const totalAnual = mesesGastos.reduce((sum, gasto) => sum + gasto, 0);
-  console.log(`📊 Total anual calculado en evolución: $${totalAnual.toLocaleString('es-AR')}`);
+
 
   // Calcular gastos por trimestre para móviles
   const trimestresGastos = [
@@ -2864,14 +3074,49 @@ async function calcularEvolucionGastos(gastos) {
 
   // Obtener presupuesto total como referencia del eje Y
   let presupuestoTotal = 0;
+  let config = {};
   try {
     const configDoc = await db.collection('configuracion').doc('sistema').get();
     if (configDoc.exists) {
-      const config = configDoc.data();
+      config = configDoc.data();
       presupuestoTotal = config.presupuestoTotal || 0;
     }
   } catch (error) {
     console.error('Error al obtener presupuesto para gráfico:', error);
+  }
+
+  // Actualizar etiquetas de presupuesto por trimestre en la vista Desktop y Móvil
+  const anioActual = new Date().getFullYear();
+  const trimestreVigente = calcularTrimestreActual().numero;
+  const presupuestosTrimestres = config.presupuestosTrimestres || {};
+
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById(`label-q${i}`);
+    const elM = document.getElementById(`label-m-q${i}`);
+    const formatPto = (pto) => `$${pto >= 1000000 ? (pto/1000000).toFixed(1).replace('.0','') + 'M' : pto >= 1000 ? (pto/1000).toFixed(0) + 'k' : pto}`;
+    
+    const pto = presupuestosTrimestres[`Q${i}-${anioActual}`];
+    let texto = `Q${i}: -`;
+    let textoM = `-`;
+    
+    if (pto !== undefined) {
+      if (document.body.clientWidth < 1024) {
+        texto = `Q${i}: ${formatPto(pto)}`;
+      } else {
+        texto = `Q${i}: $${pto.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+      }
+      textoM = `${formatPto(pto)}`;
+    } else if (i === trimestreVigente && presupuestoTotal > 0) {
+      if (document.body.clientWidth < 1024) {
+        texto = `Q${i}: ${formatPto(presupuestoTotal)}`;
+      } else {
+        texto = `Q${i}: $${presupuestoTotal.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+      }
+      textoM = `${formatPto(presupuestoTotal)}`;
+    }
+    
+    if (el) el.textContent = texto;
+    if (elM) elM.textContent = textoM;
   }
 
   // Actualizar gráfico de MESES (Desktop/Tablet)
@@ -2901,7 +3146,6 @@ function actualizarBarras(barras, datos, nombres, presupuestoRef, tipo) {
 
   if (presupuestoRef === 0) {
     // Sin presupuesto configurado: usar escala relativa
-    console.warn(`⚠️ Gráfico ${tipo}: presupuesto no configurado, usando escala comparativa`);
     const maxGasto = Math.max(...datos, 1);
     
     barras.forEach((barra, index) => {
@@ -2918,7 +3162,7 @@ function actualizarBarras(barras, datos, nombres, presupuestoRef, tipo) {
     });
   } else {
     // Con presupuesto: usar como referencia absoluta
-    console.log(`✅ Gráfico ${tipo}: usando presupuesto $${presupuestoRef.toLocaleString('es-AR')} como referencia`);
+
     
     barras.forEach((barra, index) => {
       const gasto = datos[index];
@@ -3020,10 +3264,14 @@ document.getElementById('form-editar-presupuesto')?.addEventListener('submit', a
   const nuevoPresupuesto = parseFloat(document.getElementById('admin-presupuesto').value);
   
   try {
-    await db.collection('configuracion').doc('sistema').update({
+    const trimestre = calcularTrimestreActual();
+    const updateData = {
       presupuestoTotal: nuevoPresupuesto,
       fechaActualizacion: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    };
+    updateData[`presupuestosTrimestres.${trimestre.id}`] = nuevoPresupuesto;
+
+    await db.collection('configuracion').doc('sistema').update(updateData);
     
     mostrarNotificacion('✅ Presupuesto actualizado correctamente', 'success');
     await cargarPresupuestos();
@@ -3201,8 +3449,7 @@ function configurarEventListeners() {
   if (formGasto) {
     formGasto.addEventListener('submit', async (e) => {
       e.preventDefault();
-      console.log('📝 Guardando gasto...');
-
+  
       const btnGuardar = document.getElementById('btn-guardar');
       if (!btnGuardar) {
         console.error('❌ Botón guardar no encontrado');
@@ -3253,10 +3500,8 @@ function configurarEventListeners() {
             const fileName = `recibos/${gastoId}_${Date.now()}.jpg`;
             const storageRef = storage.ref(fileName);
             
-            console.log('📤 Subiendo imagen del recibo...');
             const snapshot = await storageRef.put(imagenReciboCapturada);
             urlImagenSubida = await snapshot.ref.getDownloadURL();
-            console.log('✅ Imagen subida:', urlImagenSubida);
           } catch (error) {
             console.error('⚠️ Error al subir imagen:', error);
             // Continuar sin la imagen
@@ -3282,8 +3527,7 @@ function configurarEventListeners() {
           fechaCreacion: firebase.firestore.FieldValue.serverTimestamp()
         };
 
-        console.log('💾 Datos del gasto:', gasto);
-
+  
         // Si estamos editando, actualizamos; si no, creamos
         if (editandoGastoId) {
           // Actualizar gasto existente
@@ -3295,12 +3539,10 @@ function configurarEventListeners() {
           
           await db.collection('gastos').doc(editandoGastoId).update(datosActualizados);
           mostrarNotificacion('✅ Gasto actualizado correctamente', 'success');
-          console.log('✅ Gasto actualizado:', editandoGastoId);
         } else {
           // Crear nuevo gasto
           const docRef = await db.collection('gastos').add(gasto);
           mostrarNotificacion('✅ Gasto guardado correctamente', 'success');
-          console.log('✅ Gasto creado:', docRef.id);
         }
 
         btnGuardar.disabled = false;
@@ -3358,7 +3600,7 @@ async function marcarComoReportado(id) {
       registradoPor: usuarioActual
     });
 
-    mostrarNotificacion('✅ Gasto marcado como reportado y movido al historial', 'success');
+    mostrarNotificacion('✅ Gasto registrado y movido a pendientes de aprobación', 'success');
     
     // Recargar gastos separados para actualizar ambas secciones
     await cargarGastosSeparados();
@@ -3729,7 +3971,6 @@ function filtrarPorCategoria(categoria) {
 
 async function cargarGastos() {
   try {
-    console.log('📥 Cargando gastos...');
     
     if (!db) {
       console.error('❌ Firebase no inicializado');
@@ -3743,21 +3984,16 @@ async function cargarGastos() {
       gastos.push({ id: doc.id, ...doc.data() });
     });
 
-    console.log(`✅ ${gastos.length} gastos cargados`);
-
     // Aplicar filtro de estado (todos, pendientes, registrados)
     if (estadoActual === 'pendientes') {
       gastos = gastos.filter(g => !g.registrado);
-      console.log(`🔍 Filtrados por pendientes: ${gastos.length} gastos`);
     } else if (estadoActual === 'registrados') {
       gastos = gastos.filter(g => g.registrado);
-      console.log(`🔍 Filtrados por registrados: ${gastos.length} gastos`);
     }
 
     // Aplicar filtro de categoría
     if (categoriaActual !== 'todos') {
       gastos = gastos.filter(g => g.categoria === categoriaActual);
-      console.log(`🔍 Filtrados por ${categoriaActual}: ${gastos.length} gastos`);
     }
 
     // Usar el nuevo sistema de gastos separados en lugar del antiguo
@@ -3784,7 +4020,6 @@ async function renderGastos(gastosArray = null) {
     
     // Verificar que el contenedor exista antes de intentar renderizar
     if (!container) {
-      console.log('⚠️ El contenedor lista-gastos no existe. Usando sistema de gastos separados.');
       return;
     }
 
@@ -4084,6 +4319,48 @@ async function cargarConfiguracionActual() {
           emailDisplay.classList.add('text-gray-500');
         }
       }
+
+      // Live stats del admin panel
+      const pTotal = config.presupuestoTotal || 0;
+      
+      const ahora = new Date();
+      const _anio = ahora.getFullYear();
+      const _trim = Math.floor(ahora.getMonth() / 3);
+      const _ini = new Date(_anio, _trim * 3, 1);
+      const _fin = new Date(_anio, _trim * 3 + 3, 0, 23, 59, 59);
+
+      let totalP_reg = 0;
+      let totalYrP_reg = 0;
+
+      const gastosRef = await db.collection('gastos').where('eliminado', '==', false).get();
+      gastosRef.forEach(doc => {
+        const g = doc.data();
+        if (g.categoria === 'presupuesto') {
+          const fStr = typeof g.fecha === 'string' ? g.fecha + 'T12:00:00' : null;
+          let f = null;
+          if (fStr) f = new Date(fStr);
+          else if (g.fecha && typeof g.fecha.toDate === 'function') f = g.fecha.toDate();
+          
+          if (f) {
+            if (g.registrado && f >= _ini && f <= _fin) totalP_reg += (g.monto || 0); // Gastado Q
+            if (g.registrado && f.getFullYear() === _anio) totalYrP_reg += (g.monto || 0); // Gastado Yr
+          }
+        }
+      });
+
+      const formatearMoneda = (num) => '$' + num.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      const dispReal = Math.max(0, pTotal - totalYrP_reg);
+
+      const elT = document.getElementById('admin-stat-presupuesto');
+      if (elT) elT.textContent = formatearMoneda(pTotal);
+      const elG = document.getElementById('admin-stat-gastado');
+      if (elG) elG.textContent = formatearMoneda(totalP_reg);
+      const elD = document.getElementById('admin-stat-disponible');
+      if (elD) elD.textContent = formatearMoneda(dispReal);
+      const elV = document.getElementById('admin-stat-viaticos');
+      if (elV) elV.textContent = formatearMoneda(config.presupuestoViaticos || 0);
+      const tl = document.getElementById('admin-trimestre-label');
+      if (tl) tl.textContent = 'Q' + (_trim+1) + ' ' + _anio;
     }
   } catch (error) {
     console.error('Error al cargar configuración actual:', error);
@@ -4111,35 +4388,65 @@ async function actualizarPresupuestos() {
   try {
     const updates = {};
     
-    // Obtener configuración actual si el modo es "sumar"
-    let configActual = {};
-    if (modoActualizacion === 'sumar') {
-      const configDoc = await db.collection('configuracion').doc('sistema').get();
-      configActual = configDoc.data() || {};
-    }
+    // Siempre obtener configuración actual para mostrar confirmación
+    const configDoc = await db.collection('configuracion').doc('sistema').get();
+    const configActual = configDoc.data() || {};
+    
+    // Calcular los nuevos valores para mostrar en la confirmación
+    let nuevoPresupuestoTotal = configActual.presupuestoTotal || 0;
+    let nuevoPresupuestoViaticos = configActual.presupuestoViaticos || 0;
     
     // Actualizar solo los campos completados
     if (inputPresupuesto) {
       const nuevoValor = parseFloat(inputPresupuesto);
       if (modoActualizacion === 'sumar') {
-        updates.presupuestoTotal = (configActual.presupuestoTotal || 0) + nuevoValor;
+        nuevoPresupuestoTotal = (configActual.presupuestoTotal || 0) + nuevoValor;
       } else {
-        updates.presupuestoTotal = nuevoValor;
+        nuevoPresupuestoTotal = nuevoValor;
       }
+      updates.presupuestoTotal = nuevoPresupuestoTotal;
     }
     
     if (inputViaticos) {
       const nuevoValor = parseFloat(inputViaticos);
       if (modoActualizacion === 'sumar') {
-        updates.presupuestoViaticos = (configActual.presupuestoViaticos || 0) + nuevoValor;
+        nuevoPresupuestoViaticos = (configActual.presupuestoViaticos || 0) + nuevoValor;
       } else {
-        updates.presupuestoViaticos = nuevoValor;
+        nuevoPresupuestoViaticos = nuevoValor;
       }
+      updates.presupuestoViaticos = nuevoPresupuestoViaticos;
+    }
+    
+    // Mostrar confirmación con valores actuales vs nuevos
+    const fmt = (n) => '$' + n.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    let mensajeConfirmacion = '<div style="text-align:left;font-size:14px;">';
+    if (inputPresupuesto) {
+      mensajeConfirmacion += `<p><b>Presupuesto Total:</b></p><p>${fmt(configActual.presupuestoTotal || 0)} → <b style="color:#10b981">${fmt(nuevoPresupuestoTotal)}</b></p><br>`;
+    }
+    if (inputViaticos) {
+      mensajeConfirmacion += `<p><b>Viáticos:</b></p><p>${fmt(configActual.presupuestoViaticos || 0)} → <b style="color:#10b981">${fmt(nuevoPresupuestoViaticos)}</b></p>`;
+    }
+    mensajeConfirmacion += '</div>';
+    
+    const resultado = await Swal.fire({
+      title: '¿Confirmar actualización?',
+      html: mensajeConfirmacion,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, actualizar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#6b7280'
+    });
+    
+    if (!resultado.isConfirmed) {
+      return;
     }
     
     // Guardar configuración de acumulación
     updates.acumularSaldoSobrante = acumularSaldo;
     updates.fechaActualizacion = firebase.firestore.FieldValue.serverTimestamp();
+    updates.actualizadoPor = usuarioActual || 'admin';
     
     await db.collection('configuracion').doc('sistema').update(updates);
     
@@ -4353,7 +4660,6 @@ async function solicitarRecuperacionCuenta() {
     navigator.clipboard.writeText(textToCopy).then(() => {
       mostrarNotificacion('📋 Credenciales copiadas al portapapeles', 'success');
     }).catch(() => {
-      console.log('No se pudo copiar al portapapeles');
     });
     
   } catch (error) {
@@ -4365,15 +4671,13 @@ async function solicitarRecuperacionCuenta() {
 function iniciarEscuchaEnTiempoReal() {
   db.collection('configuracion').doc('sistema').onSnapshot((doc) => {
     if (doc.exists) {
-      console.log('🔄 Actualización en tiempo real detectada');
-      cargarPresupuestos();
+        cargarPresupuestos();
       calcularGastos();
       calcularEstadisticasDashboard();
     }
   });
   
   db.collection('gastos').onSnapshot(() => {
-    console.log('📊 Gastos actualizados en tiempo real');
     cargarGastosSeparados();
     calcularGastos();
     calcularEstadisticasDashboard();
@@ -4385,7 +4689,6 @@ function iniciarEscuchaEnTiempoReal() {
 // Función para cargar gastos separados
 async function cargarGastosSeparados() {
   try {
-    console.log('📥 Cargando gastos separados...');
     
     if (!db) {
       console.error('❌ Firebase no inicializado');
@@ -4406,18 +4709,15 @@ async function cargarGastosSeparados() {
       }
     });
 
-    console.log(`✅ ${todosgastos.length} gastos cargados en total`);
-
-    // Separar gastos pendientes y reportados
+    // Separar gastos en 3 estados: pendientes, pendientes de aprobación, aprobados
     const gastosPendientes = todosgastos.filter(g => !g.registrado);
-    const gastosReportados = todosgastos.filter(g => g.registrado);
+    const gastosPendientesAprobacion = todosgastos.filter(g => g.registrado && !g.aprobado);
+    const gastosAprobados = todosgastos.filter(g => g.registrado && g.aprobado);
 
-    console.log(`⏳ ${gastosPendientes.length} gastos pendientes`);
-    console.log(`✅ ${gastosReportados.length} gastos reportados`);
-
-    // Renderizar ambas secciones
+    // Renderizar las tres secciones
     renderGastosPendientes(gastosPendientes);
-    renderGastosReportados(gastosReportados);
+    renderGastosPendientesAprobacion(gastosPendientesAprobacion);
+    renderGastosReportados(gastosAprobados);
     
   } catch (error) {
     console.error('❌ Error al cargar gastos:', error);
@@ -4461,6 +4761,22 @@ function toggleSeccionReportados() {
   }
 }
 
+// Toggle sección de pendientes de aprobación
+function toggleSeccionAprobacion() {
+  const contenido = document.getElementById('contenido-aprobacion');
+  const icono = document.getElementById('icon-aprobacion');
+  
+  if (contenido.style.display === 'none') {
+    contenido.style.display = 'block';
+    icono.textContent = '▼';
+    icono.style.transform = 'rotate(0deg)';
+  } else {
+    contenido.style.display = 'none';
+    icono.textContent = '▶';
+    icono.style.transform = 'rotate(-90deg)';
+  }
+}
+
 // ========================================
 // FUNCIONES DE RENDERIZADO
 // ========================================
@@ -4485,7 +4801,7 @@ function renderGastosPendientes(gastos) {
       <div class="text-center text-gray-500 py-6">
         <span class="text-2xl mb-1 block">✅</span>
         <p class="text-xs mb-0.5 font-medium">¡Excelente! No hay gastos pendientes</p>
-        <p class="text-[10px]">Todos los gastos han sido reportados</p>
+        <p class="text-[10px]">Todos los gastos han sido registrados</p>
       </div>
     `;
     return;
@@ -4504,19 +4820,19 @@ function renderGastosPendientes(gastos) {
       <div class="mb-3 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
         <!-- Header del mes -->
         <button onclick="toggleGrupoGastoMes('${acordeonId}')" 
-          class="w-full flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/40 dark:hover:to-blue-800/40 transition-all">
-          <div class="flex items-center gap-2">
-            <svg id="icono-${acordeonId}" class="w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform ${estaExpandido ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          class="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-slate-700 dark:to-slate-800 hover:from-blue-100 hover:to-blue-200 dark:hover:from-slate-600 dark:hover:to-slate-700 transition-all border-b border-transparent dark:border-slate-600">
+          <div class="flex items-center gap-3">
+            <svg id="icono-${acordeonId}" class="w-5 h-5 text-blue-600 dark:text-blue-400 transition-transform ${estaExpandido ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
             </svg>
             <div class="text-left">
-              <h4 class="font-bold text-gray-900 dark:text-gray-100 text-sm capitalize">${grupo.label}</h4>
-              <p class="text-xs text-gray-600 dark:text-gray-400">${grupo.gastos.length} gasto${grupo.gastos.length !== 1 ? 's' : ''}</p>
+              <h4 class="font-bold text-gray-900 dark:text-gray-100 text-sm md:text-base capitalize">${grupo.label}</h4>
+              <p class="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5">${grupo.gastos.length} gasto${grupo.gastos.length !== 1 ? 's' : ''}</p>
             </div>
           </div>
           <div class="text-right">
-            <p class="text-base font-bold text-blue-700 dark:text-blue-400">$${grupo.total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
-            <p class="text-xs text-blue-600 dark:text-blue-500 font-medium">Total</p>
+            <p class="text-base md:text-lg font-bold text-blue-700 dark:text-blue-400">$${grupo.total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+            <p class="text-xs md:text-sm text-blue-600/70 dark:text-blue-400/70 font-medium mt-0.5">Total del mes</p>
           </div>
         </button>
         
@@ -4528,6 +4844,221 @@ function renderGastosPendientes(gastos) {
     `;
   }).join('');
 }
+
+// ==================== PENDIENTES DE APROBACIÓN ====================
+let categoriaAprobacion = 'todos';
+let gastosAprobacionCache = []; // Cache para filtrado
+
+function filtrarAprobacionPorCategoria(categoria) {
+  categoriaAprobacion = categoria;
+  // Actualizar estilos de botones
+  document.querySelectorAll('[id^="cat-aprobacion-"]').forEach(btn => {
+    btn.className = btn.id === `cat-aprobacion-${categoria}`
+      ? 'filtro-btn btn-primary px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium whitespace-nowrap text-xs lg:text-sm transition-all'
+      : 'filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm';
+  });
+  renderGastosPendientesAprobacion(gastosAprobacionCache);
+}
+window.filtrarAprobacionPorCategoria = filtrarAprobacionPorCategoria;
+
+// Renderizar gastos pendientes de aprobación
+function renderGastosPendientesAprobacion(gastos) {
+  gastosAprobacionCache = gastos;
+  
+  // Actualizar contador en el header
+  const countElement = document.getElementById('count-aprobacion');
+  if (countElement) {
+    countElement.textContent = `(${gastos.length})`;
+  }
+  
+  // Aplicar filtro de categoría
+  let gastosFiltrados = gastos;
+  if (categoriaAprobacion !== 'todos') {
+    gastosFiltrados = gastos.filter(g => g.categoria === categoriaAprobacion);
+  }
+
+  const container = document.getElementById('lista-gastos-aprobacion');
+  if (!container) return;
+
+  if (gastosFiltrados.length === 0) {
+    container.innerHTML = `
+      <div class="text-center text-gray-400 py-6">
+        <span class="text-2xl mb-1 block">📋</span>
+        <p class="text-xs mb-0.5 font-medium">No hay gastos pendientes de aprobación</p>
+        <p class="text-[10px]">Los gastos registrados aparecerán aquí</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Agrupar por mes
+  const gruposPorMes = agruparPorMes(gastosFiltrados);
+  
+  container.innerHTML = gruposPorMes.map(([mesAnio, grupo]) => {
+    const tarjetas = grupo.gastos.map(crearTarjetaGastoAprobacion).join('');
+    const acordeonId = `aprob-${mesAnio}`;
+    const estaExpandido = obtenerEstadoAcordeon(acordeonId);
+    
+    return `
+      <div class="mb-3 border border-orange-200 dark:border-orange-800 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+        <button onclick="toggleGrupoGastoMes('${acordeonId}')" 
+          class="w-full flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-slate-700 dark:to-slate-800 hover:from-orange-100 hover:to-amber-100 dark:hover:from-slate-600 dark:hover:to-slate-700 transition-all border-b border-transparent dark:border-slate-600">
+          <div class="flex items-center gap-3">
+            <svg id="icono-${acordeonId}" class="w-5 h-5 text-orange-600 dark:text-orange-400 transition-transform ${estaExpandido ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+            <div class="text-left">
+              <h4 class="font-bold text-gray-900 dark:text-gray-100 text-sm md:text-base capitalize">${grupo.label}</h4>
+              <p class="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5">${grupo.gastos.length} gasto${grupo.gastos.length !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-base md:text-lg font-bold text-orange-700 dark:text-orange-400">$${grupo.total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+            <p class="text-xs md:text-sm text-orange-600/70 dark:text-orange-400/70 font-medium mt-0.5">Total del mes</p>
+          </div>
+        </button>
+        
+        <div id="grupo-${acordeonId}" class="p-2 space-y-2 bg-gray-50 dark:bg-gray-900/50 ${estaExpandido ? '' : 'hidden'}">
+          ${tarjetas}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Crear tarjeta para un gasto pendiente de aprobación
+function crearTarjetaGastoAprobacion(gasto) {
+  const categoriaInfo = {
+    'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+  };
+  const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+
+  const aprobarBtn = esAdmin ? `
+    <button onclick="aprobarGasto('${gasto.id}')"
+      class="w-full sm:w-auto justify-center bg-green-50 dark:bg-green-900/40 hover:bg-green-100 dark:hover:bg-green-900/60 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 px-3 py-2 rounded-lg transition-all flex items-center gap-2 text-xs font-semibold shadow-sm hover:shadow-md cursor-pointer"
+      title="Aprobar gasto — descontará del disponible real">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      <span>Aprobar</span>
+    </button>
+  ` : '';
+
+  const devolverBtn = esAdmin ? `
+    <button onclick="devolverAPendiente('${gasto.id}')"
+      class="w-full sm:w-auto justify-center bg-white dark:bg-gray-700 hover:bg-yellow-50 dark:hover:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border border-gray-200 dark:border-gray-600 hover:border-yellow-200 dark:hover:border-yellow-600 px-3 py-2 rounded-lg transition-all flex items-center gap-2 text-xs font-semibold shadow-sm hover:shadow-md cursor-pointer"
+      title="Devolver a pendientes (desregistrar)">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+      <span>Devolver</span>
+    </button>
+  ` : '';
+
+  const verDetalleBtn = `
+    <button onclick='mostrarDetalleGasto(${JSON.stringify(gasto).replace(/'/g, "&#39;")})'
+      class="w-full sm:w-auto justify-center bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold" title="Ver detalle">
+      <svg class="w-4 h-4 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+      <span>Ver</span>
+    </button>
+  `;
+
+  return `
+    <div class="bg-white dark:bg-gray-800 border border-orange-100 dark:border-orange-800 rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-3 w-full">
+      <div class="flex justify-between items-start gap-3">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 border border-orange-200 dark:border-orange-700">⏳ ESPERANDO APROBACIÓN</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-50 dark:bg-${cat.color}-900/40 text-${cat.color}-700 dark:text-${cat.color}-300 border border-${cat.color}-100 dark:border-${cat.color}-700 flex items-center gap-1">${cat.emoji} ${cat.label}</span>
+          </div>
+          <h4 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-1 leading-tight">${gasto.descripcion}</h4>
+          
+          <div class="flex flex-col gap-0.5 text-[10px] text-gray-500 dark:text-gray-400 mt-2">
+            <span class="flex items-center gap-1.5" title="Fecha en que se realizó el gasto">
+              <span>📅</span>
+              <span class="font-medium text-gray-700 dark:text-gray-300">Gasto: ${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+            </span>
+            ${gasto.fechaCreacion ? `
+            <span class="flex items-center gap-1.5" title="Fecha de ingreso al sistema">
+              <span>📥</span>
+              <span>Ingresado: ${(gasto.fechaCreacion.toDate ? gasto.fechaCreacion.toDate() : new Date(gasto.fechaCreacion)).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+            </span>` : ''}
+            ${gasto.fechaRegistro ? `
+            <span class="flex items-center gap-1.5 text-blue-600/80 dark:text-blue-400/80" title="Fecha de reporte/registro">
+              <span>📝</span>
+              <span>Reportado: ${(gasto.fechaRegistro.toDate ? gasto.fechaRegistro.toDate() : new Date(gasto.fechaRegistro)).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+            </span>` : ''}
+          </div>
+          
+          ${gasto.observaciones ? `<div class="mt-2 text-xs italic text-gray-400 dark:text-gray-500 truncate">📝 ${gasto.observaciones}</div>` : ''}
+        </div>
+        <div class="text-right flex-shrink-0">
+          <p class="text-xl font-bold text-gray-800 dark:text-gray-100 leading-none">
+            $${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+          </p>
+          <p class="text-[10px] text-gray-400 dark:text-gray-500 font-medium mt-1">Monto</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+        ${aprobarBtn}
+        ${devolverBtn}
+        ${verDetalleBtn}
+      </div>
+    </div>
+  `;
+}
+
+// Aprobar un gasto (tercero lo aprobó)
+async function aprobarGasto(id) {
+  if (!esAdmin) {
+    mostrarNotificacion('❌ Solo el administrador puede aprobar gastos', 'error');
+    return;
+  }
+
+  try {
+    await db.collection('gastos').doc(id).update({
+      aprobado: true,
+      fechaAprobacion: firebase.firestore.FieldValue.serverTimestamp(),
+      aprobadoPor: usuarioActual
+    });
+
+    mostrarNotificacion('✅ Gasto aprobado — descontado del disponible real', 'success');
+    await cargarGastosSeparados();
+    await calcularGastos();
+    await calcularEstadisticasDashboard();
+
+  } catch (error) {
+    console.error('Error al aprobar gasto:', error);
+    mostrarNotificacion('❌ Error al aprobar el gasto: ' + error.message, 'error');
+  }
+}
+window.aprobarGasto = aprobarGasto;
+
+// Devolver un gasto registrado a pendientes (desregistrar)
+async function devolverAPendiente(id) {
+  if (!esAdmin) {
+    mostrarNotificacion('❌ Solo el administrador puede realizar esta acción', 'error');
+    return;
+  }
+
+  try {
+    await db.collection('gastos').doc(id).update({
+      registrado: false,
+      fechaRegistro: null,
+      registradoPor: null,
+      aprobado: false,
+      fechaAprobacion: null,
+      aprobadoPor: null
+    });
+
+    mostrarNotificacion('⚠️ Gasto devuelto a pendientes', 'success');
+    await cargarGastosSeparados();
+    await calcularGastos();
+    await calcularEstadisticasDashboard();
+
+  } catch (error) {
+    console.error('Error al devolver gasto:', error);
+    mostrarNotificacion('❌ Error: ' + error.message, 'error');
+  }
+}
+window.devolverAPendiente = devolverAPendiente;
 
 // Renderizar gastos reportados agrupados
 function renderGastosReportados(gastos) {
@@ -4549,7 +5080,7 @@ function renderGastosReportados(gastos) {
     container.innerHTML = `
       <div class="text-center text-gray-500 py-6">
         <span class="text-2xl mb-1 block">📋</span>
-        <p class="text-xs mb-0.5 font-medium">No hay gastos reportados aún</p>
+        <p class="text-xs mb-0.5 font-medium">No hay gastos aprobados aún</p>
         <p class="text-[10px]">Los gastos aprobados aparecerán aquí</p>
       </div>
     `;
@@ -4723,11 +5254,11 @@ function crearTarjetaGastoPendiente(gasto) {
     : '<span class="text-gray-400 text-xs font-medium flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg><span class="hidden sm:inline">Sin comprobante</span></span>';
 
   const checkboxHtml = gasto.reportado ? '' : `
-    <label class="flex items-center cursor-pointer hover:bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 transition-all group w-full sm:w-auto justify-center sm:justify-start bg-white shadow-sm" title="Marcar como registrado oficialmente">
+    <label class="flex items-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 transition-all group w-full sm:w-auto justify-center sm:justify-start bg-white dark:bg-gray-700 shadow-sm" title="Marcar como registrado oficialmente">
       <input type="checkbox" 
         onchange="marcarComoReportado('${gasto.id}')"
         class="w-4 h-4 text-green-600 bg-white border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer">
-      <span class="ml-2 text-xs font-semibold text-gray-700 group-hover:text-green-700">Marcar como registrado</span>
+      <span class="ml-2 text-xs font-semibold text-gray-700 dark:text-gray-200 group-hover:text-green-700 dark:group-hover:text-green-400">Marcar como registrado</span>
     </label>
   `;
 
@@ -4743,7 +5274,7 @@ function crearTarjetaGastoPendiente(gasto) {
   
   const reembolsoBtn = `
     <button onclick="seleccionarTipoPago('${gasto.id}')" 
-      class="w-full sm:w-auto justify-center ${pagoInfo.colorBg} ${pagoInfo.colorText} ${pagoInfo.colorBorder} border px-3 py-2 rounded-lg transition-all flex items-center gap-2 text-xs font-semibold shadow-sm hover:shadow-md cursor-pointer" 
+      class="w-full sm:w-auto justify-center ${pagoInfo.colorBg} dark:bg-opacity-20 ${pagoInfo.colorText} ${pagoInfo.colorBorder} dark:border-opacity-40 border px-3 py-2 rounded-lg transition-all flex items-center gap-2 text-xs font-semibold shadow-sm hover:shadow-md cursor-pointer" 
       title="Click para cambiar el tipo de pago">
       <span class="text-sm">${pagoInfo.emoji}</span>
       <span>${pagoInfo.label}</span>
@@ -4753,15 +5284,15 @@ function crearTarjetaGastoPendiente(gasto) {
   // Botón Ver Detalle
   const verDetalleBtn = `
     <button onclick='mostrarDetalleGasto(${JSON.stringify(gasto).replace(/'/g, "&#39;")})'  
-      class="w-full sm:w-auto justify-center bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold" title="Ver detalle">
-      <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+      class="w-full sm:w-auto justify-center bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold" title="Ver detalle">
+      <svg class="w-4 h-4 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
       <span>Ver</span>
     </button>
   `;
 
   const editarBtn = esAdmin ? `
     <button onclick="editarGasto('${gasto.id}')"  
-      class="w-full sm:w-auto justify-center bg-white hover:bg-blue-50 text-blue-600 border border-gray-200 hover:border-blue-200 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold" title="Editar gasto">
+      class="w-full sm:w-auto justify-center bg-white dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-gray-200 dark:border-gray-600 hover:border-blue-200 dark:hover:border-blue-600 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold" title="Editar gasto">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
       <span>Editar</span>
     </button>
@@ -4769,54 +5300,61 @@ function crearTarjetaGastoPendiente(gasto) {
 
   const eliminarBtn = esAdmin ? `
     <button onclick="eliminarGasto('${gasto.id}')"  
-      class="w-full sm:w-auto justify-center bg-white hover:bg-red-50 text-red-600 border border-gray-200 hover:border-red-200 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold" title="Eliminar gasto">
+      class="w-full sm:w-auto justify-center bg-white dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 border border-gray-200 dark:border-gray-600 hover:border-red-200 dark:hover:border-red-600 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold" title="Eliminar gasto">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
       <span>Eliminar</span>
     </button>
   ` : '';
 
   return `
-    <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-4 w-full">
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-4 w-full">
       <!-- Upper Section: Info & Amount -->
       <div class="flex justify-between items-start gap-3">
         <!-- Left: Main Info -->
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap mb-2">
-             <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-yellow-100 text-yellow-800 border border-yellow-200">SIN REGISTRAR</span>
-             <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-50 text-${cat.color}-700 border border-${cat.color}-100 flex items-center gap-1">${cat.emoji} ${cat.label}</span>
+             <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">SIN REGISTRAR</span>
+             <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-50 dark:bg-${cat.color}-900/40 text-${cat.color}-700 dark:text-${cat.color}-300 border border-${cat.color}-100 dark:border-${cat.color}-700 flex items-center gap-1">${cat.emoji} ${cat.label}</span>
           </div>
 
-          <h4 class="text-sm font-bold text-gray-900 mb-1 leading-tight">${gasto.descripcion}</h4>
+          <h4 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-1 leading-tight">${gasto.descripcion}</h4>
           
-          <div class="flex items-center gap-3 text-xs text-gray-500 mt-2">
-            <span class="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded border border-gray-100">
-              📅 ${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+          <div class="flex flex-col gap-0.5 text-[10px] text-gray-500 dark:text-gray-400 mt-2">
+            <span class="flex items-center gap-1.5" title="Fecha en que se realizó el gasto">
+              <span>📅</span>
+              <span class="font-medium text-gray-700 dark:text-gray-300">Gasto: ${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
             </span>
-             ${gasto.observaciones ? `<span class="italic text-gray-400 max-w-[150px] truncate">📝 ${gasto.observaciones}</span>` : ''}
+            ${gasto.fechaCreacion ? `
+            <span class="flex items-center gap-1.5" title="Fecha de ingreso al sistema">
+              <span>📥</span>
+              <span>Ingresado: ${(gasto.fechaCreacion.toDate ? gasto.fechaCreacion.toDate() : new Date(gasto.fechaCreacion)).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+            </span>` : ''}
           </div>
+          
+          ${gasto.observaciones ? `<div class="mt-2 text-xs italic text-gray-400 dark:text-gray-500 truncate">📝 ${gasto.observaciones}</div>` : ''}
         </div>
 
         <!-- Right: Amount -->
         <div class="text-right flex-shrink-0">
           ${gasto.comision && gasto.comision > 0 ? `
-              <p class="text-xl font-bold text-gray-900 leading-none" title="Total a informar">
+              <p class="text-xl font-bold text-gray-900 dark:text-gray-100 leading-none" title="Total a informar">
                 $${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
               </p>
               <div class="flex flex-col items-end gap-0.5 mt-1.5">
-                  <span class="text-[10px] text-gray-500 font-medium">Gasto: $${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
-                  <span class="text-[9px] text-purple-600 font-bold px-1.5 py-0.5 bg-purple-50 rounded border border-purple-100" title="Comisión ML">+ Com: $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                  <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Gasto: $${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                  <span class="text-[9px] text-purple-600 dark:text-purple-400 font-bold px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/40 rounded border border-purple-100 dark:border-purple-700" title="Comisión ML">+ Com: $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
               </div>
           ` : `
-              <p class="text-xl font-bold text-gray-800 leading-none">
+              <p class="text-xl font-bold text-gray-800 dark:text-gray-100 leading-none">
                 $${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
               </p>
-              <p class="text-[10px] text-gray-400 font-medium mt-1">Monto total</p>
+              <p class="text-[10px] text-gray-400 dark:text-gray-500 font-medium mt-1">Monto total</p>
           `}
         </div>
       </div>
 
       <!-- Lower Section: Actions Grid -->
-      <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 pt-3 border-t border-gray-100">
+      <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
           ${checkboxHtml}
           ${reembolsoBtn}
           ${verDetalleBtn}
@@ -4889,7 +5427,7 @@ function crearTarjetaGastoReportado(gasto) {
       <!-- Header con badges -->
       <div class="flex flex-wrap items-center gap-1.5 mb-2">
         <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 flex-shrink-0">
-          ✅ REGISTRADO
+          ✅ APROBADO
         </span>
         <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-100 text-${cat.color}-800 flex-shrink-0">
           ${cat.emoji} ${cat.label}
@@ -4916,15 +5454,34 @@ function crearTarjetaGastoReportado(gasto) {
       
       <!-- Footer con información y acción -->
       <div class="flex justify-between items-center pt-2 border-t border-gray-200">
-        <div class="flex flex-col gap-1">
-          <span class="text-[10px] text-gray-600 flex items-center gap-1">
-            <span>📅</span>
-            <span>${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
-          </span>
-          <div class="text-[9px]">${comprobanteIcon}</div>
-          <div class="text-[9px]">${tipoPagoIcon}</div>
-        </div>
         <div class="flex flex-col gap-1.5">
+          <div class="flex flex-col gap-0.5 text-[9px] text-gray-500">
+            <span class="flex items-center gap-1" title="Fecha en que se realizó el gasto">
+              <span>📅</span>
+              <span class="font-medium text-gray-700">Gasto: ${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+            </span>
+            ${gasto.fechaCreacion ? `
+            <span class="flex items-center gap-1" title="Fecha de ingreso al sistema">
+              <span>📥</span>
+              <span>Ingresado: ${(gasto.fechaCreacion.toDate ? gasto.fechaCreacion.toDate() : new Date(gasto.fechaCreacion)).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+            </span>` : ''}
+            ${gasto.fechaRegistro ? `
+            <span class="flex items-center gap-1 text-blue-600/80" title="Fecha de reporte/registro">
+              <span>📝</span>
+              <span>Reportado: ${(gasto.fechaRegistro.toDate ? gasto.fechaRegistro.toDate() : new Date(gasto.fechaRegistro)).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+            </span>` : ''}
+            ${gasto.fechaAprobacion ? `
+            <span class="flex items-center gap-1 text-green-600/80" title="Fecha de aprobación">
+              <span>✅</span>
+              <span>Aprobado: ${(gasto.fechaAprobacion.toDate ? gasto.fechaAprobacion.toDate() : new Date(gasto.fechaAprobacion)).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+            </span>` : ''}
+          </div>
+          <div class="flex items-center gap-2 mt-1">
+            <div class="text-[9px]">${comprobanteIcon}</div>
+            <div class="text-[9px]">${tipoPagoIcon}</div>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1.5 justify-end">
           ${verBtn}
           ${esAdmin ? editarBtn : ''}
           ${esAdmin ? eliminarBtn : ''}
@@ -5562,8 +6119,6 @@ async function cerrarAnoFiscal() {
       'success'
     );
 
-    console.log(`✅ Cierre fiscal: ${totalGastos} gastos eliminados`);
-
   } catch (error) {
     console.error('❌ Error durante el cierre fiscal:', error);
     mostrarNotificacion('❌ Error al realizar el cierre fiscal: ' + error.message, 'error');
@@ -5849,9 +6404,6 @@ async function extraerDatosConOCR(imagenUrl) {
     const { data: { text, confidence } } = await worker.recognize(imagenUrl);
     await worker.terminate();
 
-    console.log('📄 Texto extraído del recibo:', text);
-    console.log(`✅ Confianza: ${Math.round(confidence)}%`);
-
     // Extraer datos del texto
     const datosExtraidos = extraerDatosDeTexto(text);
     
@@ -5970,7 +6522,6 @@ function extraerDatosDeTexto(texto) {
     }
   }
 
-  console.log('📊 Datos extraídos:', datos);
   return datos;
 }
 
