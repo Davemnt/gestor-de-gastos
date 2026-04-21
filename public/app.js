@@ -152,6 +152,45 @@ function updateThemeIcons(isDark) {
   }
 }
 
+// ==================== OCULTAR SALDOS ====================
+function initSaldos() {
+  const isHidden = localStorage.getItem('hideSaldos') === 'true';
+  if (isHidden) {
+    document.body.classList.add('hide-saldos');
+  } else {
+    document.body.classList.remove('hide-saldos');
+  }
+  updateSaldosIcons(isHidden);
+}
+
+window.toggleSaldos = function() {
+  const isHidden = document.body.classList.toggle('hide-saldos');
+  localStorage.setItem('hideSaldos', isHidden);
+  updateSaldosIcons(isHidden);
+}
+
+function updateSaldosIcons(isHidden) {
+  const iconDesktop = document.getElementById('saldos-icon-desktop');
+  const textDesktop = document.getElementById('saldos-text-desktop');
+  const iconMobile = document.getElementById('saldos-icon-mobile');
+  const textMobile = document.getElementById('saldos-text-mobile');
+  
+  const svgEye = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"></path></svg>`;
+  const svgEyeOff = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>`;
+
+  if (isHidden) {
+    if(iconDesktop) iconDesktop.innerHTML = svgEyeOff;
+    if(textDesktop) textDesktop.textContent = 'Mostrar Saldos';
+    if(iconMobile) iconMobile.innerHTML = svgEyeOff;
+    if(textMobile) textMobile.textContent = 'Mostrar Saldos';
+  } else {
+    if(iconDesktop) iconDesktop.innerHTML = svgEye;
+    if(textDesktop) textDesktop.textContent = 'Ocultar Saldos';
+    if(iconMobile) iconMobile.innerHTML = svgEye;
+    if(textMobile) textMobile.textContent = 'Ocultar Saldos';
+  }
+}
+
 // ==================== CIERRE AUTOMÁTICO DE SESIÓN ====================
 // Limpiar sesión cuando se cierre la ventana o pestaña
 window.addEventListener('beforeunload', () => {
@@ -635,8 +674,9 @@ function exportarResultadosCSV() {
 // ==================== FIN SISTEMA BÚSQUEDA AVANZADA ====================
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Inicializar tema
+  // Inicializar tema y saldos
   initTheme();
+  initSaldos();
 
   try {
     // No loguear firebaseConfig por seguridad
@@ -1011,8 +1051,8 @@ async function calcularGastos() {
     const totalGastadoEl = document.getElementById('total-gastado');
     if (totalGastadoEl) {
       totalGastadoEl.textContent = `-$${totalGastos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-      // Colorear según estado
-      totalGastadoEl.className = totalGastos === 0 ? 'text-xl lg:text-2xl font-bold text-gray-400' : 'text-xl lg:text-2xl font-bold text-red-500';
+      // Colorear según estado y mantener monto-sensible
+      totalGastadoEl.className = totalGastos === 0 ? 'text-xl lg:text-2xl font-bold text-gray-400 monto-sensible' : 'text-xl lg:text-2xl font-bold text-red-500 monto-sensible';
     }
     
     // Actualizar texto del período trimestral
@@ -1035,11 +1075,11 @@ async function calcularGastos() {
       presupuestoDisponibleEl.textContent = `$${disponibleReal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
       // Colorear según estado del disponible real
       if (disponibleReal < 0) {
-        presupuestoDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-red-600 leading-tight';
+        presupuestoDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-red-600 leading-tight monto-sensible';
       } else if (disponibleReal < presupuestoTotal * 0.2) {
-        presupuestoDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-yellow-500 leading-tight';
+        presupuestoDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-yellow-500 leading-tight monto-sensible';
       } else {
-        presupuestoDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-green-500 leading-tight';
+        presupuestoDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-green-500 leading-tight monto-sensible';
       }
     }
     
@@ -1049,11 +1089,11 @@ async function calcularGastos() {
       presupuestoProyectadoEl.textContent = `$${disponibleProyectado.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
       // Colorear según estado proyectado
       if (disponibleProyectado < 0) {
-        presupuestoProyectadoEl.className = 'text-sm md:text-base text-red-500 mt-2 font-medium';
+        presupuestoProyectadoEl.className = 'text-sm md:text-base text-red-500 mt-2 font-medium monto-sensible';
       } else if (disponibleProyectado < presupuestoTotal * 0.2) {
-        presupuestoProyectadoEl.className = 'text-sm md:text-base text-yellow-600 mt-2 font-medium';
+        presupuestoProyectadoEl.className = 'text-sm md:text-base text-yellow-600 mt-2 font-medium monto-sensible';
       } else {
-        presupuestoProyectadoEl.className = 'text-sm md:text-base text-gray-500 mt-2';
+        presupuestoProyectadoEl.className = 'text-sm md:text-base text-gray-500 mt-2 monto-sensible';
       }
     }
 
@@ -1083,13 +1123,13 @@ async function calcularGastos() {
     const viaticosDisponibleEl = document.getElementById('viaticos-disponible');
     if (viaticosDisponibleEl) {
       viaticosDisponibleEl.textContent = `$${viaticosDisponibles.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-      // Colorear según estado
+      // Colorear según estado y mantener monto-sensible
       if (viaticosDisponibles < 0) {
-        viaticosDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-red-600 leading-tight';
+        viaticosDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-red-600 leading-tight monto-sensible';
       } else if (viaticosDisponibles < presupuestoViaticos * 0.2) {
-        viaticosDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-yellow-500 leading-tight';
+        viaticosDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-yellow-500 leading-tight monto-sensible';
       } else {
-        viaticosDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-purple-500 leading-tight';
+        viaticosDisponibleEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-purple-500 leading-tight monto-sensible';
       }
     }
 
@@ -1097,15 +1137,15 @@ async function calcularGastos() {
     const viaticosGastadosTextoEl = document.getElementById('viaticos-gastados-texto');
     if (viaticosGastadosTextoEl) {
       viaticosGastadosTextoEl.textContent = `Gastado: $${totalViaticos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-      // Colorear según estado
+      // Colorear según estado y mantener monto-sensible
       if (totalViaticos === 0) {
-        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-gray-400 mt-2';
+        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-gray-400 mt-2 monto-sensible';
       } else if (totalViaticos > presupuestoViaticos * 0.8) {
-        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-red-500 mt-2 font-medium';
+        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-red-500 mt-2 font-medium monto-sensible';
       } else if (totalViaticos > presupuestoViaticos * 0.5) {
-        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-orange-600 mt-2 font-medium';
+        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-orange-600 mt-2 font-medium monto-sensible';
       } else {
-        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-gray-500 mt-2';
+        viaticosGastadosTextoEl.className = 'text-sm md:text-base text-gray-500 mt-2 monto-sensible';
       }
     }
 
@@ -1113,13 +1153,13 @@ async function calcularGastos() {
     const gastosExternosEl = document.getElementById('gastos-externos-monto');
     if (gastosExternosEl) {
       gastosExternosEl.textContent = `$${totalGastosExternos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-      // Colorear según monto
+      // Colorear según monto y mantener monto-sensible
       if (totalGastosExternos === 0) {
-        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-gray-400 leading-tight';
+        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-gray-400 leading-tight monto-sensible';
       } else if (totalGastosExternos > 50000) {
-        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-orange-600 leading-tight';
+        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-orange-600 leading-tight monto-sensible';
       } else {
-        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-blue-600 leading-tight';
+        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-blue-600 leading-tight monto-sensible';
       }
     }
 
