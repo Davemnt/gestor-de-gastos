@@ -285,10 +285,9 @@ async function aplicarBusquedaAvanzada() {
       if (filtrosActivos.fechaDesde && gasto.fecha < filtrosActivos.fechaDesde) {
         return false;
       }
-
+      
       // Filtro de fecha hasta
       if (filtrosActivos.fechaHasta && gasto.fecha > filtrosActivos.fechaHasta) {
-        return false;
       }
 
       // Filtro de categoría
@@ -1268,8 +1267,8 @@ async function calcularGastosPorOrganizacion(gastos) {
   const trimestreActual = calcularTrimestreActual();
   const gastosTrimestre = gastos.filter(gasto => {
     if (!gasto.fecha) return false;
-    if (gasto.categoria !== 'presupuesto') return false; // excluir viáticos y otros
     if (!gasto.registrado) return false; // solo reportados
+    if (gasto.categoria === 'viaticos') return false; // excluir viáticos de esta vista
     const fechaGasto = gasto.fecha.toDate ? gasto.fecha.toDate() : parseFechaLocal(gasto.fecha);
     return fechaGasto >= trimestreActual.inicio && fechaGasto <= trimestreActual.fin;
   });
@@ -1799,11 +1798,11 @@ async function mostrarGastosOrganizacion(organizacionKey, organizacionNombre) {
     const _finT = new Date(_ahora.getFullYear(), _trim * 3 + 3, 0, 23, 59, 59);
 
     // Filtrar gastos por organización, categoría presupuesto y trimestre actual
+    // Filtrar gastos por organización, categoría presupuesto y trimestre actual
     const gastosFiltrados = todosLosGastos.filter(gasto => {
       if (gasto.eliminado) return false;
       const org = gasto.organizacion || 'gastos-presupuesto';
       if (org !== organizacionKey) return false;
-      if (gasto.categoria !== 'presupuesto') return false;
       if (!gasto.registrado) return false; // Filtrar solo los registrados
       if (!gasto.fecha) return false;
       const f = parseFechaLocal(gasto.fecha);
@@ -5377,12 +5376,12 @@ function crearTarjetaGastoPendiente(gasto) {
         <!-- Right: Amount -->
         <div class="text-right flex-shrink-0">
           ${gasto.comision && gasto.comision > 0 ? `
-              <p class="text-xl font-bold text-gray-900 dark:text-gray-100 leading-none" title="Total a informar">
-                $${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+              <p class="text-xl font-bold text-gray-900 dark:text-gray-100 leading-none" title="Monto del gasto">
+                $${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
               </p>
               <div class="flex flex-col items-end gap-0.5 mt-1.5">
-                  <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Gasto: $${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
-                  <span class="text-[9px] text-purple-600 dark:text-purple-400 font-bold px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/40 rounded border border-purple-100 dark:border-purple-700" title="Comisión ML">+ Com: $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                  <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Total: $${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                  <span class="text-[9px] text-purple-600 dark:text-purple-400 font-bold px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/40 rounded border border-purple-100 dark:border-purple-700" title="Comisión ML">+ Com: $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})} (${gasto.monto ? ((gasto.comision / gasto.monto) * 100).toFixed(1) : 0}%)</span>
               </div>
           ` : `
               <p class="text-xl font-bold text-gray-800 dark:text-gray-100 leading-none">
@@ -5479,10 +5478,10 @@ function crearTarjetaGastoReportado(gasto) {
         <h4 class="text-xs font-bold text-gray-900 mb-1.5 line-clamp-2">${gasto.descripcion}</h4>
         ${gasto.comision && gasto.comision > 0 ? `
             <div class="flex flex-col items-start gap-1">
-                <p class="text-lg font-bold text-sky-700" title="Total informado">$${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <p class="text-lg font-bold text-sky-700" title="Monto del gasto">$${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                 <div class="flex items-center gap-1 text-[10px]">
-                    <span class="text-gray-500">Gasto: $${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
-                    <span class="text-purple-600 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">+ Com: $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                    <span class="text-gray-500">Total: $${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                    <span class="text-purple-600 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">+ Com: $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})} (${gasto.monto ? ((gasto.comision / gasto.monto) * 100).toFixed(1) : 0}%)</span>
                 </div>
             </div>
         ` : `
