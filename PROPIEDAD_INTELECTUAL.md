@@ -1,173 +1,75 @@
-# 📋 Guía de Protección de Propiedad Intelectual
+# Declaracion de Propiedad Intelectual de la App
 
-## ✅ Protecciones Ya Implementadas
+## Identificacion de la obra
 
-### 1. Copyright (Derechos de Autor)
-**Estado**: ✅ ACTIVO desde la creación del código
+- Nombre del proyecto: gestor-de-gastos
+- Tipo de obra: software aplicativo web y sus componentes asociados
+- Titular y autor declarado: David Monte
+- Fecha de actualizacion de esta declaracion: 2026-05-27
 
-- Archivo `LICENSE` agregado con copyright propietario completo
-- Avisos de copyright en todos los archivos principales:
-  - `© 2026 Davemnt. Todos los derechos reservados.`
-- Headers de copyright en:
-  - `public/app.js`
-  - `public/index.html`
-  - `firebase-config.js`
-  - `public/firebase-config.js`
-  - `README.md`
+## Alcance de la propiedad intelectual protegida
 
-**Alcance de protección**:
-- ✅ Código fuente completo
-- ✅ Diseño de interfaz (UI/UX)
-- ✅ Documentación
-- ✅ Estructura de archivos
-- ✅ Algoritmos implementados
+Esta declaracion protege, sin limitarse a:
 
----
+1. Codigo fuente y codigo objeto del sistema.
+2. Arquitectura funcional, logica de negocio y estructura interna.
+3. Diseno visual de interfaz (UI), experiencia de usuario (UX) y composicion grafica.
+4. Modelos de datos, nombres tecnicos internos, estructuras de archivos y documentacion.
+5. Materiales textuales, manuales, diagramas, formularios y activos digitales del proyecto.
 
-## 🇦🇷 Próximos Pasos en Argentina
+## Titularidad y reserva de derechos
 
-### Registro Formal ante la DNDA
+Todos los derechos patrimoniales y morales aplicables sobre esta app y sus componentes pertenecen a David Monte, salvo licencia expresa y por escrito.
 
-**Institución**: Dirección Nacional del Derecho de Autor (DNDA)
-- **Sitio web**: https://www.argentina.gob.ar/jus/derechodeautor
-- **Ubicación**: Moreno 1228, CABA, Argentina
-- **Teléfono**: (011) 5300-4000 int. 73300
+Quedan reservados todos los derechos no otorgados de forma explicita.
 
-#### Documentación Requerida:
-1. **Formulario de inscripción** (disponible en sitio web)
-2. **Copia del software** en soporte digital (CD/DVD o pendrive)
-3. **Descripción técnica** del programa:
-   - Funcionalidades principales
-   - Documentación del código
-   - Diagramas de flujo (si aplica)
-4. **DNI/CUIT** del titular (persona física o jurídica)
-5. **Pago de tasa**: Consultar monto actualizado en DNDA
+## Uso permitido y prohibiciones
 
-#### Proceso:
-1. Completar formulario online o presencial
-2. Presentar documentación física o digital
-3. Pagar tasa administrativa
-4. Esperar resolución (aprox. 30-90 días)
-5. Recibir certificado de registro
+Sin autorizacion previa, expresa y escrita del titular, queda prohibido:
 
-**Costo aproximado**: $5,000 - $15,000 ARS (verificar actualizado)
+1. Copiar total o parcialmente el codigo o su estructura funcional.
+2. Reutilizar, clonar o replicar la interfaz, flujos o modulos principales con fines comerciales o no autorizados.
+3. Distribuir, sublicenciar, vender, publicar o explotar derivaciones de la app.
+4. Eliminar avisos de autoria, copyright o referencias de titularidad.
+5. Crear versiones sustancialmente similares para competir o confundir en el mercado.
 
-**Ventajas del registro formal**:
-- ✅ Fecha cierta de creación
-- ✅ Prueba irrefutable en juicios
-- ✅ Mayor protección internacional
-- ✅ Facilita cobro de daños y perjuicios
+## Proteccion internacional
 
----
+La obra se considera protegida por el regimen de derecho de autor aplicable y por tratados internacionales vigentes para obras de software, incluyendo el Convenio de Berna, conforme corresponda en cada jurisdiccion.
 
-## 🏢 Registro de Marca Comercial (Opcional)
+## Evidencia de autoria y trazabilidad
 
-Si planeas comercializar bajo un nombre específico:
+La titularidad se respalda con evidencia tecnica y documental, incluyendo:
 
-**Institución**: Instituto Nacional de la Propiedad Industrial (INPI)
-- **Sitio web**: https://www.argentina.gob.ar/inpi
-- **Para registrar**: Nombre comercial, logo o isotipo
+1. Historial de control de versiones del repositorio.
+2. Archivos fuente y releases versionadas.
+3. Registros de despliegue y actividad de mantenimiento.
+4. Documentacion del sistema y metadatos de desarrollo.
 
-**Clases recomendadas**:
-- **Clase 9**: Software descargable
-- **Clase 42**: Servicios de software como servicio (SaaS)
+## Medidas frente a infraccion
 
-**Costo aproximado**: $8,000 - $25,000 ARS + honorarios de gestor de marcas
+Ante uso no autorizado, el titular podra ejercer todas las acciones civiles, comerciales, administrativas o penales que correspondan, incluyendo:
 
----
+1. Notificacion de retiro de contenido (takedown).
+2. Intimacion de cese de uso y eliminacion de copias.
+3. Reclamo de danos, lucro cesante y medidas cautelares.
 
-## 🌎 Protección Internacional
+## Ley aplicable y jurisdiccion
 
-### Convenio de Berna
-Argentina es signataria, por lo que tu copyright tiene validez automática en:
-- 180+ países miembros
-- Unión Europea completa
-- Estados Unidos
-- Brasil, Chile, México, etc.
+Salvo pacto escrito en contrario, esta declaracion se rige por las leyes de la Republica Argentina.
 
-### Registro Adicional Recomendado:
-- **Estados Unidos**: Copyright Office (si planeas mercado USA)
-- **Unión Europea**: EUIPO para marcas
+Para toda controversia derivada de la titularidad, uso, copia, reproduccion o explotacion no autorizada de la app, las partes se someten a la jurisdiccion de los tribunales ordinarios con competencia en la Ciudad Autonoma de Buenos Aires, con renuncia a cualquier otro fuero o jurisdiccion que pudiera corresponder.
 
----
+Sin perjuicio de lo anterior, el titular podra promover acciones o medidas cautelares en otras jurisdicciones cuando la infraccion, la distribucion o el dano ocurra total o parcialmente fuera de Argentina.
 
-## 📝 Evidencia de Autoría (Backup)
+## Licencia de uso
 
-### Mantén evidencia adicional:
+Las condiciones de uso autorizado de la app se establecen en el documento [LICENCIA_USO_APP.md](LICENCIA_USO_APP.md).
 
-1. **Commits de Git con fechas**:
-   ```bash
-   git log --all --pretty=format:"%h %ad | %s [%an]" --date=short
-   ```
+## Actualizacion de esta declaracion
 
-2. **Respaldo con timestamp**:
-   - Emails a ti mismo con el código adjunto
-   - Servicios de timestamping blockchain (OriginStamp, ProofOfExistence)
+Esta declaracion puede actualizarse por nuevas versiones de la app, cambios de alcance, ampliaciones internacionales o ajustes normativos, manteniendo la titularidad principal declarada.
 
-3. **Registro en GitHub**:
-   - Tu repositorio ya tiene historial con fechas
-   - Activa el "Archive Program" de GitHub para preservación a largo plazo
+## Documento complementario
 
-4. **Escribano Público** (tradicional pero efectivo):
-   - Llevar código en CD/pendrive sellado
-   - Acta notarial con fecha cierta
-   - Costo: $3,000 - $8,000 ARS
-
----
-
-## ⚖️ Asesoramiento Legal
-
-Para tu caso específico, considera consultar:
-
-### Estudios Jurídicos Especializados:
-- Área: Propiedad Intelectual / Derecho Informático
-- Servicios: Registro, contratos, defensa
-
-### Colegios de Abogados:
-- Colegio Público de Abogados de la Capital Federal (CPACF)
-- Consultas gratuitas o aranceladas
-
-### Asociaciones Profesionales:
-- **CESSI** (Cámara de Empresas de Software y Servicios Informáticos)
-  - Asesoramiento para emprendedores tech
-
----
-
-## 🚀 Checklist de Acción Inmediata
-
-- [x] ✅ Copyright agregado al código
-- [x] ✅ Archivo LICENSE creado
-- [x] ✅ Avisos en archivos principales
-- [ ] 📝 Completar registro DNDA (30 días recomendado)
-- [ ] 🏢 Evaluar registro de marca (si hay nombre comercial)
-- [ ] 📧 Hacer backup con email con timestamp
-- [ ] 🔒 Considerar escribano público para fecha cierta adicional
-- [ ] ⚖️ Consultar con abogado si planeas uso comercial
-
----
-
-## 📞 Contactos Útiles
-
-### DNDA (Derechos de Autor)
-- **Web**: https://www.argentina.gob.ar/jus/derechodeautor
-- **Email**: dnda@jus.gov.ar
-- **Tel**: (011) 5300-4000 int. 73300
-
-### INPI (Marcas y Patentes)
-- **Web**: https://www.argentina.gob.ar/inpi
-- **Email**: consultas@inpi.gob.ar
-- **Tel**: (011) 4383-3005
-
-### CESSI (Software)
-- **Web**: https://www.cessi.org.ar
-- **Tel**: (011) 5254-3200
-
----
-
-## ⚠️ Recordatorio Legal
-
-Este documento es informativo y no constituye asesoramiento legal profesional. 
-Para decisiones importantes, consulta con un abogado especializado en propiedad 
-intelectual de Argentina.
-
-**Última actualización**: Marzo 2026
+La guia operativa de pasos, tramites y estrategia se encuentra en el archivo separado [GUIA_PROTECCION_PI.md](GUIA_PROTECCION_PI.md).

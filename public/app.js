@@ -3,6 +3,10 @@ let db, storage, usuarioActual = null, esAdmin = false, categoriaActual = 'todos
 let editandoGastoId = null; // ID del gasto que se está editando
 let gastoActualDetalle = null; // Gasto que se está visualizando en el modal de detalle
 
+// ==================== ESTADO SELECCIÓN LCRF ====================
+let _lcrfModoSeleccion = false;
+let _lcrfSeleccion = new Map(); // gastoId -> gasto
+
 // Variables globales para sistema de separación de gastos
 let categoriaPendientes = 'todos';
 let categoriaReportados = 'todos';
@@ -102,6 +106,28 @@ function parseFechaLocal(fechaString) {
   return new Date(year, month - 1, day);
 }
 
+// Convierte un Firestore Timestamp o string YYYY-MM-DD a Date
+function parseFechaGeneral(val) {
+  if (!val) return new Date();
+  if (val.toDate) return val.toDate(); // Firestore Timestamp
+  return parseFechaLocal(val);         // String YYYY-MM-DD
+}
+
+// A partir de esta fecha se usa fechaAprobacion para agrupar/calcular
+// Los gastos aprobados ANTES de esta fecha siguen usando su campo `fecha`
+const FECHA_NUEVA_LOGICA_APROBACION = new Date(2026, 4, 5); // 5 de mayo 2026
+
+// Devuelve la fecha relevante de un gasto para historial/presupuesto
+function getFechaEfectiva(gasto) {
+  if (gasto.aprobado && gasto.fechaAprobacion) {
+    const fAprobacion = parseFechaGeneral(gasto.fechaAprobacion);
+    if (fAprobacion >= FECHA_NUEVA_LOGICA_APROBACION) {
+      return fAprobacion; // Aprobado desde hoy en adelante → usa fechaAprobacion
+    }
+  }
+  return parseFechaLocal(gasto.fecha); // Lógica anterior → usa fecha del gasto
+}
+
 // ==================== TEMA OSCURO / CLARO ====================
 function initTheme() {
   const savedTheme = localStorage.getItem('theme');
@@ -130,6 +156,8 @@ function initTheme() {
     } else {
       html.setAttribute('data-theme', 'dark');
       html.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+      updateThemeIcons(true);
   }
 }
 
@@ -153,7 +181,50 @@ function updateThemeIcons(isDark) {
 }
 
 // ==================== OCULTAR SALDOS ====================
+let _observadorSaldos = null;
+
+function marcarMontosSensiblesDinamicos() {
+  const appRoot = document.getElementById('app');
+  if (!appRoot) return;
+
+  const candidatos = appRoot.querySelectorAll('p, span, div, h1, h2, h3, h4, h5, h6, td, strong');
+  const patronMonto = /\$\s?[\d.]+(?:,[\d]{1,2})?/;
+
+  candidatos.forEach((el) => {
+    // Solo marcamos nodos hoja para no difuminar tarjetas/contenedores completos.
+    if (el.children.length > 0) return;
+
+    const texto = (el.textContent || '').trim();
+    const esMonto = patronMonto.test(texto);
+
+    if (esMonto) {
+      el.classList.add('monto-sensible-auto');
+    } else {
+      el.classList.remove('monto-sensible-auto');
+    }
+  });
+}
+
+function iniciarObservadorSaldos() {
+  if (_observadorSaldos || typeof MutationObserver === 'undefined') return;
+  const appRoot = document.getElementById('app');
+  if (!appRoot) return;
+
+  _observadorSaldos = new MutationObserver(() => {
+    marcarMontosSensiblesDinamicos();
+  });
+
+  _observadorSaldos.observe(appRoot, {
+    childList: true,
+    subtree: true,
+    characterData: true
+  });
+}
+
 function initSaldos() {
+  marcarMontosSensiblesDinamicos();
+  iniciarObservadorSaldos();
+
   const isHidden = localStorage.getItem('hideSaldos') === 'true';
   if (isHidden) {
     document.body.classList.add('hide-saldos');
@@ -164,6 +235,7 @@ function initSaldos() {
 }
 
 window.toggleSaldos = function() {
+  marcarMontosSensiblesDinamicos();
   const isHidden = document.body.classList.toggle('hide-saldos');
   localStorage.setItem('hideSaldos', isHidden);
   updateSaldosIcons(isHidden);
@@ -264,14 +336,12 @@ async function aplicarBusquedaAvanzada() {
       return;
     }
 
-    // Obtener todos los gastos si no están en cache
-    if (gastosOriginales.length === 0) {
-      const gastosSnapshot = await db.collection('gastos').orderBy('fecha', 'desc').get();
-      gastosOriginales = [];
-      gastosSnapshot.forEach(doc => {
-        gastosOriginales.push({ id: doc.id, ...doc.data() });
-      });
-    }
+    // Obtener siempre los gastos frescos de Firestore
+    const gastosSnapshot = await db.collection('gastos').orderBy('fecha', 'desc').get();
+    gastosOriginales = [];
+    gastosSnapshot.forEach(doc => {
+      gastosOriginales.push({ id: doc.id, ...doc.data() });
+    });
 
     // Aplicar filtros
     gastosFiltrados = gastosOriginales.filter(gasto => {
@@ -288,6 +358,7 @@ async function aplicarBusquedaAvanzada() {
       
       // Filtro de fecha hasta
       if (filtrosActivos.fechaHasta && gasto.fecha > filtrosActivos.fechaHasta) {
+        return false;
       }
 
       // Filtro de categoría
@@ -698,7 +769,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           document.getElementById('btn-panel-admin').classList.remove('hidden');
           const btnAdminMobile = document.getElementById('btn-panel-admin-mobile');
           if (btnAdminMobile) btnAdminMobile.classList.remove('hidden');
+          const btnSelLCRF = document.getElementById('btn-modo-seleccion-lcrf');
+          if (btnSelLCRF) btnSelLCRF.classList.remove('hidden');
+          const btnSelLCRFPend = document.getElementById('btn-modo-seleccion-lcrf-pend');
+          if (btnSelLCRFPend) btnSelLCRFPend.classList.remove('hidden');
+          document.getElementById('sidebar-lcrf-config')?.classList.remove('hidden');
           document.getElementById('user-role-badge').innerHTML = '👤 Administrador';
+          await cargarConfiguracionActual();
         } else {
           document.getElementById('user-role-badge').innerHTML = '👤 Usuario';
         }
@@ -879,12 +956,19 @@ async function validarPIN() {
       document.getElementById('btn-panel-admin').classList.remove('hidden');
       const btnAdminMobile = document.getElementById('btn-panel-admin-mobile');
       if (btnAdminMobile) btnAdminMobile.classList.remove('hidden');
+      const btnSelLCRF2 = document.getElementById('btn-modo-seleccion-lcrf');
+      if (btnSelLCRF2) btnSelLCRF2.classList.remove('hidden');
+      const btnSelLCRF2Pend = document.getElementById('btn-modo-seleccion-lcrf-pend');
+      if (btnSelLCRF2Pend) btnSelLCRF2Pend.classList.remove('hidden');
+      document.getElementById('sidebar-lcrf-config')?.classList.remove('hidden');
       loginBtn.innerHTML = '🔑 Verificar PIN';
       loginBtn.disabled = false;
       
       // Iniciar detección de inactividad
       configurarDeteccionInactividad();
       resetearTiempoInactividad();
+
+      await cargarConfiguracionActual();
       
       mostrarNotificacion('✅ Bienvenido, Administrador', 'success');
       cargarDatos();
@@ -1006,9 +1090,9 @@ async function calcularGastos() {
 
     gastosSnapshot.forEach(doc => {
       const gasto = doc.data();
-      const fechaGasto = parseFechaLocal(gasto.fecha);
-      const organizacion = gasto.organizacion || '';
       const esAprobado = gasto.aprobado === true;
+      const fechaGasto = getFechaEfectiva(gasto);
+      const organizacion = gasto.organizacion || '';
       
       // Verificar si es una organización externa que no afecta presupuesto/viáticos
       const esOrganizacionExterna = ORGANIZACIONES_EXTERNAS.includes(organizacion);
@@ -1263,11 +1347,11 @@ function validarCoherenciaKPIs(gastos) {
 
 // ==================== CALCULAR GASTOS POR ORGANIZACIÓN ====================
 async function calcularGastosPorOrganizacion(gastos) {
-  // Filtrar solo gastos de PRESUPUESTO, REPORTADOS, del trimestre actual
+  // Filtrar solo gastos de PRESUPUESTO, APROBADOS, del trimestre actual (mismo criterio que disponible real)
   const trimestreActual = calcularTrimestreActual();
   const gastosTrimestre = gastos.filter(gasto => {
     if (!gasto.fecha) return false;
-    if (!gasto.registrado) return false; // solo reportados
+    if (gasto.aprobado !== true) return false; // solo aprobados
     if (gasto.categoria === 'viaticos') return false; // excluir viáticos de esta vista
     const fechaGasto = gasto.fecha.toDate ? gasto.fecha.toDate() : parseFechaLocal(gasto.fecha);
     return fechaGasto >= trimestreActual.inicio && fechaGasto <= trimestreActual.fin;
@@ -3089,14 +3173,15 @@ window.cerrarModalTrimestreArchivado = cerrarModalTrimestreArchivado;
 async function calcularEvolucionGastos(gastos) {
   const mesesGastos = Array(12).fill(0);
   const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const añoActualEvolucion = new Date().getFullYear();
 
-  // Acumular gastos por mes
+  // Acumular gastos por mes — solo del año actual
   gastos.forEach(gasto => {
-    if (gasto.fecha) {
-      const fecha = parseFechaLocal(gasto.fecha);
-      const mes = fecha.getMonth();
-      mesesGastos[mes] += gasto.monto || 0;
-    }
+    if (!gasto.fecha && !gasto.fechaAprobacion) return;
+    const fecha = getFechaEfectiva(gasto);
+    if (fecha.getFullYear() !== añoActualEvolucion) return;
+    const mes = fecha.getMonth();
+    mesesGastos[mes] += gasto.monto || 0;
   });
 
   // Calcular total del año para validar coherencia
@@ -3281,9 +3366,6 @@ function cerrarModal() {
   editandoGastoId = null; // Resetear ID de edición
   document.getElementById('modal-gasto').classList.add('hidden');
   document.getElementById('form-gasto').reset();
-  
-  // Limpiar captura OCR
-  limpiarCaptura();
   
   // Resetear checkboxes de comisión
   const containerIncluye = document.getElementById('container-incluye-comision');
@@ -3533,7 +3615,7 @@ function configurarEventListeners() {
 
         // Subir imagen del recibo si existe
         let urlImagenSubida = null;
-        if (imagenReciboCapturada) {
+        if (typeof imagenReciboCapturada !== 'undefined' && imagenReciboCapturada) {
           try {
             const gastoId = editandoGastoId || `temp_${Date.now()}`;
             const fileName = `recibos/${gastoId}_${Date.now()}.jpg`;
@@ -4094,6 +4176,10 @@ function crearTarjetaGasto(gasto) {
     ? '<span class="inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-bold bg-green-900 text-green-300 border border-green-700 whitespace-nowrap">✓ REGISTRADO</span>'
     : '<span class="inline-flex items-center px-2 lg:px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-300 border border-gray-600 whitespace-nowrap">⏳ SIN REGISTRAR</span>';
 
+  const marcaImpreso = gasto.impresionLCRF
+    ? '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-purple-900/60 text-purple-300 border border-purple-700 whitespace-nowrap" title="' + (gasto.fechaImpresionLCRF || '') + '">🖨️ IMPRESO</span>'
+    : '';
+
   // Mostrar observaciones si existen
   const observacionesHTML = gasto.observaciones ? `
     <div class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200 dark:bg-gray-700 dark:border-gray-600">
@@ -4178,13 +4264,19 @@ function crearTarjetaGasto(gasto) {
                 class="bg-red-900/40 text-red-400 hover:bg-red-900/60 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1">
                 <span>🗑️</span> Eliminar
               </button>
+              <button onclick='manejarClickLCRF("${gasto.id}")' 
+                class="bg-purple-900/40 text-purple-400 hover:bg-purple-900/60 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+                id="btn-lcrf-${gasto.id}"
+                data-gasto='${JSON.stringify(gasto).replace(/'/g, "&#39;")}'>
+                <span>🖨️</span> LCRF
+              </button>
             </div>
         </div>
       </div>
   ` : '';
 
   return `
-    <div class="card-dark rounded-2xl p-4 lg:p-6 hover:border-2 hover:border-orange-500 transition-all ${claseEliminado}">
+    <div id="card-gasto-${gasto.id}" class="card-dark rounded-2xl p-4 lg:p-6 hover:border-2 hover:border-orange-500 transition-all ${claseEliminado}">
       <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
         <div class="flex-1 min-w-0">
           <div class="flex flex-wrap items-center gap-2 mb-3">
@@ -4194,6 +4286,7 @@ function crearTarjetaGasto(gasto) {
             <span class="text-xs lg:text-sm text-gray-400 whitespace-nowrap">📅 ${gasto.fecha}</span>
             ${estadoRegistro}
             ${marcaEliminado}
+            ${marcaImpreso}
           </div>
           <h4 class="text-base lg:text-xl font-bold text-white mb-2 break-words">${gasto.descripcion}</h4>
           
@@ -4369,7 +4462,7 @@ async function cargarConfiguracionActual() {
       const _fin = new Date(_anio, _trim * 3 + 3, 0, 23, 59, 59);
 
       let totalP_reg = 0;
-      let totalYrP_reg = 0;
+      let totalAprobadoTrimestre = 0;
 
       const gastosRef = await db.collection('gastos').where('eliminado', '==', false).get();
       gastosRef.forEach(doc => {
@@ -4382,13 +4475,13 @@ async function cargarConfiguracionActual() {
           
           if (f) {
             if (g.registrado && f >= _ini && f <= _fin) totalP_reg += (g.monto || 0); // Gastado Q
-            if (g.registrado && f.getFullYear() === _anio) totalYrP_reg += (g.monto || 0); // Gastado Yr
+            if (g.aprobado === true && f >= _ini && f <= _fin) totalAprobadoTrimestre += (g.monto || 0); // Disponible Real (mismo cálculo que panel principal)
           }
         }
       });
 
       const formatearMoneda = (num) => '$' + num.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-      const dispReal = Math.max(0, pTotal - totalYrP_reg);
+      const dispReal = pTotal - totalAprobadoTrimestre;
 
       const elT = document.getElementById('admin-stat-presupuesto');
       if (elT) elT.textContent = formatearMoneda(pTotal);
@@ -4400,9 +4493,40 @@ async function cargarConfiguracionActual() {
       if (elV) elV.textContent = formatearMoneda(config.presupuestoViaticos || 0);
       const tl = document.getElementById('admin-trimestre-label');
       if (tl) tl.textContent = 'Q' + (_trim+1) + ' ' + _anio;
+
+      // Cargar campos LCRF (modal y sidebar)
+      const cacheLcrf = JSON.parse(localStorage.getItem('lcrfConfig') || '{}');
+      const nombreUnidadCfg = (config.nombreUnidad ?? cacheLcrf.nombreUnidad ?? '');
+      const numeroUnidadCfg = (config.numeroUnidad ?? cacheLcrf.numeroUnidad ?? '');
+      const lcrfNombre = document.getElementById('lcrf-nombre-unidad');
+      const lcrfNumero = document.getElementById('lcrf-numero-unidad');
+      if (lcrfNombre) lcrfNombre.value = nombreUnidadCfg;
+      if (lcrfNumero) lcrfNumero.value = numeroUnidadCfg;
+      const sidebarNombre = document.getElementById('sidebar-lcrf-nombre-unidad');
+      const sidebarNumero = document.getElementById('sidebar-lcrf-numero-unidad');
+      if (sidebarNombre) sidebarNombre.value = nombreUnidadCfg;
+      if (sidebarNumero) sidebarNumero.value = numeroUnidadCfg;
+
+      // Cache local para mantener visible aún si hay latencia de red
+      localStorage.setItem('lcrfConfig', JSON.stringify({
+        nombreUnidad: nombreUnidadCfg,
+        numeroUnidad: numeroUnidadCfg
+      }));
     }
   } catch (error) {
     console.error('Error al cargar configuración actual:', error);
+    // Fallback local si falla Firestore
+    try {
+      const cacheLcrf = JSON.parse(localStorage.getItem('lcrfConfig') || '{}');
+      const lcrfNombre = document.getElementById('lcrf-nombre-unidad');
+      const lcrfNumero = document.getElementById('lcrf-numero-unidad');
+      const sidebarNombre = document.getElementById('sidebar-lcrf-nombre-unidad');
+      const sidebarNumero = document.getElementById('sidebar-lcrf-numero-unidad');
+      if (lcrfNombre) lcrfNombre.value = cacheLcrf.nombreUnidad || '';
+      if (lcrfNumero) lcrfNumero.value = cacheLcrf.numeroUnidad || '';
+      if (sidebarNombre) sidebarNombre.value = cacheLcrf.nombreUnidad || '';
+      if (sidebarNumero) sidebarNumero.value = cacheLcrf.numeroUnidad || '';
+    } catch (_) {}
   }
 }
 
@@ -4948,6 +5072,9 @@ function renderGastosPendientesAprobacion(gastos) {
             </svg>
             <div class="text-left">
               <h4 class="font-bold text-gray-900 dark:text-gray-100 text-sm md:text-base capitalize">${grupo.label}</h4>
+              ${grupo.mesesRegistro && grupo.mesesRegistro.length > 0
+                ? `<p class="text-[10px] text-orange-600/80 dark:text-orange-400/70 font-medium mt-0.5">Registrado en: ${grupo.mesesRegistro.map(m => m.label).join(', ')}</p>`
+                : ''}
               <p class="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-0.5">${grupo.gastos.length} gasto${grupo.gastos.length !== 1 ? 's' : ''}</p>
             </div>
           </div>
@@ -5144,19 +5271,43 @@ function agruparPorMes(gastos) {
   const grupos = {};
   
   gastos.forEach(gasto => {
-    const fecha = parseFechaLocal(gasto.fecha);
+    const fecha = getFechaEfectiva(gasto);
     const mesAnio = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
     
     if (!grupos[mesAnio]) {
       grupos[mesAnio] = {
         label: fecha.toLocaleDateString('es-ES', { year: 'numeric', month: 'long' }),
         gastos: [],
-        total: 0
+        total: 0,
+        mesesOrigen: [] // meses distintos en los que ocurrieron los gastos
       };
     }
     
     grupos[mesAnio].gastos.push(gasto);
     grupos[mesAnio].total += gasto.monto || 0;
+
+    // Rastrear mes de origen (fecha real del gasto) cuando difiere del mes de agrupación
+    const fechaOrigen = parseFechaLocal(gasto.fecha);
+    const mesOrigenKey = `${fechaOrigen.getFullYear()}-${String(fechaOrigen.getMonth() + 1).padStart(2, '0')}`;
+    if (mesOrigenKey !== mesAnio && !grupos[mesAnio].mesesOrigen.some(m => m.key === mesOrigenKey)) {
+      grupos[mesAnio].mesesOrigen.push({
+        key: mesOrigenKey,
+        label: fechaOrigen.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+      });
+    }
+
+    // Rastrear mes de registro (fechaRegistro) cuando difiere del mes de agrupación
+    if (gasto.fechaRegistro) {
+      const fechaReg = parseFechaGeneral(gasto.fechaRegistro);
+      const mesRegKey = `${fechaReg.getFullYear()}-${String(fechaReg.getMonth() + 1).padStart(2, '0')}`;
+      if (!grupos[mesAnio].mesesRegistro) grupos[mesAnio].mesesRegistro = [];
+      if (mesRegKey !== mesAnio && !grupos[mesAnio].mesesRegistro.some(m => m.key === mesRegKey)) {
+        grupos[mesAnio].mesesRegistro.push({
+          key: mesRegKey,
+          label: fechaReg.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+        });
+      }
+    }
   });
   
   return Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0]));
@@ -5167,7 +5318,7 @@ function agruparPorTrimestre(gastos) {
   const grupos = {};
   
   gastos.forEach(gasto => {
-    const fecha = parseFechaLocal(gasto.fecha);
+    const fecha = getFechaEfectiva(gasto);
     const anio = fecha.getFullYear();
     const mes = fecha.getMonth();
     const trimestre = Math.floor(mes / 3) + 1;
@@ -5195,7 +5346,7 @@ function agruparPorAnio(gastos) {
   const grupos = {};
   
   gastos.forEach(gasto => {
-    const fecha = parseFechaLocal(gasto.fecha);
+    const fecha = getFechaEfectiva(gasto);
     const anio = fecha.getFullYear().toString();
     
     if (!grupos[anio]) {
@@ -5220,16 +5371,23 @@ function renderGastosAgrupados(grupos, vista) {
     const grupoId = `hist-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
     const estaExpandido = obtenerEstadoAcordeon(grupoId);
     
+    const subtituloOrigen = grupo.mesesOrigen && grupo.mesesOrigen.length > 0
+      ? `<p class="text-[10px] font-normal text-sky-600/80 dark:text-sky-400/70 mt-0.5">Gastos de: ${grupo.mesesOrigen.map(m => m.label).join(', ')}</p>`
+      : '';
+
     return `
       <div class="mb-3 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
         <div class="bg-gradient-to-r from-sky-100 to-blue-100 dark:from-sky-900/30 dark:to-blue-800/30 p-3 cursor-pointer hover:from-sky-200 hover:to-blue-200 dark:hover:from-sky-900/40 dark:hover:to-blue-800/40 transition-all"
              onclick="toggleGrupoGastos('${grupoId}')">
           <div class="flex justify-between items-center">
-            <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100 flex items-center">
-              <span id="icon-${grupoId}" class="mr-1.5 text-sm transition-transform duration-300 ${estaExpandido ? '' : '-rotate-90'}">▼</span>
-              <span class="mr-2">${icono}</span>
-              ${grupo.label}
-            </h3>
+            <div class="flex items-start gap-1.5">
+              <span id="icon-${grupoId}" class="mt-0.5 text-sm text-gray-600 dark:text-gray-300 transition-transform duration-300 flex-shrink-0 ${estaExpandido ? '' : '-rotate-90'}">▼</span>
+              <span class="mt-0.5 flex-shrink-0">${icono}</span>
+              <div>
+                <h3 class="text-sm font-bold text-gray-800 dark:text-gray-100">${grupo.label}</h3>
+                ${subtituloOrigen}
+              </div>
+            </div>
             <div class="text-right">
               <p class="text-[10px] text-gray-600 dark:text-gray-400">${grupo.gastos.length} gasto${grupo.gastos.length !== 1 ? 's' : ''}</p>
               <p class="text-sm font-bold text-sky-600 dark:text-sky-400">
@@ -5345,8 +5503,18 @@ function crearTarjetaGastoPendiente(gasto) {
     </button>
   ` : '';
 
+  const lcrfBtn = esAdmin ? `
+    <button onclick='manejarClickLCRF("${gasto.id}")'
+      id="btn-lcrf-${gasto.id}"
+      data-gasto='${JSON.stringify(gasto).replace(/'/g, "&#39;")}'
+      class="w-full sm:w-auto justify-center bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold" title="Imprimir Autorización LCRF">
+      <span>🖨️</span>
+      <span>LCRF</span>
+    </button>
+  ` : '';
+
   return `
-    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-4 w-full">
+    <div id="card-gasto-${gasto.id}" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-4 w-full">
       <!-- Upper Section: Info & Amount -->
       <div class="flex justify-between items-start gap-3">
         <!-- Left: Main Info -->
@@ -5354,6 +5522,7 @@ function crearTarjetaGastoPendiente(gasto) {
           <div class="flex items-center gap-2 flex-wrap mb-2">
              <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">SIN REGISTRAR</span>
              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-50 dark:bg-${cat.color}-900/40 text-${cat.color}-700 dark:text-${cat.color}-300 border border-${cat.color}-100 dark:border-${cat.color}-700 flex items-center gap-1">${cat.emoji} ${cat.label}</span>
+             ${gasto.impresionLCRF ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">🖨️ IMPRESO</span>` : ''}
           </div>
 
           <h4 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-1 leading-tight">${gasto.descripcion}</h4>
@@ -5399,6 +5568,7 @@ function crearTarjetaGastoPendiente(gasto) {
           ${verDetalleBtn}
           ${editarBtn}
           ${eliminarBtn}
+          ${lcrfBtn}
       </div>
     </div>
   `;
@@ -5975,24 +6145,6 @@ function mostrarDetalleGasto(gasto) {
         <p class="text-gray-800 font-medium text-lg mt-1">${gasto.descripcion}</p>
       </div>
 
-      ${gasto.imagenRecibo ? `
-      <!-- Imagen del recibo -->
-      <div class="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-200">
-        <label class="text-xs font-bold text-indigo-600 uppercase tracking-wide flex items-center gap-2 mb-3">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-          </svg>
-          Recibo Escaneado (OCR)
-        </label>
-        <div class="relative rounded-lg overflow-hidden bg-white shadow-md">
-          <img src="${gasto.imagenRecibo}" alt="Recibo" class="w-full h-auto max-h-80 object-contain cursor-pointer" onclick="window.open('${gasto.imagenRecibo}', '_blank')">
-          <div class="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-semibold text-gray-600">
-            Click para ampliar
-          </div>
-        </div>
-      </div>
-      ` : ''}
-
       ${tieneComision ? `
       <!-- Desglose de montos con comisión -->
       <div class="bg-purple-50 p-4 rounded-xl border border-purple-100">
@@ -6041,6 +6193,16 @@ function mostrarDetalleGasto(gasto) {
                 : '<span class="inline-flex items-center gap-1.5 text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 font-medium text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> No adjuntado</span>'}
            </div>
         </div>
+
+        ${esAdmin ? `
+        <div class="pt-3 border-t border-gray-100">
+          <button onclick='imprimirDesembolsoLCRF(${JSON.stringify(gasto).replace(/'/g, "&#39;")})' 
+            class="w-full flex items-center justify-center gap-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-semibold py-2.5 rounded-xl text-sm transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+            Imprimir Autorización de Desembolso LCRF
+          </button>
+        </div>
+        ` : ''}
       </div>
     </div>
   `;
@@ -6052,6 +6214,711 @@ function mostrarDetalleGasto(gasto) {
 function cerrarModalDetalle() {
   const modal = document.getElementById('modal-detalle-gasto');
   if (modal) modal.classList.add('hidden');
+}
+
+// ==================== AUTORIZACIÓN DE DESEMBOLSO LCRF ====================
+
+// --- Modo selección LCRF ---
+
+function _actualizarBotonesModoSeleccionLCRF() {
+  const botones = [
+    document.getElementById('btn-modo-seleccion-lcrf'),
+    document.getElementById('btn-modo-seleccion-lcrf-pend')
+  ];
+
+  botones.forEach(btn => {
+    if (!btn) return;
+    // Si sigue oculto por permisos, no tocarlo.
+    if (btn.classList.contains('hidden')) return;
+
+    if (_lcrfModoSeleccion) {
+      btn.onclick = cancelarSeleccionLCRF;
+      btn.innerHTML = '✖ Cancelar selección';
+      btn.className = 'flex-shrink-0 flex items-center gap-1.5 bg-red-100 hover:bg-red-200 text-red-800 border border-red-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap';
+    } else {
+      btn.onclick = activarModoSeleccionLCRF;
+      btn.innerHTML = '🗂️ Selección LCRF';
+      btn.className = 'flex-shrink-0 flex items-center gap-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap';
+    }
+  });
+}
+
+function activarModoSeleccionLCRF() {
+  _lcrfModoSeleccion = true;
+  _lcrfSeleccion.clear();
+  document.getElementById('lcrf-seleccion-bar').classList.remove('hidden');
+  _actualizarBotonesModoSeleccionLCRF();
+  _actualizarBarraSeleccionLCRF();
+  _actualizarBotonesLCRFEnCards();
+}
+
+function cancelarSeleccionLCRF() {
+  _lcrfModoSeleccion = false;
+  _lcrfSeleccion.clear();
+  document.getElementById('lcrf-seleccion-bar').classList.add('hidden');
+  _actualizarBotonesModoSeleccionLCRF();
+  _actualizarBotonesLCRFEnCards();
+}
+
+function toggleGastoLCRF(gastoId) {
+  if (_lcrfSeleccion.has(gastoId)) {
+    _lcrfSeleccion.delete(gastoId);
+  } else {
+    if (_lcrfSeleccion.size >= 2) {
+      mostrarNotificacion('⚠️ Máximo 2 gastos por hoja', 'error');
+      return;
+    }
+    // Recuperar el gasto del dataset del botón
+    const btn = document.getElementById('btn-lcrf-' + gastoId);
+    if (!btn) return;
+    const gastoData = btn.dataset.gasto;
+    if (gastoData) _lcrfSeleccion.set(gastoId, JSON.parse(gastoData));
+  }
+  _actualizarEstadoCardLCRF(gastoId);
+  _actualizarBarraSeleccionLCRF();
+}
+
+function _actualizarBarraSeleccionLCRF() {
+  const count = _lcrfSeleccion.size;
+  const el = document.getElementById('lcrf-seleccion-count');
+  if (el) el.textContent = `${count}/2 gastos seleccionados`;
+  const btnImp = document.getElementById('btn-imprimir-seleccion');
+  if (btnImp) btnImp.disabled = count === 0;
+}
+
+function _aplicarEstiloBotonLCRF(btn, seleccionado) {
+  if (!btn) return;
+
+  if (seleccionado) {
+    btn.className = 'w-full sm:w-auto justify-center bg-purple-700 hover:bg-purple-800 text-white border border-purple-800 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold';
+    btn.innerHTML = '<span>✓</span> Seleccionado';
+    return;
+  }
+
+  if (_lcrfModoSeleccion) {
+    btn.className = 'w-full sm:w-auto justify-center bg-white hover:bg-purple-50 text-purple-700 border border-purple-300 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold';
+    btn.innerHTML = '<span>🖨️</span> Seleccionar';
+    return;
+  }
+
+  // Estado normal fuera de modo selección: alto contraste en tema claro
+  btn.className = 'w-full sm:w-auto justify-center bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-300 px-3 py-2 rounded-lg transition-all shadow-sm hover:shadow-md flex items-center gap-2 text-xs font-semibold';
+  btn.innerHTML = '<span>🖨️</span> LCRF';
+}
+
+function _actualizarEstadoCardLCRF(gastoId) {
+  const card = document.getElementById('card-gasto-' + gastoId);
+  const btn = document.getElementById('btn-lcrf-' + gastoId);
+  if (!card || !btn) return;
+  const seleccionado = _lcrfSeleccion.has(gastoId);
+  if (seleccionado) {
+    card.style.outline = '2px solid #a855f7';
+    card.style.outlineOffset = '2px';
+    _aplicarEstiloBotonLCRF(btn, true);
+  } else {
+    card.style.outline = '';
+    card.style.outlineOffset = '';
+    _aplicarEstiloBotonLCRF(btn, false);
+  }
+}
+
+function _actualizarBotonesLCRFEnCards() {
+  // Actualiza todos los botones LCRF visibles según modo + estado seleccionado
+  document.querySelectorAll('[id^="btn-lcrf-"]').forEach(btn => {
+    const gastoId = btn.id.replace('btn-lcrf-', '');
+    const card = document.getElementById('card-gasto-' + gastoId);
+    const seleccionado = _lcrfSeleccion.has(gastoId);
+
+    if (!_lcrfModoSeleccion && card) {
+      card.style.outline = '';
+      card.style.outlineOffset = '';
+    }
+    if (_lcrfModoSeleccion && card && seleccionado) {
+      card.style.outline = '2px solid #a855f7';
+      card.style.outlineOffset = '2px';
+    }
+
+    _aplicarEstiloBotonLCRF(btn, seleccionado);
+  });
+}
+
+function manejarClickLCRF(gastoId) {
+  if (_lcrfModoSeleccion) {
+    toggleGastoLCRF(gastoId);
+  } else {
+    const btn = document.getElementById('btn-lcrf-' + gastoId);
+    if (!btn) return;
+    try {
+      const gasto = JSON.parse(btn.dataset.gasto);
+      imprimirDesembolsoLCRF(gasto);
+    } catch (e) {
+      console.error('Error al parsear gasto para LCRF:', e);
+    }
+  }
+}
+
+async function imprimirSeleccionLCRF() {
+  if (_lcrfSeleccion.size === 0) return;
+
+  const gastos = Array.from(_lcrfSeleccion.values());
+
+  let nombreUnidad = '', numeroUnidad = '';
+  try {
+    const configDoc = await db.collection('configuracion').doc('sistema').get();
+    if (configDoc.exists) {
+      const cfg = configDoc.data();
+      nombreUnidad = cfg.nombreUnidad || '';
+      numeroUnidad = cfg.numeroUnidad || '';
+    }
+  } catch (e) { console.error('Error config LCRF:', e); }
+
+  // Construir el HTML del diálogo con campos para cada gasto seleccionado
+  const camposGastos = gastos.map((g, i) => {
+    const defaultTipo = g.categoria === 'viaticos' ? 'reembolsable' : 'presupuesto';
+    return `
+      <div style="border:1px solid #4b5563;border-radius:8px;padding:10px;margin-bottom:${i < gastos.length - 1 ? '14px' : '0'}">
+        <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:8px">
+          Copia ${i + 1}: ${g.descripcion.substring(0, 40)}${g.descripcion.length > 40 ? '…' : ''} 
+          <span style="color:#f59e0b">$${g.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+        </p>
+        <label style="display:block;font-size:11px;font-weight:700;color:#374151;margin-bottom:4px">Pagado a *</label>
+        <input id="swal-pagado-a-${i}" class="swal2-input" placeholder="Nombre del comercio o persona" 
+          style="width:100%;margin:0 0 10px 0;font-size:13px">
+        <label style="display:block;font-size:11px;font-weight:700;color:#374151;margin-bottom:4px">Tipo de desembolso</label>
+        <select id="swal-tipo-${i}" class="swal2-select" style="width:100%;margin:0;font-size:13px">
+          <option value="presupuesto" ${defaultTipo==='presupuesto'?'selected':''}>💰 Presupuesto</option>
+          <option value="reembolsable" ${defaultTipo==='reembolsable'?'selected':''}>🚗 Gastos Reembolsables</option>
+          <option value="ayuno">🙏 Ofrendas de Ayuno</option>
+          <option value="excepcion">⚠️ Excepción de Dinero</option>
+        </select>
+      </div>`;
+  }).join('');
+
+  const titulo = gastos.length === 1
+    ? 'Autorización de Desembolso LCRF'
+    : `Autorización LCRF (${gastos.length} en una hoja)`;
+
+  const { value: formValues } = await Swal.fire({
+    title: `<span style="font-size:16px">${titulo}</span>`,
+    html: `<div style="text-align:left;padding:4px 0">${camposGastos}</div>`,
+    preConfirm: () => {
+      const resultados = gastos.map((g, i) => {
+        const pagadoA = document.getElementById(`swal-pagado-a-${i}`)?.value.trim();
+        const tipo = document.getElementById(`swal-tipo-${i}`)?.value;
+        if (!pagadoA) {
+          Swal.showValidationMessage(`Completa "Pagado a" para la copia ${i + 1}`);
+          return null;
+        }
+        return { pagadoA, tipo };
+      });
+      if (resultados.some(r => r === null)) return false;
+      return resultados;
+    },
+    confirmButtonText: '🖨️ Imprimir',
+    cancelButtonText: 'Cancelar',
+    showCancelButton: true,
+    confirmButtonColor: '#7c3aed'
+  });
+
+  if (!formValues) return;
+
+  // Construir objeto datos para cada gasto
+  const DASHES = '——————';
+  const datosArray = gastos.map((gasto, i) => {
+    const { pagadoA, tipo } = formValues[i];
+    const fechaGasto = parseFechaLocal(gasto.fecha);
+    const nroReferencia = generarNroReferenciaLCRF(fechaGasto, gasto.monto);
+    const fechaImpresion = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const montoFormateado = gasto.monto.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    let ofrendaAyuno = DASHES, presupuesto = DASHES, gastosReembolsables = DASHES, excepcionDinero = DASHES;
+    if (tipo === 'presupuesto') presupuesto = montoFormateado;
+    else if (tipo === 'reembolsable') gastosReembolsables = montoFormateado;
+    else if (tipo === 'ayuno') ofrendaAyuno = montoFormateado;
+    else if (tipo === 'excepcion') excepcionDinero = montoFormateado;
+    return {
+      nroReferencia, nombreUnidad, numeroUnidad, fechaImpresion,
+      pagadoA, descripcion: gasto.descripcion,
+      ofrendaAyuno, presupuesto, gastosReembolsables, excepcionDinero,
+      importeEnLetras: numeroALetras(gasto.monto)
+    };
+  });
+
+  // Intentar PDF oficial primero (1 página por gasto: copia superior llena, inferior en blanco)
+  const pdfLlenado = await _lcrf_llenarPDF(datosArray);
+  if (pdfLlenado) {
+    await _marcarGastosImpresos(gastos.map(g => g.id));
+    cancelarSeleccionLCRF();
+    mostrarNotificacion(`✅ ${datosArray.length === 1 ? 'LCRF generada' : datosArray.length + ' LCRF generadas'}`, 'success');
+    return;
+  }
+
+  // Fallback HTML si el PDF no está disponible
+  const bloques = datosArray.map(d => _lcrf_bloque(d));
+  const contenidoPagina = bloques.length === 1
+    ? bloques[0] + '<div class="cortador">— — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —</div>' + _lcrf_bloque_vacio()
+    : bloques[0] + '<div class="cortador">— — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —</div>' + bloques[1];
+
+  const ventana = window.open('', '_blank');
+  if (!ventana) { mostrarNotificacion('⚠️ El navegador bloqueó la ventana emergente', 'error'); return; }
+  ventana.document.write(_lcrf_htmlPage(contenidoPagina, datosArray.map(d => d.nroReferencia).join('_')));
+  ventana.document.close();
+
+  // Marcar gastos como impresos
+  await _marcarGastosImpresos(gastos.map(g => g.id));
+
+  // Salir de modo selección
+  cancelarSeleccionLCRF();
+  mostrarNotificacion(`✅ ${gastos.length === 1 ? 'LCRF generada (2 copias)' : '2 LCRF generadas en una hoja'}`, 'success');
+}
+
+function generarNroReferenciaLCRF(fechaGasto, monto) {
+  const mm = String(fechaGasto.getMonth() + 1).padStart(2, '0');
+  const dd = String(fechaGasto.getDate()).padStart(2, '0');
+
+  // Formato solicitado: MM/DD-IMPORTE (sin centavos).
+  const montoEntero = Math.trunc(Number(monto) || 0);
+  return `${mm}${dd}-${montoEntero}`;
+}
+
+async function _marcarGastosImpresos(ids) {
+  const fechaHoy = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  for (const id of ids) {
+    try {
+      await db.collection('gastos').doc(id).update({
+        impresionLCRF: true,
+        fechaImpresionLCRF: fechaHoy
+      });
+    } catch (e) {
+      console.error('Error al marcar impresion LCRF:', e, id);
+    }
+  }
+  // Recargar gastos para reflejar el cambio visual
+  await cargarGastosSeparados();
+}
+
+function _lcrf_htmlPage(contenido, titulo) {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Autorización de Desembolso LCRF - ${titulo}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; background: #fff; color: #000; }
+  @page { size: A4 portrait; margin: 10mm 12mm; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none !important; } }
+  .page { width: 100%; }
+  .lcrf-form { border: 1px solid #000; margin-bottom: 0; page-break-inside: avoid; }
+  .lcrf-form table { width: 100%; border-collapse: collapse; }
+  .lcrf-form td { border: 1px solid #444; padding: 4px 5px; vertical-align: top; }
+  .titulo-form { font-weight: bold; font-size: 12px; background: #d9e1f2; text-align: center; padding: 6px 5px !important; }
+  .campo-label { font-size: 8.5px; font-weight: bold; color: #1e3a5f; min-height: 36px; }
+  .campo-valor { display: block; font-size: 10px; font-weight: normal; color: #000; margin-top: 2px; }
+  .campo-monto-label { font-size: 10px; font-weight: bold; }
+  .monto-val { font-size: 11px; font-weight: bold; }
+  .monto-cell { width: 25%; }
+  .proposito { font-size: 10.5px; font-weight: normal; color: #000; }
+  .importe-letras { font-size: 9.5px; font-weight: bold; text-transform: uppercase; }
+  .firma-cell { min-height: 48px; }
+  .campo-firma { display: block; min-height: 28px; }
+  .firma-cell-grande { min-height: 56px; }
+  .campo-firma.grande { display: block; min-height: 38px; }
+  .bloqueado { background: #f0f0f0; }
+  .bloqueado-valor { color: #999; font-style: italic; }
+  .notas { font-size: 7px; padding: 4px 6px; line-height: 1.4; color: #333; border-top: 1px solid #000; }
+  .notas p { margin-bottom: 1px; }
+  .auditoria { font-weight: bold; font-size: 7.5px; margin-top: 3px !important; }
+  .vigencia { text-align: right; font-style: italic; margin-top: 2px !important; }
+  .cortador { border-top: 1px dashed #000; text-align: center; font-size: 9px; color: #555; padding: 3px 0; margin: 4px 0; }
+  .print-btn { display: block; margin: 14px auto; padding: 10px 28px; background: #7c3aed; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="no-print" style="text-align:center;padding:10px">
+  <button class="print-btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+</div>
+<div class="page">${contenido}</div>
+</body>
+</html>`;
+}
+
+
+async function guardarConfigLCRF(fuente) {
+  // Lee del sidebar o del modal de administración según contexto
+  const prefijo = fuente === 'sidebar' ? 'sidebar-lcrf-' : 'lcrf-';
+  const nombreUnidad = document.getElementById(`${prefijo}nombre-unidad`)?.value.trim() || '';
+  const numeroUnidad = document.getElementById(`${prefijo}numero-unidad`)?.value.trim() || '';
+
+  try {
+    await db.collection('configuracion').doc('sistema').set({ nombreUnidad, numeroUnidad }, { merge: true });
+
+    // Cache local (permite mantener visible hasta nuevo cambio o borrado)
+    localStorage.setItem('lcrfConfig', JSON.stringify({ nombreUnidad, numeroUnidad }));
+
+    // Sincronizar todos los inputs
+    ['lcrf-nombre-unidad', 'sidebar-lcrf-nombre-unidad'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = nombreUnidad;
+    });
+    ['lcrf-numero-unidad', 'sidebar-lcrf-numero-unidad'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = numeroUnidad;
+    });
+
+    if (!nombreUnidad && !numeroUnidad) {
+      mostrarNotificacion('✅ Configuración LCRF limpiada', 'success');
+    } else {
+      mostrarNotificacion('✅ Configuración LCRF guardada', 'success');
+    }
+  } catch (error) {
+    console.error('Error al guardar config LCRF:', error);
+    mostrarNotificacion('❌ Error al guardar: ' + error.message, 'error');
+  }
+}
+
+function numeroALetras(monto) {
+  const UNIDADES = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE',
+    'DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE'];
+  const DECENAS = ['', 'DIEZ', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
+  const CENTENAS = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS',
+    'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS'];
+
+  function menorMil(n) {
+    if (n === 0) return '';
+    if (n === 100) return 'CIEN';
+    let r = '';
+    if (n >= 100) { r += CENTENAS[Math.floor(n / 100)] + ' '; n = n % 100; }
+    if (n >= 20) {
+      r += DECENAS[Math.floor(n / 10)];
+      if (n % 10 !== 0) r += ' Y ' + UNIDADES[n % 10];
+    } else if (n > 0) {
+      r += UNIDADES[n];
+    }
+    return r.trim();
+  }
+
+  function convertir(n) {
+    if (n === 0) return 'CERO';
+    let r = '';
+    if (n >= 1000000) {
+      const m = Math.floor(n / 1000000);
+      r += (m === 1 ? 'UN MILLÓN' : menorMil(m) + ' MILLONES') + ' ';
+      n = n % 1000000;
+    }
+    if (n >= 1000) {
+      const miles = Math.floor(n / 1000);
+      r += (miles === 1 ? 'MIL' : menorMil(miles) + ' MIL') + ' ';
+      n = n % 1000;
+    }
+    if (n > 0) r += menorMil(n);
+    return r.trim();
+  }
+
+  const entero = Math.floor(monto);
+  const centavos = Math.round((monto - entero) * 100);
+  return convertir(entero) + ' PESOS CON ' + String(centavos).padStart(2, '0') + '/100';
+}
+
+function _lcrf_bloque(datos) {
+  const DASHES = '— — — — — —';
+  return `
+  <div class="lcrf-form">
+    <table>
+      <tr>
+        <td colspan="2" class="titulo-form">Autorización de Desembolso LCRF</td>
+        <td colspan="2" class="campo-label">Número de Referencia (A):<br><span class="campo-valor">${datos.nroReferencia}</span></td>
+      </tr>
+      <tr>
+        <td class="campo-label">Nombre de la unidad<br><span class="campo-valor">${datos.nombreUnidad || DASHES}</span></td>
+        <td colspan="2" class="campo-label">Número de la unidad<br><span class="campo-valor">${datos.numeroUnidad || DASHES}</span></td>
+        <td class="campo-label">Fecha<br><span class="campo-valor">${datos.fechaImpresion}</span></td>
+      </tr>
+      <tr>
+        <td colspan="2" class="campo-label">Pagado a (Nombre comercio o persona que recibe los fondos)<br><span class="campo-valor">${datos.pagadoA}</span></td>
+        <td colspan="2" class="campo-label firma-cell">Firma y aclaración del que recibe los fondos (B)<br><span class="campo-firma"></span></td>
+      </tr>
+      <tr>
+        <td colspan="2" class="campo-label bloqueado">Nombre del beneficiario de las Ofrendas de Ayuno<br><span class="campo-valor bloqueado-valor">${DASHES}</span></td>
+        <td colspan="2" class="campo-label firma-cell">Firma y aclaración del beneficiario (C)<br><span class="campo-firma"></span></td>
+      </tr>
+      <tr>
+        <td colspan="4" class="campo-label">Propósito del gasto<br><span class="campo-valor proposito">${datos.descripcion}</span></td>
+      </tr>
+      <tr>
+        <td class="campo-label monto-cell">Ofrendas de Ayuno<br><span class="campo-monto-label">$</span><span class="campo-valor monto-val">${datos.ofrendaAyuno}</span></td>
+        <td class="campo-label monto-cell">Presupuesto<br><span class="campo-monto-label">$</span><span class="campo-valor monto-val">${datos.presupuesto}</span></td>
+        <td class="campo-label monto-cell">Gastos Reembolsables (D)<br><span class="campo-monto-label">$</span><span class="campo-valor monto-val">${datos.gastosReembolsables}</span></td>
+        <td class="campo-label monto-cell">Excepción de Dinero (E)<br><span class="campo-monto-label">$</span><span class="campo-valor monto-val">${datos.excepcionDinero}</span></td>
+      </tr>
+      <tr>
+        <td colspan="4" class="campo-label">Importe en letras<br><span class="campo-valor importe-letras">${datos.importeEnLetras}</span></td>
+      </tr>
+      <tr class="firma-row">
+        <td colspan="2" class="campo-label firma-cell-grande">Firma y aclaración del líder de la unidad<br><span class="campo-firma grande"></span></td>
+        <td colspan="2" class="campo-label firma-cell-grande">Firma y aclaración del secretario o consejero de la unidad<br><span class="campo-firma grande"></span></td>
+      </tr>
+    </table>
+    <div class="notas">
+      <p>(A) Chile (Pago Electrónico): Número que el sistema genera automáticamente al momento de "anotar gastos".<br>
+         Argentina-Paraguay-Uruguay (Tarjeta de Crédito): MesDía-Monto (de la compra o la extracción).</p>
+      <p>(B) No se requiere que un comerciante firme la Autorización de Desembolso (AD). Sí debe firmar un miembro de la Organización que participa de la actividad o la persona a la que se le envía los fondos para pagar Ofrendas del Beneficiario.</p>
+      <p>(C) Persona a la que se destina la ayuda (preferentemente el Cabeza de Familia).</p>
+      <p>(D) Solo aplica para Estacas/Distritos.</p>
+      <p>(E) Solo para unidades de Argentina-Paraguay-Uruguay con autorización previa por escrito del Departamento de Finanzas de Unidades.</p>
+      <p class="auditoria">CADA GASTO DEBE TENER ESTE DOCUMENTO (AD) JUNTO CON LOS RESPALDOS LEGALES. ESTE ES UN PUNTO DE AUDITORÍA</p>
+      <p class="vigencia">Vigente Enero 2023</p>
+    </div>
+  </div>`;
+}
+
+async function imprimirDesembolsoLCRF(gasto) {
+  let nombreUnidad = '';
+  let numeroUnidad = '';
+  try {
+    const configDoc = await db.collection('configuracion').doc('sistema').get();
+    if (configDoc.exists) {
+      const cfg = configDoc.data();
+      nombreUnidad = cfg.nombreUnidad || '';
+      numeroUnidad = cfg.numeroUnidad || '';
+    }
+  } catch (e) {
+    console.error('Error al obtener config LCRF:', e);
+  }
+
+  // Default tipo based on category
+  const defaultTipo = gasto.categoria === 'viaticos' ? 'reembolsable' : 'presupuesto';
+
+  const { value: formValues } = await Swal.fire({
+    title: '<span style="font-size:17px">Autorización de Desembolso LCRF</span>',
+    html: `
+      <div style="text-align:left; padding: 4px 0">
+        <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">Pagado a *</label>
+        <input id="swal-pagado-a" class="swal2-input" placeholder="Nombre del comercio o persona" style="width:100%;margin:0 0 14px 0;font-size:14px">
+        <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">Tipo de desembolso *</label>
+        <select id="swal-tipo-desembolso" class="swal2-select" style="width:100%;margin:0;font-size:14px">
+          <option value="presupuesto" ${defaultTipo==='presupuesto'?'selected':''}>💰 Presupuesto</option>
+          <option value="reembolsable" ${defaultTipo==='reembolsable'?'selected':''}>🚗 Gastos Reembolsables (Viáticos)</option>
+          <option value="ayuno">🙏 Ofrendas de Ayuno</option>
+          <option value="excepcion">⚠️ Excepción de Dinero</option>
+        </select>
+      </div>`,
+    preConfirm: () => {
+      const pagadoA = document.getElementById('swal-pagado-a').value.trim();
+      const tipo = document.getElementById('swal-tipo-desembolso').value;
+      if (!pagadoA) {
+        Swal.showValidationMessage('Debes ingresar el nombre de la persona o comercio.');
+        return false;
+      }
+      return { pagadoA, tipo };
+    },
+    confirmButtonText: '🖨️ Imprimir',
+    cancelButtonText: 'Cancelar',
+    showCancelButton: true,
+    confirmButtonColor: '#7c3aed'
+  });
+
+  if (!formValues) return;
+
+  const { pagadoA, tipo } = formValues;
+
+  // Reference number: MMDD-MONTO (incluye centavos al final cuando existen)
+  const fechaGasto = parseFechaLocal(gasto.fecha);
+  const nroReferencia = generarNroReferenciaLCRF(fechaGasto, gasto.monto);
+
+  // Print date
+  const fechaImpresion = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  // Financial fields
+  const montoFormateado = gasto.monto.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const DASHES = '——————';
+  let ofrendaAyuno = DASHES, presupuesto = DASHES, gastosReembolsables = DASHES, excepcionDinero = DASHES;
+  if (tipo === 'presupuesto') presupuesto = montoFormateado;
+  else if (tipo === 'reembolsable') gastosReembolsables = montoFormateado;
+  else if (tipo === 'ayuno') ofrendaAyuno = montoFormateado;
+  else if (tipo === 'excepcion') excepcionDinero = montoFormateado;
+
+  const importeEnLetras = numeroALetras(gasto.monto);
+
+  const datos = {
+    nroReferencia, nombreUnidad, numeroUnidad, fechaImpresion,
+    pagadoA, descripcion: gasto.descripcion,
+    ofrendaAyuno, presupuesto, gastosReembolsables, excepcionDinero, importeEnLetras
+  };
+
+  // Try to fill the official PDF first; fall back to HTML if not available
+  const pdfLlenado = await _lcrf_llenarPDF(datos);
+  if (pdfLlenado) {
+    await _marcarGastosImpresos([gasto.id]);
+    return;
+  }
+
+  // --- HTML fallback ---
+  const bloque = _lcrf_bloque(datos);
+  const bloqueVacio = _lcrf_bloque_vacio();
+  const contenido = bloque + '<div class="cortador">— — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — — —</div>' + bloqueVacio;
+  const ventana = window.open('', '_blank');
+  if (!ventana) { mostrarNotificacion('⚠️ El navegador bloqueó la ventana emergente', 'error'); return; }
+  ventana.document.write(_lcrf_htmlPage(contenido, nroReferencia));
+  ventana.document.close();
+  await _marcarGastosImpresos([gasto.id]);
+}
+
+// Genera un formulario HTML en blanco (copia sin datos) para la segunda mitad de la hoja
+function _lcrf_bloque_vacio() {
+  const SP = '\u00a0'; // non-breaking space to keep cells tall
+  return _lcrf_bloque({
+    nroReferencia: SP, nombreUnidad: SP, numeroUnidad: SP, fechaImpresion: SP,
+    pagadoA: SP, descripcion: SP,
+    ofrendaAyuno: SP, presupuesto: SP, gastosReembolsables: SP, excepcionDinero: SP,
+    importeEnLetras: SP
+  });
+}
+
+// Llena el PDF oficial con overlay de texto usando coordenadas calculadas.
+// Acepta un único objeto datos o un array:
+//   - 1 gasto  → 1 página: copia superior llena, inferior en blanco
+//   - 2 gastos → 1 página: copia superior = gasto 1, copia inferior = gasto 2 (yOff = -359)
+//   - 3+ gastos → 1 página por gasto (copia superior llena, inferior en blanco)
+// Divisores fila 2: x=290.5 (Nombre|Número), x=433.3 (Número|Fecha)
+// Divisores fila 6 (finanzas): x=157, 289, 416
+async function _lcrf_llenarPDF(datos) {
+  const datosArray = Array.isArray(datos) ? datos : [datos];
+  if (typeof PDFLib === 'undefined') return false;
+
+  let templateBytes;
+  try {
+    const resp = await fetch('./forms/autorizacion-lcrf.pdf');
+    if (!resp.ok) return false;
+    templateBytes = await resp.arrayBuffer();
+  } catch (e) { return false; }
+
+  try {
+    const { PDFDocument, StandardFonts, rgb } = PDFLib;
+    const outputDoc = await PDFDocument.create();
+    const DASH = '\u2014\u2014\u2014\u2014\u2014\u2014'; // 6 EM DASH
+    const FONT_SIZE = 12; // px (pdf-lib usa pt, pero 12 es estándar)
+    const BOTTOM_OFFSET = -359;
+
+    // Helper para centrar texto en un rectángulo
+    function drawCentered(page, text, x, y, width, opts = {}) {
+      if (!text || text === '\u00a0') return;
+      const font = opts.bold ? opts.fontBold : opts.font;
+      const size = opts.size || FONT_SIZE;
+      const textWidth = font.widthOfTextAtSize(String(text), size);
+      const cx = x + (width - textWidth) / 2;
+      page.drawText(String(text), {
+        x: cx,
+        y,
+        size,
+        font,
+        color: rgb(0, 0, 0),
+        maxWidth: opts.maxWidth
+      });
+    }
+
+    // Dibuja todos los datos de UN gasto en la página, desplazados por yOff
+    function dibujarEnPagina(page, font, fontBold, d, yOff) {
+      const draw = (text, x, y, opts = {}) => {
+        if (!text || text === '\u00a0') return;
+        page.drawText(String(text), {
+          x, y: y + yOff,
+          size: opts.size || FONT_SIZE,
+          font: opts.bold ? fontBold : font,
+          color: rgb(0, 0, 0),
+          maxWidth: opts.maxWidth
+        });
+      };
+
+      // Nro de Referencia – centrado en el espacio a la derecha de la etiqueta
+      // Etiqueta "Número de Referencia (A):" termina aprox en x=420, campo va de x=420 a x=548 (ancho 128)
+      drawCentered(page, d.nroReferencia, 420, 710 + yOff, 128, { size: FONT_SIZE, bold: true, font, fontBold });
+
+      // Fila 2: Nombre unidad (x=39→290) | Número unidad (x=290→433) | Fecha (x=433→548)
+      draw(d.nombreUnidad,         43, 685, { size: FONT_SIZE, maxWidth: 240 });
+      draw(d.numeroUnidad,        295, 685, { size: FONT_SIZE, maxWidth: 132 });
+      draw(d.fechaImpresion,      438, 685, { size: FONT_SIZE, maxWidth: 105 });
+
+      // Fila 3: Pagado a (mitad izquierda x=39→290)
+      draw(d.pagadoA,              43, 654, { size: FONT_SIZE, maxWidth: 240 });
+
+      // Fila 5: Propósito del gasto
+      draw(d.descripcion,          43, 596, { size: FONT_SIZE, maxWidth: 490 });
+
+      // Fila 6: Montos financieros – siempre se dibuja (DASHES si no aplica, monto si aplica)
+      // Posicionados después del "$" del template (~8pts desde inicio de cada columna)
+      draw(d.ofrendaAyuno,         51, 568, { size: FONT_SIZE, maxWidth: 100 });
+      draw(d.presupuesto,         169, 568, { size: FONT_SIZE, maxWidth: 115 });
+      draw(d.gastosReembolsables, 301, 568, { size: FONT_SIZE, maxWidth: 110 });
+      draw(d.excepcionDinero,     425, 568, { size: FONT_SIZE, maxWidth: 118 });
+
+      // Fila 7: Importe en letras
+      draw(d.importeEnLetras,      43, 543, { size: FONT_SIZE, maxWidth: 490 });
+    }
+
+    // --- Lógica de páginas ---
+    if (datosArray.length === 2) {
+      // Caso especial: 2 gastos en 1 sola hoja (top = gasto 1, bottom = gasto 2)
+      const tplDoc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
+      const page = tplDoc.getPages()[0];
+      const font = await tplDoc.embedFont(StandardFonts.Helvetica);
+      const fontBold = await tplDoc.embedFont(StandardFonts.HelveticaBold);
+      dibujarEnPagina(page, font, fontBold, datosArray[0], 0);
+      dibujarEnPagina(page, font, fontBold, datosArray[1], BOTTOM_OFFSET);
+      const [p] = await outputDoc.copyPages(tplDoc, [0]);
+      outputDoc.addPage(p);
+    } else {
+      // 1 gasto por página (copia superior llena, inferior en blanco)
+      for (const d of datosArray) {
+        const tplDoc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
+        const page = tplDoc.getPages()[0];
+        const font = await tplDoc.embedFont(StandardFonts.Helvetica);
+        const fontBold = await tplDoc.embedFont(StandardFonts.HelveticaBold);
+        dibujarEnPagina(page, font, fontBold, d, 0);
+        const [p] = await outputDoc.copyPages(tplDoc, [0]);
+        outputDoc.addPage(p);
+      }
+    }
+
+    const filledPdfBytes = await outputDoc.save();
+    const blob = new Blob([filledPdfBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+
+    const ventana = window.open(url, '_blank');
+    if (!ventana) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `LCRF_${datosArray[0].nroReferencia}.pdf`;
+      a.click();
+    }
+    return true;
+
+  } catch (err) {
+    console.error('[LCRF] Error al procesar PDF:', err);
+    return false;
+  }
+}
+
+// Lista los nombres de campos del PDF oficial en consola (útil para configurar mappings)
+async function diagnosticarCamposPDF() {
+  if (typeof PDFLib === 'undefined') {
+    alert('pdf-lib no está cargado.');
+    return;
+  }
+  try {
+    const resp = await fetch('./forms/autorizacion-lcrf.pdf');
+    if (!resp.ok) { alert('PDF no encontrado en public/forms/autorizacion-lcrf.pdf'); return; }
+    const pdfBytes = await resp.arrayBuffer();
+    const { PDFDocument } = PDFLib;
+    const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+    const fields = pdfDoc.getForm().getFields();
+    const names = fields.map(f => `[${f.constructor.name}] ${f.getName()}`);
+    if (names.length === 0) {
+      alert('El PDF no tiene campos de formulario AcroForm. Solo puede usarse el modo HTML.');
+    } else {
+      alert('Campos encontrados en el PDF:\n\n' + names.join('\n'));
+    }
+    console.log('[LCRF Diagnóstico]', names);
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
 }
 
 // ==================== CIERRE DE AÑO FISCAL ====================
@@ -6363,226 +7230,5 @@ function descargarDetallePDF() {
 
 // La función cargarGastos() ahora usa el sistema separado
 // Se mantiene la referencia original para compatibilidad
-
-// ==================== SISTEMA OCR DE RECIBOS ====================
-let imagenReciboCapturada = null;
-let urlImagenRecibo = null;
-
-// Activar captura de foto del recibo
-function activarCapturaRecibo() {
-  const input = document.getElementById('input-foto-recibo');
-  if (input) {
-    input.click();
-  }
-}
-
-// Procesar imagen capturada con OCR
-async function procesarImagenOCR(input) {
-  const file = input.files[0];
-  if (!file) return;
-
-  // Validar que sea una imagen
-  if (!file.type.startsWith('image/')) {
-    mostrarNotificacion('❌ Por favor selecciona una imagen válida', 'error');
-    return;
-  }
-
-  // Mostrar preview
-  const reader = new FileReader();
-  reader.onload = async function(e) {
-    imagenReciboCapturada = file;
-    urlImagenRecibo = e.target.result;
-    
-    // Mostrar preview
-    const previewImg = document.getElementById('ocr-preview-image');
-    const previewContainer = document.getElementById('ocr-preview-container');
-    const progressDiv = document.getElementById('ocr-progress');
-    const resultsDiv = document.getElementById('ocr-results');
-    
-    if (previewImg && previewContainer) {
-      previewImg.src = urlImagenRecibo;
-      previewContainer.classList.remove('hidden');
-      progressDiv.classList.remove('hidden');
-      resultsDiv.classList.add('hidden');
-    }
-
-    // Ejecutar OCR
-    try {
-      await extraerDatosConOCR(urlImagenRecibo);
-    } catch (error) {
-      console.error('Error en OCR:', error);
-      progressDiv.classList.add('hidden');
-      mostrarNotificacion('⚠️ No se pudieron extraer datos del recibo. Completa manualmente.', 'error');
-    }
-  };
-  
-  reader.readAsDataURL(file);
-}
-
-// Extraer datos del recibo usando Tesseract OCR
-async function extraerDatosConOCR(imagenUrl) {
-  const progressBar = document.getElementById('ocr-progress-bar');
-  const statusText = document.getElementById('ocr-status-text');
-  const progressDiv = document.getElementById('ocr-progress');
-  const resultsDiv = document.getElementById('ocr-results');
-
-  try {
-    // Configurar Tesseract
-    const { createWorker } = Tesseract;
-    const worker = await createWorker('spa', 1, {
-      logger: info => {
-        if (info.status === 'recognizing text') {
-          const progress = Math.round(info.progress * 100);
-          if (progressBar) progressBar.style.width = `${progress}%`;
-          if (statusText) statusText.textContent = `Analizando imagen... ${progress}%`;
-        }
-      },
-    });
-
-    // Ejecutar reconocimiento
-    const { data: { text, confidence } } = await worker.recognize(imagenUrl);
-    await worker.terminate();
-
-    // Extraer datos del texto
-    const datosExtraidos = extraerDatosDeTexto(text);
-    
-    // Auto-completar formulario
-    if (datosExtraidos.monto) {
-      document.getElementById('monto').value = datosExtraidos.monto;
-    }
-    
-    if (datosExtraidos.fecha) {
-      document.getElementById('fecha').value = datosExtraidos.fecha;
-    }
-    
-    if (datosExtraidos.descripcion) {
-      const descripcionInput = document.getElementById('descripcion');
-      if (!descripcionInput.value) { // Solo si está vacío
-        descripcionInput.value = datosExtraidos.descripcion;
-      }
-    }
-
-    // Mostrar resultados
-    if (progressDiv) progressDiv.classList.add('hidden');
-    if (resultsDiv) resultsDiv.classList.remove('hidden');
-
-    const tieneDatos = datosExtraidos.monto || datosExtraidos.fecha;
-    const mensaje = tieneDatos 
-      ? '✅ Datos extraídos y cargados en el formulario' 
-      : '⚠️ No se detectaron datos claros. Completa manualmente';
-    
-    mostrarNotificacion(mensaje, tieneDatos ? 'success' : 'warning');
-
-  } catch (error) {
-    console.error('Error en OCR:', error);
-    if (progressDiv) progressDiv.classList.add('hidden');
-    mostrarNotificacion('❌ Error al procesar la imagen. Completa manualmente.', 'error');
-  }
-}
-
-// Extraer datos estructurados del texto OCR
-function extraerDatosDeTexto(texto) {
-  const datos = {
-    monto: null,
-    fecha: null,
-    descripcion: null
-  };
-
-  // Normalizar texto
-  const textoLimpio = texto.replace(/\s+/g, ' ').trim();
-
-  // 1. Extraer MONTO
-  // Patrones comunes: $1,234.56 | 1234.56 | 1.234,56 | Total: $XXX
-  const patronesMonto = [
-    /\$\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)/gi,  // $1,234.56
-    /(?:total|importe|monto|precio|costo)[:\s]*\$?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)/gi,  // Total: 1234
-    /(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2}))\s*(?:pesos|ars|$)/gi  // 1234.56 pesos
-  ];
-
-  for (const patron of patronesMonto) {
-    const match = patron.exec(textoLimpio);
-    if (match) {
-      let montoStr = match[1] || match[0];
-      montoStr = montoStr.replace(/[^\d.,]/g, '');  // Limpiar
-      montoStr = montoStr.replace(/\./g, '');  // Quitar separadores de miles
-      montoStr = montoStr.replace(',', '.');  // Convertir coma decimal a punto
-      const monto = parseFloat(montoStr);
-      if (!isNaN(monto) && monto > 0 && monto < 10000000) {  // Validar rango razonable
-        datos.monto = monto.toFixed(2);
-        break;
-      }
-    }
-  }
-
-  // 2. Extraer FECHA
-  // Patrones: DD/MM/YYYY | DD-MM-YYYY | YYYY-MM-DD
-  const patronesFecha = [
-    /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/,  // DD/MM/YYYY o DD-MM-YYYY
-    /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/   // YYYY-MM-DD
-  ];
-
-  for (const patron of patronesFecha) {
-    const match = textoLimpio.match(patron);
-    if (match) {
-      let year, month, day;
-      
-      if (match[1].length === 4) {
-        // Formato YYYY-MM-DD
-        year = match[1];
-        month = match[2].padStart(2, '0');
-        day = match[3].padStart(2, '0');
-      } else {
-        // Formato DD/MM/YYYY
-        day = match[1].padStart(2, '0');
-        month = match[2].padStart(2, '0');
-        year = match[3];
-      }
-
-      // Validar fecha razonable
-      const fechaNum = parseInt(year + month + day);
-      if (fechaNum >= 20200101 && fechaNum <= 20301231) {
-        datos.fecha = `${year}-${month}-${day}`;
-        break;
-      }
-    }
-  }
-
-  // 3. Extraer DESCRIPCIÓN (primera línea con texto sustancial)
-  const lineas = textoLimpio.split(/[\n\r]+/);
-  for (const linea of lineas) {
-    const lineaLimpia = linea.trim();
-    // Buscar una línea con texto sustancial (no solo números)
-    if (lineaLimpia.length > 5 && lineaLimpia.length < 100 && /[a-zA-ZáéíóúñÑ]{3,}/.test(lineaLimpia)) {
-      // Evitar líneas que sean solo direcciones o RUC/CUIT
-      if (!/^[\d\s\-\/]+$/.test(lineaLimpia) && !/(?:cuit|rut|ruc|nit)/i.test(lineaLimpia)) {
-        datos.descripcion = lineaLimpia.substring(0, 80);  // Limitar longitud
-        break;
-      }
-    }
-  }
-
-  return datos;
-}
-
-// Limpiar captura y resetear
-function limpiarCaptura() {
-  imagenReciboCapturada = null;
-  urlImagenRecibo = null;
-  
-  const previewContainer = document.getElementById('ocr-preview-container');
-  const inputFoto = document.getElementById('input-foto-recibo');
-  const progressDiv = document.getElementById('ocr-progress');
-  const resultsDiv = document.getElementById('ocr-results');
-  
-  if (previewContainer) previewContainer.classList.add('hidden');
-  if (progressDiv) progressDiv.classList.add('hidden');
-  if (resultsDiv) resultsDiv.classList.add('hidden');
-  if (inputFoto) inputFoto.value = '';
-}
-
-// Exponer funciones globalmente
-window.activarCapturaRecibo = activarCapturaRecibo;
-window.procesarImagenOCR = procesarImagenOCR;
-window.limpiarCaptura = limpiarCaptura;
 
 // ==================== INICIALIZACIÓN DE FIREBASE ====================

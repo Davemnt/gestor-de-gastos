@@ -32,8 +32,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <!-- SweetAlert2 para modales elegantes -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <!-- Tesseract.js para OCR -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+  <!-- pdf-lib para llenar formularios PDF -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   
   <style>
     /* ==================== VARIABLES CSS ==================== */
@@ -1054,7 +1054,8 @@
     }
 
     /* ==================== MODO OCULTAR SALDOS ==================== */
-    body.hide-saldos .monto-sensible {
+    body.hide-saldos .monto-sensible,
+    body.hide-saldos .monto-sensible-auto {
       filter: blur(6px);
       user-select: none;
       -webkit-user-select: none;
@@ -1062,12 +1063,14 @@
       transition: filter 0.3s ease, opacity 0.3s ease;
     }
     
-    body.hide-saldos .monto-sensible:hover {
+    body.hide-saldos .monto-sensible:hover,
+    body.hide-saldos .monto-sensible-auto:hover {
       filter: blur(0px);
       opacity: 1;
     }
 
-    body:not(.hide-saldos) .monto-sensible {
+    body:not(.hide-saldos) .monto-sensible,
+    body:not(.hide-saldos) .monto-sensible-auto {
       filter: blur(0px);
       transition: filter 0.3s ease, opacity 0.3s ease;
     }
@@ -2088,6 +2091,61 @@
         gap: 0.5rem !important;
       }
     }
+
+    /* ==================== iOS / MOBILE VIEWPORT FIX ==================== */
+    /* svh = small viewport height (excludes browser chrome like address bar) */
+    #app {
+      height: 100vh; /* fallback */
+      height: 100svh;
+    }
+
+    /* ==================== NOTIFICATION RESPONSIVE ==================== */
+    @media (max-width: 639px) {
+      #notification-container {
+        left: 0.75rem;
+        right: 0.75rem;
+        top: 0.75rem;
+        max-width: calc(100vw - 1.5rem);
+      }
+      .notification {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.75rem 1rem !important;
+        font-size: 0.875rem !important;
+        border-radius: 14px !important;
+      }
+    }
+
+    /* ==================== MODAL HEADER / KPI RESPONSIVE ==================== */
+    @media (max-width: 480px) {
+      /* Prevent KPI card amounts overflowing */
+      #presupuesto-total, #total-gastado,
+      #presupuesto-disponible, #presupuesto-proyectado,
+      #viaticos-disponible, #viaticos-gastados-texto,
+      #gastos-externos-monto {
+        word-break: break-all;
+        overflow-wrap: anywhere;
+        font-size: clamp(0.9rem, 5vw, 1.25rem) !important;
+      }
+
+      /* Admin stats row - compact labels */
+      #modal-admin .grid.grid-cols-3 .text-\[11px\] {
+        font-size: 0.625rem !important;
+        letter-spacing: 0 !important;
+      }
+      #modal-admin .grid.grid-cols-3 .text-lg {
+        font-size: 0.9rem !important;
+      }
+    }
+
+    /* ==================== CARDS AMOUNT ON MOBILE ==================== */
+    @media (max-width: 400px) {
+      /* Historial card amounts - prevent overflow */
+      .card-reportado .text-2xl,
+      .card-reportado .text-3xl {
+        font-size: 1.1rem !important;
+      }
+    }
   </style>
 </head>
 
@@ -2104,7 +2162,7 @@
         </svg>
       </div>
       
-      <h2 class="text-2xl lg:text-3xl font-bold text-gray-900 mb-2 lg:mb-3">Acceso Presidencia de Estaca Aldo Bonzi</h2>
+      <h2 class="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 lg:mb-3">Acceso Presidencia de Estaca Aldo Bonzi</h2>
       <p class="text-gray-600 mb-6 lg:mb-8 text-sm lg:text-base">Ingresa PIN para continuar</p>
 
       <!-- Contenedor del PIN -->
@@ -2246,6 +2304,30 @@
 
       </div>
 
+      <!-- Configuración LCRF (solo visible para admin) -->
+      <div id="sidebar-lcrf-config" class="hidden mx-4 mb-4 p-3 bg-purple-50 border border-purple-200 rounded-xl">
+        <p class="text-xs font-bold text-purple-700 uppercase tracking-wider mb-3 flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h2m2 4h6a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2zm1-4h4v4H9v-4z"/></svg>
+          Config LCRF
+        </p>
+        <div class="space-y-2">
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Nombre de la Unidad</label>
+            <input id="sidebar-lcrf-nombre-unidad" type="text" placeholder="Ej: Ward Providencia"
+              class="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-purple-400 focus:border-purple-400 bg-white">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Número de la Unidad</label>
+            <input id="sidebar-lcrf-numero-unidad" type="text" placeholder="Ej: 0526"
+              class="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-purple-400 focus:border-purple-400 bg-white">
+          </div>
+          <button onclick="guardarConfigLCRF('sidebar')"
+            class="w-full px-3 py-2 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 transition-colors shadow-sm">
+            💾 Guardar
+          </button>
+        </div>
+      </div>
+
       <!-- Footer Sidebar -->
       <div class="p-4 border-t border-gray-100">
         <button id="btn-cerrar-sesion" class="flex items-center w-full px-4 py-3 text-sm font-medium text-red-600 rounded-xl hover:bg-red-50 transition-colors">
@@ -2266,12 +2348,24 @@
                </div>
                <span class="font-bold text-gray-800 tracking-tight">Gestor Gastos</span>
             </div>
-            <!-- Botón Hamburguesa (móvil) -->
-            <button class="hamburger" onclick="toggleMobileMenu()" aria-label="Menú" type="button">
-                <span></span>
-                <span></span>
-                <span></span>
-            </button>
+            <!-- Botones de acción rápida + Hamburguesa -->
+            <div class="flex items-center gap-2">
+              <!-- Botón rápido Nuevo Gasto -->
+              <button
+                onclick="document.getElementById('modal-gasto').classList.remove('hidden');(function(){var n=new Date();document.getElementById('fecha').value=new Date(n.getTime()-n.getTimezoneOffset()*60000).toISOString().split('T')[0];})()"
+                class="w-9 h-9 btn-primary text-white rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                aria-label="Nuevo Gasto" title="Nuevo Gasto">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                </svg>
+              </button>
+              <!-- Botón Hamburguesa (móvil) -->
+              <button class="hamburger" onclick="toggleMobileMenu()" aria-label="Menú" type="button">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+              </button>
+            </div>
         </header>
 
         <!-- Menú Móvil (Adaptado a drawer style) -->
@@ -2678,65 +2772,64 @@
                   <circle cx="100" cy="100" r="70" fill="none" stroke="#e5e7eb" stroke-width="30"></circle>
                 </svg>
             </div>
-            <!-- Lista de organizaciones -->
-            <div class="w-full flex-1">
+            <div class="w-full flex-1 min-w-0">
               <div class="grid grid-cols-1 gap-2 lg:gap-2.5" id="lista-organizaciones">
             <!-- Lista de organizaciones - se generará dinámicamente -->
-            <div class="flex items-center justify-between text-sm lg:text-base">
-              <div class="flex items-center space-x-2">
-                <span class="w-3 h-3 rounded-full bg-green-500"></span>
-                <span class="text-gray-700">Hombres y mujeres jóvenes</span>
+            <div class="flex items-center justify-between text-xs sm:text-sm lg:text-base gap-2">
+              <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></span>
+                <span class="text-gray-700 truncate">Hombres y mujeres jóvenes</span>
               </div>
-              <span class="font-semibold text-gray-900">-$0.00</span>
+              <span class="font-semibold text-gray-900 flex-shrink-0">-$0.00</span>
             </div>
-            <div class="flex items-center justify-between text-sm lg:text-base">
-              <div class="flex items-center space-x-2">
-                <span class="w-3 h-3 rounded-full bg-red-500"></span>
-                <span class="text-gray-700">Primaria</span>
+            <div class="flex items-center justify-between text-xs sm:text-sm lg:text-base gap-2">
+              <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-3 h-3 rounded-full bg-red-500 flex-shrink-0"></span>
+                <span class="text-gray-700 truncate">Primaria</span>
               </div>
-              <span class="font-semibold text-gray-900">-$0.00</span>
+              <span class="font-semibold text-gray-900 flex-shrink-0">-$0.00</span>
             </div>
-            <div class="flex items-center justify-between text-sm lg:text-base">
-              <div class="flex items-center space-x-2">
-                <span class="w-3 h-3 rounded-full bg-blue-500"></span>
-                <span class="text-gray-700">Sociedad de socorro</span>
+            <div class="flex items-center justify-between text-xs sm:text-sm lg:text-base gap-2">
+              <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0"></span>
+                <span class="text-gray-700 truncate">Sociedad de socorro</span>
               </div>
-              <span class="font-semibold text-gray-900">-$0.00</span>
+              <span class="font-semibold text-gray-900 flex-shrink-0">-$0.00</span>
             </div>
-            <div class="flex items-center justify-between text-sm lg:text-base">
-              <div class="flex items-center space-x-2">
-                <span class="w-3 h-3 rounded-full bg-cyan-500"></span>
-                <span class="text-gray-700">Escuela dominical</span>
+            <div class="flex items-center justify-between text-xs sm:text-sm lg:text-base gap-2">
+              <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-3 h-3 rounded-full bg-cyan-500 flex-shrink-0"></span>
+                <span class="text-gray-700 truncate">Escuela dominical</span>
               </div>
-              <span class="font-semibold text-gray-900">-$0.00</span>
+              <span class="font-semibold text-gray-900 flex-shrink-0">-$0.00</span>
             </div>
-            <div class="flex items-center justify-between text-sm lg:text-base">
-              <div class="flex items-center space-x-2">
-                <span class="w-3 h-3 rounded-full bg-purple-500"></span>
-                <span class="text-gray-700">Quórum de Elderes</span>
+            <div class="flex items-center justify-between text-xs sm:text-sm lg:text-base gap-2">
+              <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-3 h-3 rounded-full bg-purple-500 flex-shrink-0"></span>
+                <span class="text-gray-700 truncate">Quórum de Elderes</span>
               </div>
-              <span class="font-semibold text-gray-900">-$0.00</span>
+              <span class="font-semibold text-gray-900 flex-shrink-0">-$0.00</span>
             </div>
-            <div class="flex items-center justify-between text-sm lg:text-base">
-              <div class="flex items-center space-x-2">
-                <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
-                <span class="text-gray-700">Gastos de Presupuesto</span>
+            <div class="flex items-center justify-between text-xs sm:text-sm lg:text-base gap-2">
+              <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-3 h-3 rounded-full bg-yellow-500 flex-shrink-0"></span>
+                <span class="text-gray-700 truncate">Gastos de Presupuesto</span>
               </div>
-              <span class="font-semibold text-gray-900">-$0.00</span>
+              <span class="font-semibold text-gray-900 flex-shrink-0">-$0.00</span>
             </div>
-            <div class="flex items-center justify-between text-sm lg:text-base">
-              <div class="flex items-center space-x-2">
-                <span class="w-3 h-3 rounded-full bg-orange-500"></span>
-                <span class="text-gray-700">Adultos solteros</span>
+            <div class="flex items-center justify-between text-xs sm:text-sm lg:text-base gap-2">
+              <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-3 h-3 rounded-full bg-orange-500 flex-shrink-0"></span>
+                <span class="text-gray-700 truncate">Adultos solteros</span>
               </div>
-              <span class="font-semibold text-gray-900">-$0.00</span>
+              <span class="font-semibold text-gray-900 flex-shrink-0">-$0.00</span>
             </div>
-            <div class="flex items-center justify-between text-sm lg:text-base">
-              <div class="flex items-center space-x-2">
-                <span class="w-3 h-3 rounded-full bg-pink-500"></span>
-                <span class="text-gray-700">Viajes aprobados</span>
+            <div class="flex items-center justify-between text-xs sm:text-sm lg:text-base gap-2">
+              <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-3 h-3 rounded-full bg-pink-500 flex-shrink-0"></span>
+                <span class="text-gray-700 truncate">Viajes aprobados</span>
               </div>
-              <span class="font-semibold text-gray-900">-$0.00</span>
+              <span class="font-semibold text-gray-900 flex-shrink-0">-$0.00</span>
             </div>
                 </div>
               </div>
@@ -2761,7 +2854,8 @@
             
             <div id="contenido-pendientes" class="transition-all duration-300">
               <!-- Filtros de Categoría para Pendientes -->
-              <div class="flex space-x-1.5 mb-3 overflow-x-auto pb-1">
+              <div class="flex items-center justify-between mb-3 gap-2">
+                <div class="flex space-x-1.5 overflow-x-auto pb-1">
                 <button onclick="filtrarPendientesPorCategoria('todos')" id="cat-pendientes-todos" class="filtro-btn btn-primary px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium whitespace-nowrap text-xs lg:text-sm transition-all">
                   Todos
                 </button>
@@ -2770,6 +2864,10 @@
                 </button>
                 <button onclick="filtrarPendientesPorCategoria('viaticos')" id="cat-pendientes-viaticos" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
                   Viáticos
+                </button>
+                </div>
+                <button id="btn-modo-seleccion-lcrf-pend" onclick="activarModoSeleccionLCRF()" class="hidden flex-shrink-0 flex items-center gap-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap">
+                  🗂️ Selección LCRF
                 </button>
               </div>
               
@@ -2850,7 +2948,7 @@
               </div>
 
               <!-- Filtros de Categoría para Reportados -->
-              <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center justify-between mb-4 gap-2">
                 <div class="flex space-x-1.5 overflow-x-auto pb-1">
                   <button onclick="filtrarReportadosPorCategoria('todos')" id="cat-reportados-todos" class="filtro-btn btn-primary px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium whitespace-nowrap text-xs lg:text-sm transition-all">
                     Todos
@@ -2862,6 +2960,10 @@
                     Viáticos
                   </button>
                 </div>
+                <!-- Botón Selección LCRF (solo admin) -->
+                <button id="btn-modo-seleccion-lcrf" onclick="activarModoSeleccionLCRF()" class="hidden flex-shrink-0 flex items-center gap-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap">
+                  🗂️ Selección LCRF
+                </button>
               </div>
               
               <div id="historial-reportados" class="space-y-2">
@@ -2893,63 +2995,6 @@
         <button onclick="cerrarModal()" class="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
-      </div>
-
-      <!-- Sección de Captura OCR -->
-      <div id="ocr-section" class="mb-5">
-        <!-- Botón de Captura -->
-        <div class="flex flex-col sm:flex-row gap-3 mb-4">
-          <button type="button" onclick="activarCapturaRecibo()" 
-            class="flex-1 flex items-center justify-center gap-3 px-6 py-4 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold hover:from-indigo-600 hover:to-purple-700 transform hover:scale-[1.02] transition-all shadow-lg hover:shadow-xl">
-            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-              <circle cx="12" cy="13" r="4"></circle>
-            </svg>
-            <span>📸 Escanear Recibo (OCR)</span>
-          </button>
-          <input type="file" id="input-foto-recibo" accept="image/*" capture="environment" class="hidden" onchange="procesarImagenOCR(this)">
-        </div>
-
-        <!-- Área de Preview y Progreso -->
-        <div id="ocr-preview-container" class="hidden">
-          <!-- Preview de Imagen -->
-          <div class="relative rounded-xl overflow-hidden bg-gray-100 border-2 border-dashed border-gray-300 mb-4">
-            <img id="ocr-preview-image" class="w-full h-auto max-h-64 object-contain">
-            <button type="button" onclick="limpiarCaptura()" 
-              class="absolute top-2 right-2 w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 shadow-lg">
-              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </div>
-
-          <!-- Indicador de Progreso OCR -->
-          <div id="ocr-progress" class="hidden bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <div class="flex items-center gap-3 mb-2">
-              <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
-              <span class="font-semibold text-gray-700">Extrayendo datos del recibo...</span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-              <div id="ocr-progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-            </div>
-            <p id="ocr-status-text" class="text-xs text-gray-500 mt-2">Inicializando OCR...</p>
-          </div>
-
-          <!-- Resultados Extraídos -->
-          <div id="ocr-results" class="hidden bg-green-50 border border-green-200 rounded-lg p-4">
-            <div class="flex items-start gap-2 mb-2">
-              <svg class="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-              </svg>
-              <div class="flex-1">
-                <p class="font-semibold text-green-800 mb-1">✅ Datos extraídos correctamente</p>
-                <p class="text-sm text-gray-600">Revisa y ajusta los campos si es necesario</p>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <form id="form-gasto" class="space-y-4">
@@ -3343,6 +3388,32 @@
         </button>
       </div>
 
+      <!-- Section: Configuración LCRF -->
+      <div class="mb-5 mt-7">
+        <h4 class="text-sm font-bold text-white flex items-center gap-2 mb-4">
+          <svg class="w-4 h-4 text-[#a78bfa]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          Configuración Autorización LCRF
+        </h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-2 tracking-wide">Nombre de la Unidad</label>
+            <input type="text" id="lcrf-nombre-unidad" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#a78bfa] focus:ring-1 focus:ring-[#a78bfa] transition-all" placeholder="Ej: Estaca Aldo Bonzi">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-2 tracking-wide">Número de la Unidad</label>
+            <input type="text" id="lcrf-numero-unidad" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#a78bfa] focus:ring-1 focus:ring-[#a78bfa] transition-all" placeholder="Ej: 123456">
+          </div>
+        </div>
+        <button onclick="guardarConfigLCRF()" class="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold py-[11px] rounded-xl text-[13px] flex items-center justify-center gap-2 transition-all">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          Guardar Configuración LCRF
+        </button>
+        <button onclick="diagnosticarCamposPDF()" class="mt-2 w-full bg-[#1e293b] hover:bg-[#334155] text-gray-400 hover:text-gray-200 border border-gray-700 font-medium py-[9px] rounded-xl text-[12px] flex items-center justify-center gap-2 transition-all" title="Ver los nombres de campos del PDF para configurar el llenado automático">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Diagnosticar campos del PDF
+        </button>
+      </div>
+
       <!-- Section: Gastos Eliminados -->
       <details class="group rounded-xl border border-yellow-700/50 bg-[#29230f] overflow-hidden mt-5 shadow-inner" ontoggle="if(this.open) cargarGastosEliminados()">
         <summary class="flex justify-between items-center cursor-pointer p-[14px] hover:bg-white/5 transition-colors list-none">
@@ -3409,38 +3480,38 @@
     <div class="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
       
       <!-- Header del Modal -->
-      <div class="bg-gradient-to-r from-purple-600 to-purple-700 p-5 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-white bg-opacity-20 flex items-center justify-center">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="bg-gradient-to-r from-purple-600 to-purple-700 p-4 sm:p-5 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white bg-opacity-20 flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
             </svg>
           </div>
-          <div>
-            <h3 class="text-xl font-bold text-white">Gastos Informados</h3>
-            <p class="text-sm text-purple-100" id="total-informados-text">Cargando...</p>
+          <div class="min-w-0">
+            <h3 class="text-base sm:text-xl font-bold text-white truncate">Gastos Informados</h3>
+            <p class="text-xs sm:text-sm text-purple-100 truncate" id="total-informados-text">Cargando...</p>
           </div>
         </div>
         
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-shrink-0">
           <!-- Botón Descargar PDF -->
-          <button onclick="descargarPDFGastosInformados()" class="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-medium">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button onclick="descargarPDFGastosInformados()" class="h-9 w-9 sm:w-auto sm:px-4 sm:py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg transition-all flex items-center justify-center sm:gap-2 text-sm font-medium" title="Descargar PDF">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
             </svg>
-            PDF
+            <span class="hidden sm:inline">PDF</span>
           </button>
           
           <!-- Botón Imprimir -->
-          <button onclick="imprimirGastosInformados()" class="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg transition-all flex items-center gap-2 text-sm font-medium">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button onclick="imprimirGastosInformados()" class="h-9 w-9 sm:w-auto sm:px-4 sm:py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg transition-all flex items-center justify-center sm:gap-2 text-sm font-medium" title="Imprimir">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
             </svg>
-            Imprimir
+            <span class="hidden sm:inline">Imprimir</span>
           </button>
           
           <!-- Botón Cerrar -->
-          <button onclick="cerrarModalGastosInformados()" class="w-10 h-10 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 flex items-center justify-center text-white transition-colors">
+          <button onclick="cerrarModalGastosInformados()" class="w-9 h-9 rounded-full bg-white bg-opacity-20 hover:bg-opacity-30 flex items-center justify-center text-white transition-colors flex-shrink-0">
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -3747,13 +3818,36 @@
   </div>
 
   <!-- Container para Notificaciones -->
-  <div id="notification-container" class="fixed top-6 right-6 z-[10000] space-y-4"></div>
+  <div id="notification-container" class="fixed top-4 right-4 z-[10000] space-y-3 sm:top-6 sm:right-6 sm:max-w-xs"></div>
 
 
   <!-- Footer -->
   <footer class="mt-8 py-4 border-t border-gray-200 text-center">
     <p class="text-xs text-gray-400">Desarrollado por <span class="font-semibold text-gray-500">Davemnt</span> &copy; 2026</p>
   </footer>
+
+  <!-- ==================== BARRA SELECCIÓN LCRF ==================== -->
+  <div id="lcrf-seleccion-bar" class="hidden fixed bottom-0 left-0 right-0 z-[200] bg-purple-950 border-t-2 border-purple-500 shadow-2xl">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🖨️</span>
+        <div>
+          <p class="text-white font-bold text-sm" id="lcrf-seleccion-count">0/2 gastos seleccionados</p>
+          <p class="text-purple-300 text-xs">Tocá las tarjetas para seleccionarlas (máx. 2 por hoja)</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-imprimir-seleccion" onclick="imprimirSeleccionLCRF()" disabled
+          class="bg-purple-500 hover:bg-purple-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors">
+          🖨️ Imprimir
+        </button>
+        <button onclick="cancelarSeleccionLCRF()"
+          class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-xl text-sm transition-colors">
+          ✕ Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
 
 </body>
 
