@@ -1,0 +1,338 @@
+/* =========================================================================
+   ESTILO CORPORATIVO CLARO — MINIMALISTA
+   Este archivo SOLO cambia apariencia (colores, tipografía, espaciado,
+   sombras, bordes). No modifica ni depende de ningún comportamiento JS.
+
+   Cómo funciona:
+   La app ya define variables CSS en :root (tema claro) y en
+   [data-theme="dark"] (tema oscuro) dentro de su <style> interno, y las
+   usa en .btn-primary, .card-dark, .input-dark, etc. Este archivo se
+   carga DESPUÉS de ese <style>, así que al redeclarar las mismas
+   variables con la misma especificidad, gana esta hoja — sin tocar el
+   toggle de tema ni ninguna clase que dependa de JS.
+   ========================================================================= */
+
+/* ==================== 1. PALETA — TEMA CLARO ==================== */
+:root {
+  --primary-color: #2563eb;      /* Azul corporativo, sobrio */
+  --secondary-color: #64748b;
+  --accent-color: #4f46e5;
+  --primary-gray: #475569;
+  --light-gray: #94a3b8;
+
+  --bg-gray: #f6f7f9;            /* Fondo general, gris neutro muy claro */
+  --surface-gray: #ffffff;       /* Superficies / tarjetas */
+  --border-gray: #e5e7eb;        /* Bordes finos, neutros */
+  --text-dark: #111827;          /* Texto principal, casi negro neutro */
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+
+  --success-green: #059669;
+  --warning-yellow: #d97706;
+  --danger-red: #dc2626;
+
+  --card-bg: #ffffff;
+  --card-border: #e5e7eb;
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --input-focus-bg: #ffffff;
+  --btn-hover-bg: #f3f4f6;
+}
+
+/* ==================== 2. PALETA — TEMA OSCURO ==================== */
+/* Refinado para acompañar el look minimalista, manteniendo el toggle. */
+[data-theme="dark"] {
+  --primary-color: #3b82f6;
+  --secondary-color: #94a3b8;
+  --accent-color: #818cf8;
+  --primary-gray: #cbd5e1;
+  --light-gray: #64748b;
+
+  --bg-gray: #0f1420;
+  --surface-gray: #171d2b;
+  --border-gray: #262e40;
+  --text-dark: #f3f4f6;
+  --text-secondary: #b8c0cc;
+  --text-muted: #7c8798;
+
+  --card-bg: #171d2b;
+  --card-border: #262e40;
+  --input-bg: #10151f;
+  --input-border: #2b3346;
+  --input-focus-bg: #171d2b;
+  --btn-hover-bg: #232b3d;
+}
+
+/* ==================== 3. TIPOGRAFÍA Y BASE ==================== */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.005em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.015em;
+}
+
+/* Scrollbar minimalista */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--light-gray) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--border-gray);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ==================== 4. LAYOUT GENERAL ==================== */
+header.bg-white,
+header {
+  background-color: var(--surface-gray) !important;
+  border-color: var(--border-gray) !important;
+  box-shadow: none !important;
+}
+
+aside {
+  background-color: var(--surface-gray) !important;
+  border-color: var(--border-gray) !important;
+}
+
+main,
+.bg-gray-50,
+[data-theme="dark"] .bg-gray-50 {
+  background-color: var(--bg-gray) !important;
+}
+
+/* ==================== 5. TARJETAS ==================== */
+.card-dark,
+.bg-white.rounded-2xl,
+[data-theme="dark"] .bg-white.rounded-2xl {
+  background-color: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+}
+
+.card-dark {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.card-dark:hover {
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06) !important;
+  border-color: var(--primary-color) !important;
+}
+
+[data-theme="dark"] .card-dark:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* Suavizar sombras generales para look minimalista */
+.shadow-sm { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important; }
+.shadow-md { box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important; }
+.shadow-lg { box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08) !important; }
+.shadow-xl,
+.shadow-2xl { box-shadow: 0 16px 32px rgba(15, 23, 42, 0.10) !important; }
+
+[data-theme="dark"] .shadow-sm,
+[data-theme="dark"] .shadow-md,
+[data-theme="dark"] .shadow-lg,
+[data-theme="dark"] .shadow-xl,
+[data-theme="dark"] .shadow-2xl {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ==================== 6. BOTONES ==================== */
+.btn-primary {
+  background: var(--primary-color) !important;
+  box-shadow: none !important;
+  font-weight: 500;
+}
+
+.btn-primary:hover {
+  background: #1d4ed8 !important;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.22) !important;
+}
+
+button:not(.btn-primary):hover {
+  background-color: var(--btn-hover-bg);
+}
+
+/* Botones sólidos de color puntual (verde/morado) -> tono más plano y sobrio */
+.bg-gradient-to-r.from-green-600.to-green-500 {
+  background: #059669 !important;
+}
+.bg-gradient-to-r.from-purple-600.to-purple-700 {
+  background: #4f46e5 !important;
+}
+
+/* ==================== 7. GRADIENTES -> PLANOS Y SOBRIOS ==================== */
+/* La UI original usa varios degradados de color; para un look minimalista
+   se aplanan a colores sólidos discretos, conservando la jerarquía visual. */
+.bg-gradient-to-br.from-blue-500.to-blue-600,
+.bg-gradient-to-br.from-blue-500.to-indigo-600,
+.bg-gradient-to-r.from-blue-600.to-blue-700,
+.bg-gradient-to-r.from-sky-600.to-blue-600,
+.bg-gradient-to-br.from-sky-500.to-blue-600,
+.bg-gradient-to-r.from-blue-600.via-sky-600.to-cyan-600 {
+  background: var(--primary-color) !important;
+}
+
+.bg-gradient-to-br.from-blue-50.to-indigo-50,
+.bg-gradient-to-r.from-blue-50.to-indigo-50,
+.bg-gradient-to-r.from-blue-50.to-white,
+.bg-gradient-to-br.from-gray-50.via-blue-50,
+.bg-gradient-to-br.from-slate-50.to-blue-50,
+.bg-gradient-to-r.from-gray-50.to-white {
+  background: var(--bg-gray) !important;
+  border-color: var(--border-gray) !important;
+}
+
+[data-theme="dark"] .bg-gradient-to-br.from-blue-50.to-indigo-50,
+[data-theme="dark"] .bg-gradient-to-r.from-blue-50.to-indigo-50,
+[data-theme="dark"] .bg-gradient-to-r.from-blue-50.to-white,
+[data-theme="dark"] .bg-gradient-to-br.from-gray-50.via-blue-50,
+[data-theme="dark"] .bg-gradient-to-br.from-slate-50.to-blue-50,
+[data-theme="dark"] .bg-gradient-to-r.from-gray-50.to-white {
+  background: rgba(59, 130, 246, 0.08) !important;
+  border-color: var(--border-gray) !important;
+}
+
+/* ==================== 8. INPUTS ==================== */
+.input-dark,
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select,
+textarea {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-dark) !important;
+}
+
+.input-dark:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+}
+
+/* Campo con fondo oscuro fijo hardcodeado en el markup (login/búsqueda) */
+.bg-\[\#0f172a\] {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-dark) !important;
+}
+
+/* ==================== 9. TEXTOS Y BORDES NEUTROS ==================== */
+.text-gray-900 { color: var(--text-dark) !important; }
+.text-gray-800 { color: var(--text-dark) !important; }
+.text-gray-700 { color: var(--text-secondary) !important; }
+.text-gray-600 { color: var(--text-secondary) !important; }
+.text-gray-500 { color: var(--text-muted) !important; }
+.text-gray-400 { color: var(--text-muted) !important; }
+
+.border-gray-100,
+.border-gray-200,
+.border-gray-300 {
+  border-color: var(--border-gray) !important;
+}
+
+/* ==================== 10. FONDOS NEUTROS TAILWIND ==================== */
+.bg-white { background-color: var(--surface-gray) !important; }
+.bg-gray-100 { background-color: var(--btn-hover-bg) !important; }
+
+/* ==================== 11. BADGES / ESTADOS ==================== */
+.bg-blue-50   { background-color: rgba(37, 99, 235, 0.08) !important; color: #1d4ed8 !important; }
+.bg-red-50    { background-color: rgba(220, 38, 38, 0.08) !important; color: #b91c1c !important; }
+.bg-green-50  { background-color: rgba(5, 150, 105, 0.08) !important; color: #047857 !important; }
+.bg-purple-50 { background-color: rgba(79, 70, 229, 0.08) !important; color: #4338ca !important; }
+.bg-yellow-100{ background-color: rgba(217, 119, 6, 0.10) !important; color: #b45309 !important; }
+.bg-green-100 { background-color: rgba(5, 150, 105, 0.10) !important; color: #047857 !important; }
+.bg-orange-100{ background-color: rgba(234, 88, 12, 0.10) !important; color: #c2410c !important; }
+
+[data-theme="dark"] .bg-blue-50   { background-color: rgba(59, 130, 246, 0.16) !important; color: #93c5fd !important; }
+[data-theme="dark"] .bg-red-50    { background-color: rgba(239, 68, 68, 0.16) !important; color: #fca5a5 !important; }
+[data-theme="dark"] .bg-green-50  { background-color: rgba(16, 185, 129, 0.16) !important; color: #6ee7b7 !important; }
+[data-theme="dark"] .bg-purple-50 { background-color: rgba(129, 140, 248, 0.16) !important; color: #c7d2fe !important; }
+[data-theme="dark"] .bg-yellow-100{ background-color: rgba(217, 119, 6, 0.18) !important; color: #fcd34d !important; }
+[data-theme="dark"] .bg-green-100 { background-color: rgba(16, 185, 129, 0.18) !important; color: #6ee7b7 !important; }
+[data-theme="dark"] .bg-orange-100{ background-color: rgba(249, 115, 22, 0.18) !important; color: #fdba74 !important; }
+
+.text-blue-600 { color: var(--primary-color) !important; }
+[data-theme="dark"] .text-blue-600 { color: #60a5fa !important; }
+
+/* ==================== 12. SIDEBAR (aside) ==================== */
+aside .bg-white { background-color: var(--surface-gray) !important; }
+aside .border-gray-100,
+aside .border-gray-200 { border-color: var(--border-gray) !important; }
+aside h1 { color: var(--text-dark) !important; }
+aside .text-gray-500,
+aside .text-gray-600,
+aside .text-gray-700 { color: var(--text-secondary) !important; }
+aside .text-gray-400 { color: var(--text-muted) !important; }
+aside button.hover\:bg-gray-100:hover { background-color: var(--btn-hover-bg) !important; }
+
+/* Tarjeta "usuario activo" con acento sobrio en vez de degradado */
+.bg-gradient-to-br.from-blue-50 {
+  background: rgba(37, 99, 235, 0.06) !important;
+  border-color: rgba(37, 99, 235, 0.18) !important;
+}
+[data-theme="dark"] .bg-gradient-to-br.from-blue-50 {
+  background: rgba(59, 130, 246, 0.12) !important;
+  border-color: rgba(59, 130, 246, 0.25) !important;
+}
+
+/* ==================== 13. TABLAS ==================== */
+.table,
+table { border-collapse: collapse; width: 100%; }
+
+thead th {
+  color: var(--text-muted) !important;
+  font-size: 11px !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border-gray) !important;
+}
+
+tbody td {
+  border-bottom: 1px solid var(--border-gray) !important;
+}
+
+/* ==================== 14. MODALES ==================== */
+.fixed.inset-0.bg-black.bg-opacity-80 {
+  background-color: rgba(15, 23, 42, 0.55) !important;
+}
+
+/* ==================== 15. MONTOS ==================== */
+#presupuesto-total,
+#presupuesto-disponible,
+#viaticos-disponible,
+#gastos-externos-monto,
+#total-gastado,
+#presupuesto-proyectado,
+.monto-sensible,
+.amount-display {
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==================== 16. RESPONSIVE ==================== */
+@media (max-width: 768px) {
+  main {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  [data-theme="dark"] .mobile-menu,
+  .mobile-menu {
+    background: var(--surface-gray) !important;
+    border-left: 1px solid var(--border-gray) !important;
+  }
+}

@@ -1179,12 +1179,12 @@
     }
     
     /* Tarjetas de gastos reportados */
-    [data-theme="dark"] #historial-reportados .bg-gradient-to-br.from-white {
-      background: linear-gradient(to bottom right, #1e293b, #0f172a) !important;
-      border-color: #334155 !important;
+    [data-theme="dark"] #historial-reportados .bg-gradient-to-br.from-sky-50 {
+      background: linear-gradient(to bottom right, rgba(14, 165, 233, 0.12), rgba(59, 130, 246, 0.08)) !important;
+      border-color: rgba(56, 189, 248, 0.25) !important;
     }
     
-    [data-theme="dark"] #historial-reportados .bg-gradient-to-br.from-white:hover {
+    [data-theme="dark"] #historial-reportados .bg-gradient-to-br.from-sky-50:hover {
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
     }
     
@@ -1822,12 +1822,11 @@
     }
 
     /* ==================== MEJORAS RESPONSIVE ADICIONALES ==================== */
-    /* Pendientes: grid adaptable y tarjetas full-width en móviles */
+    /* Pendientes: columna única, cada grupo de mes ocupa todo el ancho */
     .pendientes-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 1rem;
-      align-items: start;
+      display: flex;
+      flex-direction: column;
+      gap: 0.625rem;
     }
 
     .pendiente-card {
@@ -2147,6 +2146,9 @@
       }
     }
   </style>
+
+  <!-- Estilo corporativo claro / minimalista (solo apariencia, no altera funcionamiento) -->
+  <link rel="stylesheet" href="./styles.css">
 </head>
 
 <body class="min-h-full bg-gray-50">
@@ -2225,7 +2227,7 @@
   </div>
 
   <!-- ==================== APLICACIÓN PRINCIPAL ==================== -->
-  <div id="app" class="flex h-screen overflow-hidden bg-gray-50">
+  <div id="app" class="flex h-screen overflow-hidden bg-gray-50" style="display:none">
     
     <!-- Sidebar / Panel Lateral -->
     <aside class="w-64 bg-white border-r border-gray-200 hidden md:flex flex-col z-20 shadow-sm transition-all duration-300">
@@ -2676,9 +2678,9 @@
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 lg:mb-3 gap-2">
             <div>
               <h3 class="text-sm lg:text-base font-semibold text-gray-900 leading-tight">Evolución de los gastos</h3>
-              <p class="text-[10px] lg:text-xs text-gray-400 mt-0.5">Altura relativa al presupuesto total</p>
+              <p id="chart-evolucion-subtitulo" class="text-[10px] lg:text-xs text-gray-400 mt-0.5">Altura relativa al presupuesto total</p>
             </div>
-            <div class="flex items-center gap-2 text-xs text-gray-500">
+            <div id="chart-evolucion-leyenda" class="flex items-center gap-2 text-xs text-gray-500">
               <span class="flex items-center gap-1">
                 <span class="w-2 h-2 rounded-full bg-green-500"></span>
                 <span>Bajo</span>
@@ -2695,60 +2697,40 @@
           </div>
           <!-- Gráfico por meses (Desktop/Tablet) -->
           <div class="h-40 lg:h-52 flex items-end justify-between gap-1.5 lg:gap-2 hidden sm:flex" id="chart-evolucion-meses">
-            <!-- Las barras se generarán dinámicamente con JavaScript -->
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="0" title="Ene '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="1" title="Feb '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="2" title="Mar '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="3" title="Abr '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="4" title="May '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="5" title="Jun '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="6" title="Jul '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="7" title="Ago '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="8" title="Sep '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="9" title="Oct '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="10" title="Nov '26"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;" data-mes="11" title="Dic '26"></div>
+            <!-- 3 barras trimestre anterior -->
+            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500 opacity-50" style="height: 4%; min-height: 4px;"></div>
+            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500 opacity-50" style="height: 4%; min-height: 4px;"></div>
+            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500 opacity-50" style="height: 4%; min-height: 4px;"></div>
+            <!-- Separador -->
+            <div class="flex-shrink-0 self-stretch rounded" style="width:2px;background:rgba(156,163,175,0.35);margin:0 4px"></div>
+            <!-- 3 barras trimestre efectivo -->
+            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;"></div>
+            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;"></div>
+            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;"></div>
           </div>
-          <div class="grid grid-cols-12 gap-0.5 lg:gap-1 mt-2 text-[9px] lg:text-[10px] text-gray-500 text-center hidden sm:grid">
-            <span>Ene</span>
-            <span>Feb</span>
-            <span>Mar</span>
-            <span>Abr</span>
-            <span>May</span>
-            <span>Jun</span>
-            <span>Jul</span>
-            <span>Ago</span>
-            <span>Sep</span>
-            <span>Oct</span>
-            <span>Nov</span>
-            <span>Dic</span>
+          <div id="chart-meses-labels" class="grid mt-2 text-[9px] lg:text-[10px] text-gray-500 text-center hidden sm:grid" style="grid-template-columns: repeat(3,1fr) 10px repeat(3,1fr)">
+            <span class="opacity-60"></span><span class="opacity-60"></span><span class="opacity-60"></span>
+            <span></span>
+            <span></span><span></span><span></span>
           </div>
-          <div class="grid grid-cols-12 gap-0.5 lg:gap-1 mt-1 mb-2 text-[9px] lg:text-[10px] text-gray-400 font-medium text-center hidden sm:grid" id="presupuestos-trimestre-labels">
-            <span class="col-span-3 border-t border-gray-200 dark:border-slate-700 pt-1 px-1 truncate" id="label-q1"></span>
-            <span class="col-span-3 border-t border-gray-200 dark:border-slate-700 pt-1 px-1 border-l dark:border-l-slate-700 truncate" id="label-q2"></span>
-            <span class="col-span-3 border-t border-gray-200 dark:border-slate-700 pt-1 px-1 border-l dark:border-l-slate-700 truncate" id="label-q3"></span>
-            <span class="col-span-3 border-t border-gray-200 dark:border-slate-700 pt-1 px-1 border-l dark:border-l-slate-700 truncate" id="label-q4"></span>
+          <div class="grid mt-1 mb-2 text-[9px] lg:text-[10px] text-gray-400 font-medium text-center hidden sm:grid" id="presupuestos-trimestre-labels" style="grid-template-columns: 3fr 10px 3fr">
+            <span class="border-t border-gray-200 pt-1 px-1 truncate opacity-70"></span>
+            <span></span>
+            <span class="border-t border-blue-400 pt-1 px-1 truncate text-blue-500 font-semibold"></span>
           </div>
           
           <!-- Gráfico por trimestres (Móvil) -->
           <div class="h-48 flex items-end justify-between gap-3 sm:hidden" id="chart-evolucion-trimestres">
-            <!-- Las barras se generarán dinámicamente con JavaScript -->
-            <div class="flex-1 bg-gray-300 rounded-t transition-all duration-500" style="height: 15%; min-height: 20px;" data-trimestre="0" title="Q1 '26"></div>
-            <div class="flex-1 bg-gray-300 rounded-t transition-all duration-500" style="height: 15%; min-height: 20px;" data-trimestre="1" title="Q2 '26"></div>
-            <div class="flex-1 bg-gray-300 rounded-t transition-all duration-500" style="height: 15%; min-height: 20px;" data-trimestre="2" title="Q3 '26"></div>
-            <div class="flex-1 bg-gray-300 rounded-t transition-all duration-500" style="height: 15%; min-height: 20px;" data-trimestre="3" title="Q4 '26"></div>
+            <div class="flex-1 bg-gray-300 rounded-t transition-all duration-500 opacity-60" style="height: 15%; min-height: 20px;"></div>
+            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 15%; min-height: 20px;"></div>
           </div>
-          <div class="grid grid-cols-4 gap-1 mt-2 text-xs text-gray-500 text-center sm:hidden">
-            <span>Q1</span>
-            <span>Q2</span>
-            <span>Q3</span>
-            <span>Q4</span>
+          <div class="grid grid-cols-2 gap-1 mt-2 text-xs text-gray-500 text-center sm:hidden">
+            <span class="opacity-60"></span>
+            <span></span>
           </div>
-          <div class="grid grid-cols-4 gap-1 mt-1 mb-2 text-[9px] text-gray-400 font-medium text-center sm:hidden tabular-nums tracking-tighter" id="presupuestos-trimestre-labels-mobile">
-            <span class="border-t border-gray-200 dark:border-slate-700 pt-1 px-0.5 truncate" id="label-m-q1"></span>
-            <span class="border-t border-gray-200 dark:border-slate-700 pt-1 px-0.5 border-l dark:border-l-slate-700 truncate" id="label-m-q2"></span>
-            <span class="border-t border-gray-200 dark:border-slate-700 pt-1 px-0.5 border-l dark:border-l-slate-700 truncate" id="label-m-q3"></span>
-            <span class="border-t border-gray-200 dark:border-slate-700 pt-1 px-0.5 border-l dark:border-l-slate-700 truncate" id="label-m-q4"></span>
+          <div class="grid grid-cols-2 gap-1 mt-1 mb-2 text-[9px] text-gray-400 font-medium text-center sm:hidden tabular-nums tracking-tighter" id="presupuestos-trimestre-labels-mobile">
+            <span class="border-t border-gray-200 pt-1 px-0.5 truncate opacity-70"></span>
+            <span class="border-t border-blue-400 pt-1 px-0.5 truncate text-blue-500"></span>
           </div>
         </div>
 
@@ -3323,6 +3305,15 @@
           <p class="text-[11px] text-gray-400 font-medium mb-1.5 uppercase tracking-wide">Disponible Real</p>
           <p class="text-lg font-bold text-[#10b981] tracking-tight" id="admin-stat-disponible">$0.00</p>
         </div>
+      </div>
+
+      <!-- Banner de transición trimestral -->
+      <div id="admin-transition-banner" class="hidden mb-6 p-4 rounded-xl border border-blue-700/50 bg-blue-900/20">
+        <p class="text-xs font-bold text-blue-300 flex items-center gap-1.5 mb-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+          Período de transición
+        </p>
+        <p class="text-xs text-blue-200/80" id="admin-transition-text"></p>
       </div>
 
       <!-- Section: Actualizar Presupuesto -->

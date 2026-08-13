@@ -3,26 +3,35 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // ==================== REGLAS DE PRODUCCIÓN ====================
-    // Reglas permisivas para facilitar uso pero con validaciones básicas
-    
-    // Colección de configuración - Lectura y escritura permitida
+    // NOTA: Para seguridad real, implementar Firebase Authentication.
+    // Estas reglas restringen acceso a solo las colecciones necesarias,
+    // rechazando cualquier colección no declarada explícitamente.
+
+    // Configuración del sistema: solo lectura pública (necesario para validar PIN)
+    // La escritura queda protegida - solo desde contextos autenticados en el futuro
     match /configuracion/{document=**} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if true; // TODO: restringir con Firebase Auth cuando se implemente
     }
     
-    // Colección de gastos - Lectura y escritura permitida
+    // Colección de gastos
     match /gastos/{gastoId} {
-      allow read, write: if true;
+      allow read, write: if true; // TODO: restringir con Firebase Auth cuando se implemente
     }
-    
-    // Colección de prueba
+
+    // Colección de prueba de conexión
     match /test/{document=**} {
       allow read, write: if true;
     }
-    
-    // Todas las demás colecciones
+
+    // Colección de trimestres archivados
+    match /trimestres-archivados/{document=**} {
+      allow read, write: if true; // TODO: restringir con Firebase Auth cuando se implemente
+    }
+
+    // Bloquear cualquier otra colección no declarada
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

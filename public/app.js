@@ -1,5 +1,8 @@
 // ==================== INICIALIZACIÓN DE FIREBASE ====================
 let db, storage, usuarioActual = null, esAdmin = false, categoriaActual = 'todos', estadoActual = 'todos';
+let _escuchaEnTiempoRealActiva = false; // Guard para evitar listeners duplicados
+let _unsubscribeListeners = []; // Funciones de desuscripción de onSnapshot
+let _reloadDebounceTimer = null; // Timer para evitar recargas duplicadas
 let editandoGastoId = null; // ID del gasto que se está editando
 let gastoActualDetalle = null; // Gasto que se está visualizando en el modal de detalle
 
@@ -12,6 +15,11 @@ let categoriaPendientes = 'todos';
 let categoriaReportados = 'todos';
 let vistaHistorial = 'mes'; // 'mes', 'trimestre', 'anio'
 let pestanaComisionActiva = 'pendientes'; // Para el modal de comisiones
+
+// ID del trimestre para el cual ya se cargó presupuesto (ej: "Q3-2026").
+// Cuando coincide con el trimestre calendario actual, calcularPeriodoEfectivo()
+// omite el período de transición y muestra el trimestre nuevo de inmediato.
+let _trimestreCargadoId = null;
 
 // Organizaciones externas que no afectan presupuesto ni viáticos
 const ORGANIZACIONES_EXTERNAS = ['meetup', 'pfj', 'area'];
@@ -44,41 +52,15 @@ function configurarDeteccionInactividad() {
 
 // Función para cerrar sesión (puede ser llamada desde el timeout o manualmente)
 function cerrarSesion() {
-  esAdmin = false;
-  usuarioActual = null;
-  categoriaActual = 'todos';
-  
-  // Limpiar timeout de inactividad
-  if (tiempoInactividad) {
-    clearTimeout(tiempoInactividad);
-    tiempoInactividad = null;
-  }
-  
-  // Limpiar sesión del localStorage
+  // 1. Limpiar sesión del localStorage ANTES de recargar
   localStorage.removeItem('sesionActiva');
   localStorage.removeItem('esAdmin');
   localStorage.removeItem('usuarioActual');
-  
-  // Resetear UI
-  document.getElementById('pin-screen').classList.remove('hidden');
-  document.getElementById('pin-input').value = '';
-  document.getElementById('btn-panel-admin')?.classList.add('hidden');
-  const btnAdminMobile = document.getElementById('btn-panel-admin-mobile');
-  if (btnAdminMobile) btnAdminMobile.classList.add('hidden');
-  document.getElementById('user-role-badge').innerHTML = '';
-  
-  // Resetear botón de login
-  const loginBtn = document.getElementById('login-btn');
-  if (loginBtn) {
-    loginBtn.innerHTML = '🔑 Verificar PIN';
-    loginBtn.disabled = false;
-  }
-  
-  // Limpiar listas
-  const listaGastos = document.getElementById('lista-gastos');
-  if (listaGastos) listaGastos.innerHTML = '';
-  
-  mostrarNotificacion('👋 Sesión cerrada', 'success');
+
+  // 2. Recargar la página: el navegador cancela todos los listeners,
+  //    timers y requests pendientes, garantizando un estado completamente limpio.
+  //    Los assets están cacheados, por lo que la recarga es casi instantánea.
+  window.location.reload();
 }
 
 // ==================== PERSISTENCIA DE ACORDEONES ====================
@@ -182,6 +164,7 @@ function updateThemeIcons(isDark) {
 
 // ==================== OCULTAR SALDOS ====================
 let _observadorSaldos = null;
+let _saldosDebounceTimer = null;
 
 function marcarMontosSensiblesDinamicos() {
   const appRoot = document.getElementById('app');
@@ -211,7 +194,11 @@ function iniciarObservadorSaldos() {
   if (!appRoot) return;
 
   _observadorSaldos = new MutationObserver(() => {
-    marcarMontosSensiblesDinamicos();
+    // No procesar si no hay sesión activa (ej. durante cerrarSesión)
+    if (!usuarioActual) return;
+    // Debounce: ejecutar fuera del hilo síncrono para no bloquear la página
+    if (_saldosDebounceTimer) clearTimeout(_saldosDebounceTimer);
+    _saldosDebounceTimer = setTimeout(marcarMontosSensiblesDinamicos, 100);
   });
 
   _observadorSaldos.observe(appRoot, {
@@ -764,6 +751,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       if (usuarioActual) {
         document.getElementById('pin-screen').classList.add('hidden');
+        document.getElementById('app').style.display = 'flex';
         
         if (esAdmin) {
           document.getElementById('btn-panel-admin').classList.remove('hidden');
@@ -797,12 +785,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
     
-    // Probar conexión con Firestore
-    await db.collection('test').doc('connection').set({
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      message: 'Conexión exitosa'
-    });
-    
     // Inicializar configuración del sistema si no existe
     await inicializarConfiguracion();
     
@@ -816,11 +798,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       await cargarTrimestresArchivados();
     }
     
-    // Iniciar escucha en tiempo real después de la inicialización
-    iniciarEscuchaEnTiempoReal();
+    // Iniciar escucha en tiempo real SOLO si hay sesión autenticada
+    if (usuarioActual) {
+      iniciarEscuchaEnTiempoReal();
+    }
     
     // Configurar event listeners después de que todo esté listo
     configurarEventListeners();
+    
+    // Protección anti-bypass: vigilar si alguien oculta el PIN screen desde DevTools
+    configurarProteccionPantallaPIN();
     
   } catch (error) {
     console.error('❌ Error detallado:', error);
@@ -952,6 +939,7 @@ async function validarPIN() {
       localStorage.setItem('usuarioActual', usuarioActual);
       
       document.getElementById('pin-screen').classList.add('hidden');
+      document.getElementById('app').style.display = 'flex';
       document.getElementById('user-role-badge').innerHTML = '<span class="bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-bold mr-2">👑 ADMIN</span>';
       document.getElementById('btn-panel-admin').classList.remove('hidden');
       const btnAdminMobile = document.getElementById('btn-panel-admin-mobile');
@@ -971,7 +959,7 @@ async function validarPIN() {
       await cargarConfiguracionActual();
       
       mostrarNotificacion('✅ Bienvenido, Administrador', 'success');
-      cargarDatos();
+      iniciarEscuchaEnTiempoReal(); // dispara onSnapshot inmediatamente → _programarRecargaCompleta
     } else if (pinIngresado === pinUsuarioGuardado) {
       esAdmin = false;
       usuarioActual = 'Usuario';
@@ -986,11 +974,12 @@ async function validarPIN() {
       resetearTiempoInactividad();
       
       document.getElementById('pin-screen').classList.add('hidden');
+      document.getElementById('app').style.display = 'flex';
       document.getElementById('user-role-badge').innerHTML = '<span class="bg-blue-500 text-white px-2 py-1 rounded-lg text-xs font-bold mr-2">👤 USUARIO</span>';
       loginBtn.innerHTML = '🔑 Verificar PIN';
       loginBtn.disabled = false;
       mostrarNotificacion('✅ Bienvenido, Usuario', 'success');
-      cargarDatos();
+      iniciarEscuchaEnTiempoReal(); // dispara onSnapshot inmediatamente → _programarRecargaCompleta
     } else {
       mostrarErrorPIN('PIN incorrecto. Verifica e intenta nuevamente.');
       loginBtn.innerHTML = '🔑 Verificar PIN';
@@ -1034,8 +1023,10 @@ async function cargarDatos() {
 }
 
 async function cargarPresupuestos() {
+  if (!usuarioActual) return;
   try {
     const configDoc = await db.collection('configuracion').doc('sistema').get();
+    if (!usuarioActual) return; // La sesión pudo cerrarse durante el await
     if (configDoc.exists) {
       const config = configDoc.data();
       
@@ -1059,8 +1050,10 @@ async function cargarPresupuestos() {
 
 // ==================== CÁLCULO DE KPIs Y MÉTRICAS ====================
 async function calcularGastos() {
+  if (!usuarioActual) return;
   try {
     const configDoc = await db.collection('configuracion').doc('sistema').get();
+    if (!usuarioActual) return;
     const config = configDoc.data();
     const presupuestoTotal = config.presupuestoTotal || 0;
     const presupuestoViaticos = config.presupuestoViaticos || 0;
@@ -1077,16 +1070,25 @@ async function calcularGastos() {
     let totalGastosTrimestre = 0; // Total solo del trimestre actual (aprobados)
     let totalPresupuestoNoAprobado = 0; // Todos los gastos de presupuesto NO aprobados (cualquier trimestre) para simulado
 
-    // Calcular trimestre actual
-    const ahora = new Date();
-    const mesActual = ahora.getMonth(); // 0-11
-    const añoActual = ahora.getFullYear();
-    const trimestreActual = Math.floor(mesActual / 3); // 0=Q1, 1=Q2, 2=Q3, 3=Q4
-    const mesInicioTrimestre = trimestreActual * 3;
+    // Sincronizar el trimestre para el que ya se cargó presupuesto (para calcularPeriodoEfectivo).
+    // Fallback: si el campo explícito no existe, verificar si hay historial para el trimestre
+    // actual (cubre presupuestos ingresados antes de que se introdujera este campo).
+    _trimestreCargadoId = config.presupuestoCargadoParaTrimestre || null;
+    if (!_trimestreCargadoId) {
+      const _trimActualCheck = calcularTrimestreActual();
+      if (config.presupuestosHistorial && config.presupuestosHistorial[_trimActualCheck.id]) {
+        _trimestreCargadoId = _trimActualCheck.id;
+      }
+    }
+
+    // Calcular período efectivo (puede ser trimestre anterior si estamos en transición)
+    const periodoEfectivo = calcularPeriodoEfectivo();
+    const añoActual = periodoEfectivo.anio;
+    const mesInicioTrimestre = (periodoEfectivo.numero - 1) * 3;
     const mesFinTrimestre = mesInicioTrimestre + 2;
-    
-    const inicioTrimestre = new Date(añoActual, mesInicioTrimestre, 1);
-    const finTrimestre = new Date(añoActual, mesFinTrimestre + 1, 0, 23, 59, 59);
+
+    const inicioTrimestre = periodoEfectivo.inicio;
+    const finTrimestre = periodoEfectivo.fin;
 
     gastosSnapshot.forEach(doc => {
       const gasto = doc.data();
@@ -1145,6 +1147,10 @@ async function calcularGastos() {
       const mesInicio = meses[mesInicioTrimestre];
       const mesFin = meses[mesFinTrimestre];
       periodoEl.textContent = `1 ${mesInicio} - 31 ${mesFin} ${añoActual}`;
+      // Indicar visualmente si estamos mostrando el trimestre anterior
+      if (periodoEfectivo.enTransicion) {
+        periodoEl.title = `Período de transición: mostrando datos de ${periodoEfectivo.nombre} hasta el ${periodoEfectivo.segundoViernes.toLocaleDateString('es-AR')}`;
+      }
     }
     
     // ==================== ACTUALIZAR KPI: PRESUPUESTO DISPONIBLE ====================
@@ -1286,10 +1292,12 @@ async function calcularGastos() {
 
 // ==================== ESTADÍSTICAS DEL DASHBOARD ====================
 async function calcularEstadisticasDashboard() {
+  if (!usuarioActual) return;
   try {
     const gastosSnapshot = await db.collection('gastos')
       .where('eliminado', '==', false)
       .get();
+    if (!usuarioActual) return;
     
     const gastos = [];
     gastosSnapshot.forEach(doc => {
@@ -1314,10 +1322,9 @@ async function calcularEstadisticasDashboard() {
 // ==================== VALIDACIÓN DE COHERENCIA ====================
 function validarCoherenciaKPIs(gastos) {
   // Re-calcular con el mismo scope que calcularGastos: presupuesto registrado del trimestre
-  const ahora = new Date();
-  const trimestreActual = Math.floor(ahora.getMonth() / 3);
-  const inicioTrim = new Date(ahora.getFullYear(), trimestreActual * 3, 1);
-  const finTrim = new Date(ahora.getFullYear(), trimestreActual * 3 + 3, 0, 23, 59, 59);
+  const periodoEfectivo = calcularPeriodoEfectivo();
+  const inicioTrim = periodoEfectivo.inicio;
+  const finTrim = periodoEfectivo.fin;
 
   let totalPresupuestoGastos = 0;
 
@@ -1347,14 +1354,14 @@ function validarCoherenciaKPIs(gastos) {
 
 // ==================== CALCULAR GASTOS POR ORGANIZACIÓN ====================
 async function calcularGastosPorOrganizacion(gastos) {
-  // Filtrar solo gastos de PRESUPUESTO, APROBADOS, del trimestre actual (mismo criterio que disponible real)
-  const trimestreActual = calcularTrimestreActual();
+  // Filtrar solo gastos de PRESUPUESTO, APROBADOS, del período efectivo
+  const periodoEfectivo = calcularPeriodoEfectivo();
   const gastosTrimestre = gastos.filter(gasto => {
     if (!gasto.fecha) return false;
     if (gasto.aprobado !== true) return false; // solo aprobados
     if (gasto.categoria === 'viaticos') return false; // excluir viáticos de esta vista
     const fechaGasto = gasto.fecha.toDate ? gasto.fecha.toDate() : parseFechaLocal(gasto.fecha);
-    return fechaGasto >= trimestreActual.inicio && fechaGasto <= trimestreActual.fin;
+    return fechaGasto >= periodoEfectivo.inicio && fechaGasto <= periodoEfectivo.fin;
   });
   
   const organizaciones = {
@@ -1402,10 +1409,11 @@ async function calcularGastosPorOrganizacion(gastos) {
     }
   }
   
-  // Actualizar indicador de trimestre actual en UI
+  // Actualizar indicador de trimestre en UI
   const indicadorTrimestre = document.getElementById('indicador-trimestre-actual');
   if (indicadorTrimestre) {
-    indicadorTrimestre.textContent = `${trimestreActual.nombre} (${trimestreActual.meses.join(', ')})`;
+    const sufijo = periodoEfectivo.enTransicion ? ' — en transición' : '';
+    indicadorTrimestre.textContent = `${periodoEfectivo.nombre} (${periodoEfectivo.meses.join(', ')})${sufijo}`;
   }
 
   // Ordenar organizaciones internas de mayor a menor gasto
@@ -1599,6 +1607,40 @@ function calcularSegundoViernesMesSiguiente(fechaFinTrimestre) {
   }
   
   return fechaBusqueda;
+}
+
+// Devuelve el período efectivo a mostrar en el dashboard:
+// - Si ya se cargó presupuesto para el trimestre calendario actual → muestra el trimestre ACTUAL de inmediato
+// - Si hoy es ANTES del 2º viernes del mes de inicio del trimestre actual → muestra el trimestre ANTERIOR
+// Devuelve el período efectivo a mostrar en el dashboard:
+// El trimestre cambia ÚNICA Y EXCLUSIVAMENTE cuando se ingresa el presupuesto.
+// Antes de ingresar el presupuesto del nuevo trimestre se muestran los datos del anterior.
+function calcularPeriodoEfectivo() {
+  const trimestreActual = calcularTrimestreActual();
+
+  // Si ya se ingresó presupuesto para el trimestre calendario actual → mostrar actual.
+  if (_trimestreCargadoId === trimestreActual.id) {
+    return { ...trimestreActual, enTransicion: false };
+  }
+
+  // Presupuesto no ingresado aún → mostrar trimestre anterior.
+  const numAnterior = trimestreActual.numero === 1 ? 4 : trimestreActual.numero - 1;
+  const anioAnterior = trimestreActual.numero === 1 ? trimestreActual.anio - 1 : trimestreActual.anio;
+  const mesInicio = (numAnterior - 1) * 3;
+  const mesFin = mesInicio + 2;
+  // Calcular el 2º viernes sólo para mostrarlo como referencia informativa en el UI
+  const finTrimestreAnterior = new Date(trimestreActual.inicio.getTime() - 1);
+  const segundoViernes = calcularSegundoViernesMesSiguiente(finTrimestreAnterior);
+  return {
+    inicio: new Date(anioAnterior, mesInicio, 1),
+    fin: new Date(anioAnterior, mesFin + 1, 0, 23, 59, 59),
+    numero: numAnterior,
+    anio: anioAnterior,
+    nombre: `${numAnterior}º Trimestre ${anioAnterior}`,
+    meses: obtenerNombresMesesTrimestre(numAnterior),
+    enTransicion: true,
+    segundoViernes: segundoViernes
+  };
 }
 
 // Verificar si ya pasó la fecha de cierre del trimestre anterior
@@ -3171,91 +3213,152 @@ window.cerrarModalTrimestreArchivado = cerrarModalTrimestreArchivado;
 
 // ==================== CALCULAR EVOLUCIÓN TEMPORAL DE GASTOS ====================
 async function calcularEvolucionGastos(gastos) {
-  const mesesGastos = Array(12).fill(0);
-  const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-  const añoActualEvolucion = new Date().getFullYear();
+  const NOMBRES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const fmtARS = v => `$${v.toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:0})}`;
 
-  // Acumular gastos por mes — solo del año actual
+  // Período efectivo (trimestre anterior si estamos en transición)
+  const pe = calcularPeriodoEfectivo();
+  const mesInicioEfect = (pe.numero - 1) * 3;
+
+  // Trimestre anterior al efectivo
+  const numPrev  = pe.numero === 1 ? 4 : pe.numero - 1;
+  const anioPrev = pe.numero === 1 ? pe.anio - 1 : pe.anio;
+  const mesInicioPrev = (numPrev - 1) * 3;
+
+  // Acumular gastos: 3 meses trim.anterior + 3 meses trim.efectivo
+  const datosPrev  = [0, 0, 0];
+  const datosEfect = [0, 0, 0];
   gastos.forEach(gasto => {
     if (!gasto.fecha && !gasto.fechaAprobacion) return;
     const fecha = getFechaEfectiva(gasto);
-    if (fecha.getFullYear() !== añoActualEvolucion) return;
-    const mes = fecha.getMonth();
-    mesesGastos[mes] += gasto.monto || 0;
+    const mes   = fecha.getMonth();
+    const anio  = fecha.getFullYear();
+    for (let i = 0; i < 3; i++) {
+      if (anio === anioPrev  && mes === mesInicioPrev  + i) datosPrev[i]  += gasto.monto || 0;
+      if (anio === pe.anio   && mes === mesInicioEfect + i) datosEfect[i] += gasto.monto || 0;
+    }
   });
 
-  // Calcular total del año para validar coherencia
-  const totalAnual = mesesGastos.reduce((sum, gasto) => sum + gasto, 0);
+  const totalPrev  = datosPrev.reduce((s, v) => s + v, 0);
+  const totalEfect = datosEfect.reduce((s, v) => s + v, 0);
 
-
-  // Calcular gastos por trimestre para móviles
-  const trimestresGastos = [
-    mesesGastos[0] + mesesGastos[1] + mesesGastos[2],  // Q1: Ene-Mar
-    mesesGastos[3] + mesesGastos[4] + mesesGastos[5],  // Q2: Abr-Jun
-    mesesGastos[6] + mesesGastos[7] + mesesGastos[8],  // Q3: Jul-Sep
-    mesesGastos[9] + mesesGastos[10] + mesesGastos[11] // Q4: Oct-Dic
-  ];
-
-  // Obtener presupuesto total como referencia del eje Y
+  // Presupuesto total como referencia de escala
   let presupuestoTotal = 0;
-  let config = {};
+  let presupuestosHistorial = {};
   try {
-    const configDoc = await db.collection('configuracion').doc('sistema').get();
-    if (configDoc.exists) {
-      config = configDoc.data();
-      presupuestoTotal = config.presupuestoTotal || 0;
+    const doc = await db.collection('configuracion').doc('sistema').get();
+    if (doc.exists) {
+      const _d = doc.data();
+      presupuestoTotal = _d.presupuestoTotal || 0;
+      presupuestosHistorial = _d.presupuestosHistorial || {};
     }
-  } catch (error) {
-    console.error('Error al obtener presupuesto para gráfico:', error);
-  }
+  } catch (e) {}
 
-  // Actualizar etiquetas de presupuesto por trimestre en la vista Desktop y Móvil
-  const anioActual = new Date().getFullYear();
-  const trimestreVigente = calcularTrimestreActual().numero;
-  const presupuestosTrimestres = config.presupuestosTrimestres || {};
+  const maxValor = Math.max(...datosPrev, ...datosEfect, presupuestoTotal > 0 ? presupuestoTotal * 0.05 : 1);
 
-  for (let i = 1; i <= 4; i++) {
-    const el = document.getElementById(`label-q${i}`);
-    const elM = document.getElementById(`label-m-q${i}`);
-    const formatPto = (pto) => `$${pto >= 1000000 ? (pto/1000000).toFixed(1).replace('.0','') + 'M' : pto >= 1000 ? (pto/1000).toFixed(0) + 'k' : pto}`;
-    
-    const pto = presupuestosTrimestres[`Q${i}-${anioActual}`];
-    let texto = `Q${i}: -`;
-    let textoM = `-`;
-    
-    if (pto !== undefined) {
-      if (document.body.clientWidth < 1024) {
-        texto = `Q${i}: ${formatPto(pto)}`;
-      } else {
-        texto = `Q${i}: $${pto.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-      }
-      textoM = `${formatPto(pto)}`;
-    } else if (i === trimestreVigente && presupuestoTotal > 0) {
-      if (document.body.clientWidth < 1024) {
-        texto = `Q${i}: ${formatPto(presupuestoTotal)}`;
-      } else {
-        texto = `Q${i}: $${presupuestoTotal.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
-      }
-      textoM = `${formatPto(presupuestoTotal)}`;
-    }
-    
-    if (el) el.textContent = texto;
-    if (elM) elM.textContent = textoM;
-  }
+  // Color para barras del período efectivo según % del presupuesto
+  const colorEfect = v => {
+    if (v === 0) return '#e5e7eb';
+    if (presupuestoTotal === 0) return '#3b82f6';
+    const pct = v / presupuestoTotal * 100;
+    if (pct >= 80) return '#ef4444';
+    if (pct >= 50) return '#f59e0b';
+    if (pct >= 30) return '#3b82f6';
+    return '#10b981';
+  };
 
-  // Actualizar gráfico de MESES (Desktop/Tablet)
+  // ── Desktop / Tablet: 3 barras grises (anterior) + separador + 3 barras color (efectivo) ──
   const chartMeses = document.getElementById('chart-evolucion-meses');
   if (chartMeses) {
-    const barrasMeses = chartMeses.querySelectorAll('[data-mes]');
-    actualizarBarras(barrasMeses, mesesGastos, nombresMeses, presupuestoTotal, 'mes');
+    let html = '';
+    for (let i = 0; i < 3; i++) {
+      const v = datosPrev[i];
+      const h = v > 0 ? Math.max(8, (v / maxValor) * 100) : 4;
+      const lbl = `${NOMBRES[mesInicioPrev + i]} '${String(anioPrev).slice(-2)}`;
+      const tip = v > 0 ? `${lbl}: ${fmtARS(v)}` : `${lbl}: Sin movimientos`;
+      html += `<div class="flex-1 rounded-t transition-all duration-500 opacity-50" style="height:${h.toFixed(1)}%;min-height:4px;background:#94a3b8" title="${tip}"></div>`;
+    }
+    // Separador visual entre trimestres
+    html += `<div class="flex-shrink-0 self-stretch rounded" style="width:2px;background:rgba(156,163,175,0.35);margin:0 4px"></div>`;
+    for (let i = 0; i < 3; i++) {
+      const v = datosEfect[i];
+      const h = v > 0 ? Math.max(8, (v / maxValor) * 100) : 4;
+      const lbl = `${NOMBRES[mesInicioEfect + i]} '${String(pe.anio).slice(-2)}`;
+      const pct = presupuestoTotal > 0 ? ` (${(v / presupuestoTotal * 100).toFixed(1)}% ppto)` : '';
+      const tip = v > 0 ? `${lbl}: ${fmtARS(v)}${pct}` : `${lbl}: Sin movimientos`;
+      html += `<div class="flex-1 rounded-t transition-all duration-500" style="height:${h.toFixed(1)}%;min-height:4px;background:${colorEfect(v)}" title="${tip}"></div>`;
+    }
+    chartMeses.innerHTML = html;
   }
 
-  // Actualizar gráfico de TRIMESTRES (Móvil)
-  const chartTrimestres = document.getElementById('chart-evolucion-trimestres');
-  if (chartTrimestres) {
-    const barrasTrimestres = chartTrimestres.querySelectorAll('[data-trimestre]');
-    const nombresTrimestres = ['Q1 (Ene-Mar)', 'Q2 (Abr-Jun)', 'Q3 (Jul-Sep)', 'Q4 (Oct-Dic)'];
-    actualizarBarras(barrasTrimestres, trimestresGastos, nombresTrimestres, presupuestoTotal * 3, 'trimestre');
+  // ── Etiquetas de meses ──
+  const labelsGrid = document.getElementById('chart-meses-labels');
+  if (labelsGrid) {
+    labelsGrid.className = 'grid mt-2 text-[9px] lg:text-[10px] text-gray-500 text-center hidden sm:grid';
+    labelsGrid.style.gridTemplateColumns = 'repeat(3,1fr) 10px repeat(3,1fr)';
+    let lh = '';
+    for (let i = 0; i < 3; i++) lh += `<span class="opacity-60">${NOMBRES[mesInicioPrev + i]}</span>`;
+    lh += `<span></span>`;
+    for (let i = 0; i < 3; i++) lh += `<span>${NOMBRES[mesInicioEfect + i]}</span>`;
+    labelsGrid.innerHTML = lh;
+  }
+
+  // ── Totales por trimestre ──
+  const labelsQ = document.getElementById('presupuestos-trimestre-labels');
+  if (labelsQ) {
+    const sfx = pe.enTransicion ? ' ·trans.' : '';
+    labelsQ.className = 'grid mt-1 mb-2 text-[9px] lg:text-[10px] font-medium text-center hidden sm:grid';
+    labelsQ.style.gridTemplateColumns = '3fr 10px 3fr';
+    const _pptoPrev  = presupuestosHistorial[`Q${numPrev}-${anioPrev}`]?.total || null;
+    const _pptoEfect = presupuestosHistorial[`Q${pe.numero}-${pe.anio}`]?.total || presupuestoTotal;
+    const _lblPrev  = _pptoPrev  !== null ? `Ppto: ${fmtARS(_pptoPrev)}`  : fmtARS(totalPrev);
+    const _lblEfect = `Ppto: ${fmtARS(_pptoEfect)}`;
+    labelsQ.innerHTML =
+      `<span class="border-t border-gray-200 pt-1 px-1 truncate text-gray-400 opacity-70">Q${numPrev} ${anioPrev}: ${_lblPrev}</span>` +
+      `<span></span>` +
+      `<span class="border-t border-blue-400 pt-1 px-1 truncate text-blue-500 font-semibold">Q${pe.numero} ${pe.anio}${sfx}: ${_lblEfect}</span>`;
+  }
+
+  // ── Subtítulo y leyenda ──
+  const subtitulo = document.getElementById('chart-evolucion-subtitulo');
+  if (subtitulo) subtitulo.textContent = `Q${numPrev} ${anioPrev} vs. Q${pe.numero} ${pe.anio}${pe.enTransicion ? ' (transición)' : ''}`;
+
+  const leyenda = document.getElementById('chart-evolucion-leyenda');
+  if (leyenda) {
+    leyenda.innerHTML =
+      `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-400 opacity-60"></span><span class="opacity-70">Anterior</span></span>` +
+      `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span><span>Bajo</span></span>` +
+      `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span>Moderado</span></span>` +
+      `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-500"></span><span>Alto</span></span>`;
+  }
+
+  // ── Móvil: 2 barras (trim.anterior vs trim.efectivo) ──
+  const chartTrim = document.getElementById('chart-evolucion-trimestres');
+  if (chartTrim) {
+    const maxT = Math.max(totalPrev, totalEfect, 1);
+    const hP = totalPrev  > 0 ? Math.max(15, (totalPrev  / maxT) * 100) : 15;
+    const hE = totalEfect > 0 ? Math.max(15, (totalEfect / maxT) * 100) : 15;
+    chartTrim.innerHTML =
+      `<div class="flex-1 rounded-t transition-all duration-500 opacity-60" style="height:${hP.toFixed(1)}%;min-height:20px;background:#94a3b8" title="Q${numPrev} ${anioPrev}: ${fmtARS(totalPrev)}"></div>` +
+      `<div class="flex-1 rounded-t transition-all duration-500" style="height:${hE.toFixed(1)}%;min-height:20px;background:${colorEfect(totalEfect)}" title="Q${pe.numero} ${pe.anio}: ${fmtARS(totalEfect)}"></div>`;
+  }
+
+  // Etiquetas móvil: nombre de meses de cada trimestre
+  const mobileMonthLabels = chartTrim ? chartTrim.nextElementSibling : null;
+  if (mobileMonthLabels && mobileMonthLabels.classList.contains('sm:hidden')) {
+    mobileMonthLabels.className = 'grid grid-cols-2 gap-1 mt-2 text-xs text-gray-500 text-center sm:hidden';
+    mobileMonthLabels.innerHTML =
+      `<span class="opacity-60">${NOMBRES[mesInicioPrev]}–${NOMBRES[mesInicioPrev+2]}</span>` +
+      `<span>${NOMBRES[mesInicioEfect]}–${NOMBRES[mesInicioEfect+2]}</span>`;
+  }
+
+  // Totales móvil
+  const labelsMQ = document.getElementById('presupuestos-trimestre-labels-mobile');
+  if (labelsMQ) {
+    labelsMQ.className = 'grid grid-cols-2 gap-1 mt-1 mb-2 text-[9px] text-gray-400 font-medium text-center sm:hidden tabular-nums tracking-tighter';
+    labelsMQ.innerHTML =
+      `<span class="border-t border-gray-200 pt-1 px-0.5 truncate opacity-70">Q${numPrev} ${anioPrev}: ${fmtARS(totalPrev)}</span>` +
+      `<span class="border-t border-blue-400 pt-1 px-0.5 truncate text-blue-500">Q${pe.numero} ${pe.anio}: ${fmtARS(totalEfect)}</span>`;
   }
 }
 
@@ -3865,6 +3968,27 @@ async function eliminarGasto(id) {
     btnEliminar.innerHTML = '<span>🗑️</span> Eliminando...';
 
     try {
+      // Verificar si el gasto está aprobado antes de eliminar
+      const gastoDoc = await db.collection('gastos').doc(id).get();
+      if (gastoDoc.exists && gastoDoc.data().aprobado === true) {
+        // Gasto aprobado: requiere confirmación explícita extra
+        const { isConfirmed } = await Swal.fire({
+          title: '⚠️ Gasto ya aprobado',
+          html: '<p style="font-size:14px">Este gasto <b>ya fue aprobado</b> y forma parte del historial contable.<br><br>¿Estás seguro de que querés eliminarlo de todas formas?</p>',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Sí, eliminar igual',
+          cancelButtonText: 'Cancelar',
+          confirmButtonColor: '#dc2626',
+          cancelButtonColor: '#6b7280'
+        });
+        if (!isConfirmed) {
+          resetearBotonEliminar(btnEliminar);
+          botonEliminarActivo = null;
+          return;
+        }
+      }
+
       // Soft delete: marcar como eliminado en lugar de borrar
       await db.collection('gastos').doc(id).update({
         eliminado: true,
@@ -3933,9 +4057,9 @@ async function eliminarGasto(id) {
 // Exponer función globalmente
 window.eliminarGasto = eliminarGasto;
 
-// Resetear Total Gastado (eliminar gastos del trimestre actual)
+// Resetear Total Gastado (eliminar gastos NO aprobados del trimestre actual)
 async function resetearTotalGastado() {
-  const confirmar = confirm('⚠️ ¿Estás seguro de que deseas eliminar TODOS los gastos del trimestre actual?\n\nEsta acción marcará todos los gastos como eliminados.');
+  const confirmar = confirm('⚠️ ¿Estás seguro de que deseas eliminar los gastos PENDIENTES del trimestre actual?\n\nSolo se eliminarán gastos no aprobados. Los gastos ya aprobados quedan intactos.');
   
   if (!confirmar) return;
 
@@ -3957,6 +4081,7 @@ async function resetearTotalGastado() {
       .get();
     
     let contador = 0;
+    let omitidosAprobados = 0;
     const batch = db.batch();
 
     gastosSnapshot.forEach(doc => {
@@ -3964,6 +4089,11 @@ async function resetearTotalGastado() {
       const fechaGasto = parseFechaLocal(gasto.fecha);
       
       if (fechaGasto >= inicioTrimestre && fechaGasto <= finTrimestre) {
+        // NUNCA eliminar gastos aprobados
+        if (gasto.aprobado === true) {
+          omitidosAprobados++;
+          return;
+        }
         batch.update(doc.ref, {
           eliminado: true,
           fechaEliminacion: firebase.firestore.FieldValue.serverTimestamp(),
@@ -3974,12 +4104,17 @@ async function resetearTotalGastado() {
     });
 
     if (contador === 0) {
-      mostrarNotificacion('ℹ️ No hay gastos en el trimestre actual', 'info');
+      const msg = omitidosAprobados > 0
+        ? `ℹ️ No hay gastos pendientes para eliminar (${omitidosAprobados} aprobados conservados)`
+        : 'ℹ️ No hay gastos en el trimestre actual';
+      mostrarNotificacion(msg, 'info');
       return;
     }
 
     await batch.commit();
-    mostrarNotificacion(`✅ ${contador} gasto(s) del trimestre eliminado(s)`, 'success');
+    let msgExito = `✅ ${contador} gasto(s) pendiente(s) eliminado(s)`;
+    if (omitidosAprobados > 0) msgExito += ` — ${omitidosAprobados} aprobado(s) conservado(s)`;
+    mostrarNotificacion(msgExito, 'success');
     await cargarGastosSeparados();
   } catch (error) {
     console.error('Error al resetear gastos:', error);
@@ -4454,12 +4589,19 @@ async function cargarConfiguracionActual() {
 
       // Live stats del admin panel
       const pTotal = config.presupuestoTotal || 0;
-      
-      const ahora = new Date();
-      const _anio = ahora.getFullYear();
-      const _trim = Math.floor(ahora.getMonth() / 3);
-      const _ini = new Date(_anio, _trim * 3, 1);
-      const _fin = new Date(_anio, _trim * 3 + 3, 0, 23, 59, 59);
+
+      // Sincronizar trimestre cargado (mismo fallback que calcularGastos)
+      _trimestreCargadoId = config.presupuestoCargadoParaTrimestre || null;
+      if (!_trimestreCargadoId) {
+        const _trimActualCheck = calcularTrimestreActual();
+        if (config.presupuestosHistorial && config.presupuestosHistorial[_trimActualCheck.id]) {
+          _trimestreCargadoId = _trimActualCheck.id;
+        }
+      }
+
+      const _pe = calcularPeriodoEfectivo();
+      const _ini = _pe.inicio;
+      const _fin = _pe.fin;
 
       let totalP_reg = 0;
       let totalAprobadoTrimestre = 0;
@@ -4492,7 +4634,28 @@ async function cargarConfiguracionActual() {
       const elV = document.getElementById('admin-stat-viaticos');
       if (elV) elV.textContent = formatearMoneda(config.presupuestoViaticos || 0);
       const tl = document.getElementById('admin-trimestre-label');
-      if (tl) tl.textContent = 'Q' + (_trim+1) + ' ' + _anio;
+      if (tl) tl.textContent = `${_pe.nombre}${_pe.enTransicion ? ' · Transición' : ''}`;
+
+      // Banner de transición: mostrar remanente disponible
+      const _banner = document.getElementById('admin-transition-banner');
+      if (_banner) {
+        if (_pe.enTransicion) {
+          const _remanente = Math.max(0, pTotal - totalAprobadoTrimestre);
+          const _fmtT = n => '$' + n.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+          const _fmtR = n => '$' + n.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+          const _txt = document.getElementById('admin-transition-text');
+          if (_txt) {
+            _txt.innerHTML = `Período <b>${_pe.nombre}</b> en transición hasta el <b>${_pe.segundoViernes.toLocaleDateString('es-AR')}</b>. Remanente disponible: <b class="text-blue-300">${_fmtT(_remanente)}</b>. Se sumará automáticamente al nuevo presupuesto que ingreses.`;
+          }
+          _banner.classList.remove('hidden');
+          const _inputP = document.getElementById('nuevo-presupuesto-total');
+          if (_inputP) _inputP.placeholder = `Nueva asignación (+ ${_fmtR(_remanente)} remanente automático)`;
+        } else {
+          _banner.classList.add('hidden');
+          const _inputP = document.getElementById('nuevo-presupuesto-total');
+          if (_inputP) _inputP.placeholder = 'Nuevo valor (reemplaza el actual)';
+        }
+      }
 
       // Cargar campos LCRF (modal y sidebar)
       const cacheLcrf = JSON.parse(localStorage.getItem('lcrfConfig') || '{}');
@@ -4558,16 +4721,54 @@ async function actualizarPresupuestos() {
     // Calcular los nuevos valores para mostrar en la confirmación
     let nuevoPresupuestoTotal = configActual.presupuestoTotal || 0;
     let nuevoPresupuestoViaticos = configActual.presupuestoViaticos || 0;
-    
+    let _remanente = 0;
+    let _trimCalendario = null;
+
     // Actualizar solo los campos completados
     if (inputPresupuesto) {
       const nuevoValor = parseFloat(inputPresupuesto);
-      if (modoActualizacion === 'sumar') {
-        nuevoPresupuestoTotal = (configActual.presupuestoTotal || 0) + nuevoValor;
-      } else {
-        nuevoPresupuestoTotal = nuevoValor;
+      const _pe = calcularPeriodoEfectivo();
+      _trimCalendario = calcularTrimestreActual();
+
+      // Si estamos en transición, calcular remanente del trimestre anterior
+      if (_pe.enTransicion) {
+        const _gastosSnap = await db.collection('gastos').where('eliminado', '==', false).get();
+        let _totalAprobadoPrev = 0;
+        _gastosSnap.forEach(doc => {
+          const g = doc.data();
+          if (g.aprobado !== true || g.categoria !== 'presupuesto') return;
+          if (ORGANIZACIONES_EXTERNAS.includes(g.organizacion || '')) return;
+          const fecha = g.fecha?.toDate ? g.fecha.toDate() : (typeof g.fecha === 'string' ? new Date(g.fecha + 'T12:00:00') : null);
+          if (fecha && fecha >= _pe.inicio && fecha <= _pe.fin) _totalAprobadoPrev += g.monto || 0;
+        });
+        _remanente = Math.max(0, (configActual.presupuestoTotal || 0) - _totalAprobadoPrev);
       }
+
+      nuevoPresupuestoTotal = nuevoValor + _remanente;
       updates.presupuestoTotal = nuevoPresupuestoTotal;
+
+      // Marcar que el presupuesto ya fue cargado para este trimestre.
+      // calcularPeriodoEfectivo() usará esto para mostrar el nuevo trimestre de inmediato.
+      updates.presupuestoCargadoParaTrimestre = _trimCalendario.id;
+
+      // Guardar historial del nuevo trimestre
+      updates[`presupuestosHistorial.${_trimCalendario.id}`] = {
+        ingresado: nuevoValor,
+        remanente: _remanente,
+        total: nuevoPresupuestoTotal
+      };
+
+      // Registrar el trimestre anterior si aún no tiene historial
+      if (_pe.enTransicion) {
+        const _prevKey = `Q${_pe.numero}-${_pe.anio}`;
+        if (!(configActual.presupuestosHistorial || {})[_prevKey]) {
+          updates[`presupuestosHistorial.${_prevKey}`] = {
+            ingresado: configActual.presupuestoTotal || 0,
+            remanente: 0,
+            total: configActual.presupuestoTotal || 0
+          };
+        }
+      }
     }
     
     if (inputViaticos) {
@@ -4584,7 +4785,15 @@ async function actualizarPresupuestos() {
     const fmt = (n) => '$' + n.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     let mensajeConfirmacion = '<div style="text-align:left;font-size:14px;">';
     if (inputPresupuesto) {
-      mensajeConfirmacion += `<p><b>Presupuesto Total:</b></p><p>${fmt(configActual.presupuestoTotal || 0)} → <b style="color:#10b981">${fmt(nuevoPresupuestoTotal)}</b></p><br>`;
+      if (_remanente > 0 && _trimCalendario) {
+        mensajeConfirmacion += `<p><b>Presupuesto ${_trimCalendario.nombre}:</b></p>` +
+          `<p>Nueva asignación: ${fmt(parseFloat(inputPresupuesto))}</p>` +
+          `<p>+ Remanente anterior: <b style="color:#60a5fa">${fmt(_remanente)}</b></p>` +
+          `<hr style="border-color:#374151;margin:6px 0">` +
+          `<p>Total: <b style="color:#10b981;font-size:16px">${fmt(nuevoPresupuestoTotal)}</b></p><br>`;
+      } else {
+        mensajeConfirmacion += `<p><b>Presupuesto Total:</b></p><p>${fmt(configActual.presupuestoTotal || 0)} → <b style="color:#10b981">${fmt(nuevoPresupuestoTotal)}</b></p><br>`;
+      }
     }
     if (inputViaticos) {
       mensajeConfirmacion += `<p><b>Viáticos:</b></p><p>${fmt(configActual.presupuestoViaticos || 0)} → <b style="color:#10b981">${fmt(nuevoPresupuestoViaticos)}</b></p>`;
@@ -4831,26 +5040,72 @@ async function solicitarRecuperacionCuenta() {
   }
 }
 
-function iniciarEscuchaEnTiempoReal() {
-  db.collection('configuracion').doc('sistema').onSnapshot((doc) => {
-    if (doc.exists) {
-        cargarPresupuestos();
-      calcularGastos();
-      calcularEstadisticasDashboard();
-    }
-  });
-  
-  db.collection('gastos').onSnapshot(() => {
-    cargarGastosSeparados();
+// Recarga completa con debounce: evita disparos dobles de ambos onSnapshot
+function _programarRecargaCompleta() {
+  if (_reloadDebounceTimer) clearTimeout(_reloadDebounceTimer);
+  _reloadDebounceTimer = setTimeout(() => {
+    if (!usuarioActual) return;
+    cargarPresupuestos();
     calcularGastos();
     calcularEstadisticasDashboard();
+    cargarGastosSeparados();
+  }, 250);
+}
+
+function iniciarEscuchaEnTiempoReal() {
+  // Evitar registrar listeners duplicados si se llama varias veces
+  if (_escuchaEnTiempoRealActiva) return;
+  _escuchaEnTiempoRealActiva = true;
+
+  const unsubConfig = db.collection('configuracion').doc('sistema').onSnapshot((doc) => {
+    if (!usuarioActual) return;
+    if (doc.exists) {
+      _programarRecargaCompleta();
+    }
   });
+
+  const unsubGastos = db.collection('gastos').onSnapshot(() => {
+    if (!usuarioActual) return;
+    _programarRecargaCompleta();
+  });
+
+  _unsubscribeListeners = [unsubConfig, unsubGastos];
+}
+
+// ==================== PROTECCIÓN ANTI-BYPASS DE PANTALLA PIN ====================
+function configurarProteccionPantallaPIN() {
+  const pinScreen = document.getElementById('pin-screen');
+  const app = document.getElementById('app');
+  if (!pinScreen || !app) return;
+
+  const observer = new MutationObserver(() => {
+    // Si la sesión no está activa en memoria pero el pin-screen fue ocultado/alterado
+    if (!usuarioActual) {
+      // Restablecer inmediatamente: forzar visibilidad con inline style
+      pinScreen.removeAttribute('style');
+      pinScreen.classList.remove('hidden');
+      app.style.display = 'none';
+    }
+  });
+
+  // Vigilar cambios en atributos class y style del pin-screen
+  observer.observe(pinScreen, { attributes: true, attributeFilter: ['class', 'style'] });
+
+  // Vigilar también cambios en el DOM del body (por si elimina el elemento directamente)
+  const bodyObserver = new MutationObserver(() => {
+    if (!usuarioActual && !document.getElementById('pin-screen')) {
+      // El nodo fue eliminado: recargar la página es la medida más segura
+      window.location.reload();
+    }
+  });
+  bodyObserver.observe(document.body, { childList: true });
 }
 
 // ==================== NUEVO SISTEMA DE SEPARACIÓN DE GASTOS ====================
 
 // Función para cargar gastos separados
 async function cargarGastosSeparados() {
+  if (!usuarioActual) return;
   try {
     
     if (!db) {
@@ -4862,6 +5117,7 @@ async function cargarGastosSeparados() {
     const gastosSnapshot = await db.collection('gastos')
       .orderBy('fecha', 'desc')
       .get();
+    if (!usuarioActual) return; // La sesión pudo cerrarse durante el await
     let todosgastos = [];
     
     gastosSnapshot.forEach(doc => {
@@ -5060,7 +5316,8 @@ function renderGastosPendientesAprobacion(gastos) {
   container.innerHTML = gruposPorMes.map(([mesAnio, grupo]) => {
     const tarjetas = grupo.gastos.map(crearTarjetaGastoAprobacion).join('');
     const acordeonId = `aprob-${mesAnio}`;
-    const estaExpandido = obtenerEstadoAcordeon(acordeonId);
+    // Pendientes de aprobación siempre expandidos para que no pasen desapercibidos
+    const estaExpandido = true;
     
     return `
       <div class="mb-3 border border-orange-200 dark:border-orange-800 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
@@ -5514,61 +5771,51 @@ function crearTarjetaGastoPendiente(gasto) {
   ` : '';
 
   return `
-    <div id="card-gasto-${gasto.id}" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col gap-4 w-full">
-      <!-- Upper Section: Info & Amount -->
-      <div class="flex justify-between items-start gap-3">
-        <!-- Left: Main Info -->
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 flex-wrap mb-2">
-             <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">SIN REGISTRAR</span>
-             <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-50 dark:bg-${cat.color}-900/40 text-${cat.color}-700 dark:text-${cat.color}-300 border border-${cat.color}-100 dark:border-${cat.color}-700 flex items-center gap-1">${cat.emoji} ${cat.label}</span>
-             ${gasto.impresionLCRF ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">🖨️ IMPRESO</span>` : ''}
-          </div>
+    <div id="card-gasto-${gasto.id}" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all overflow-hidden w-full">
 
-          <h4 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-1 leading-tight">${gasto.descripcion}</h4>
-          
-          <div class="flex flex-col gap-0.5 text-[10px] text-gray-500 dark:text-gray-400 mt-2">
-            <span class="flex items-center gap-1.5" title="Fecha en que se realizó el gasto">
-              <span>📅</span>
-              <span class="font-medium text-gray-700 dark:text-gray-300">Gasto: ${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-            </span>
-            ${gasto.fechaCreacion ? `
-            <span class="flex items-center gap-1.5" title="Fecha de ingreso al sistema">
-              <span>📥</span>
-              <span>Ingresado: ${(gasto.fechaCreacion.toDate ? gasto.fechaCreacion.toDate() : new Date(gasto.fechaCreacion)).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
-            </span>` : ''}
-          </div>
-          
-          ${gasto.observaciones ? `<div class="mt-2 text-xs italic text-gray-400 dark:text-gray-500 truncate">📝 ${gasto.observaciones}</div>` : ''}
+      <!-- Franja superior: badges + monto -->
+      <div class="flex items-start justify-between gap-3 px-4 py-2.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-100 dark:border-gray-700">
+        <div class="flex items-center gap-1.5 flex-wrap min-w-0 pt-0.5">
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">SIN REGISTRAR</span>
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-50 dark:bg-${cat.color}-900/40 text-${cat.color}-700 dark:text-${cat.color}-300 border border-${cat.color}-100 dark:border-${cat.color}-700 flex items-center gap-1">${cat.emoji} ${cat.label}</span>
+          ${gasto.impresionLCRF ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">🖨️ IMPRESO</span>' : ''}
         </div>
-
-        <!-- Right: Amount -->
         <div class="text-right flex-shrink-0">
           ${gasto.comision && gasto.comision > 0 ? `
-              <p class="text-xl font-bold text-gray-900 dark:text-gray-100 leading-none" title="Monto del gasto">
-                $${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-              </p>
-              <div class="flex flex-col items-end gap-0.5 mt-1.5">
-                  <span class="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Total: $${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
-                  <span class="text-[9px] text-purple-600 dark:text-purple-400 font-bold px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/40 rounded border border-purple-100 dark:border-purple-700" title="Comisión ML">+ Com: $${gasto.comision.toLocaleString('es-AR', {minimumFractionDigits: 2})} (${gasto.monto ? ((gasto.comision / gasto.monto) * 100).toFixed(1) : 0}%)</span>
-              </div>
+            <p class="text-base font-bold text-gray-900 dark:text-gray-100 leading-tight">$${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <p class="text-[10px] text-gray-500 dark:text-gray-400">Total: $${(gasto.monto + gasto.comision).toLocaleString('es-AR', {minimumFractionDigits: 2})}</p>
+            <span class="text-[9px] text-purple-600 dark:text-purple-400 font-bold">+Com ${gasto.monto ? ((gasto.comision / gasto.monto) * 100).toFixed(1) : 0}%</span>
           ` : `
-              <p class="text-xl font-bold text-gray-800 dark:text-gray-100 leading-none">
-                $${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-              </p>
-              <p class="text-[10px] text-gray-400 dark:text-gray-500 font-medium mt-1">Monto total</p>
+            <p class="text-base font-bold text-gray-800 dark:text-gray-100 leading-tight">$${(gasto.monto || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
           `}
         </div>
       </div>
 
-      <!-- Lower Section: Actions Grid -->
-      <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
-          ${checkboxHtml}
-          ${reembolsoBtn}
-          ${verDetalleBtn}
-          ${editarBtn}
-          ${eliminarBtn}
-          ${lcrfBtn}
+      <!-- Cuerpo: descripción + fechas -->
+      <div class="px-4 py-3">
+        <p class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-2.5 leading-snug">${gasto.descripcion}</p>
+        <div class="flex flex-wrap gap-x-5 gap-y-1 text-[10px] text-gray-500 dark:text-gray-400">
+          <span class="flex items-center gap-1" title="Fecha del gasto">
+            <span>📅</span>
+            <span class="font-medium text-gray-700 dark:text-gray-300">${parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+          </span>
+          ${gasto.fechaCreacion ? `
+          <span class="flex items-center gap-1" title="Fecha de ingreso">
+            <span>📥</span>
+            <span>${(gasto.fechaCreacion.toDate ? gasto.fechaCreacion.toDate() : new Date(gasto.fechaCreacion)).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</span>
+          </span>` : ''}
+        </div>
+        ${gasto.observaciones ? `<p class="mt-2 text-[10px] italic text-gray-400 dark:text-gray-500 line-clamp-2">📝 ${gasto.observaciones}</p>` : ''}
+      </div>
+
+      <!-- Acciones -->
+      <div class="px-4 pb-4 pt-2.5 border-t border-gray-100 dark:border-gray-700 flex flex-wrap gap-2">
+        ${checkboxHtml}
+        ${reembolsoBtn}
+        ${verDetalleBtn}
+        ${editarBtn}
+        ${eliminarBtn}
+        ${lcrfBtn}
       </div>
     </div>
   `;
@@ -5632,7 +5879,7 @@ function crearTarjetaGastoReportado(gasto) {
   ` : '';
 
   return `
-    <div class="bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all">
+    <div class="bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-200 rounded-lg p-3 hover:shadow-md transition-all">
       <!-- Header con badges -->
       <div class="flex flex-wrap items-center gap-1.5 mb-2">
         <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 flex-shrink-0">
