@@ -24,6 +24,22 @@ let _trimestreCargadoId = null;
 // Organizaciones externas que no afectan presupuesto ni viáticos
 const ORGANIZACIONES_EXTERNAS = ['meetup', 'pfj', 'area'];
 
+function obtenerClaseCategoria(color) {
+  const clasesPorColor = {
+    green: 'bg-green-100 text-green-700 border border-green-200',
+    orange: 'bg-orange-100 text-orange-700 border border-orange-200',
+    gray: 'bg-gray-100 text-gray-700 border border-gray-200',
+    blue: 'bg-blue-100 text-blue-700 border border-blue-200',
+    purple: 'bg-purple-100 text-purple-700 border border-purple-200',
+    red: 'bg-red-100 text-red-700 border border-red-200',
+    yellow: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
+    emerald: 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+  };
+
+  const colorNormalizado = typeof color === 'string' ? color.toLowerCase() : 'gray';
+  return clasesPorColor[colorNormalizado] || clasesPorColor.gray;
+}
+
 // ==================== GESTIÓN DE INACTIVIDAD ====================
 let tiempoInactividad = null;
 const TIEMPO_INACTIVIDAD_MS = 10 * 60 * 1000; // 10 minutos de inactividad
@@ -84,15 +100,58 @@ function limpiarEstadosAcordeon() {
 // Convierte una fecha en formato YYYY-MM-DD a Date object en hora local
 function parseFechaLocal(fechaString) {
   if (!fechaString) return new Date();
-  const [year, month, day] = fechaString.split('-').map(Number);
-  return new Date(year, month - 1, day);
+
+  if (fechaString.toDate && typeof fechaString.toDate === 'function') {
+    return fechaString.toDate();
+  }
+
+  if (fechaString instanceof Date) {
+    return new Date(fechaString);
+  }
+
+  if (typeof fechaString === 'number') {
+    return new Date(fechaString);
+  }
+
+  if (typeof fechaString === 'string') {
+    const valor = fechaString.trim();
+    if (valor.length === 0) return new Date();
+    if (valor.includes('T')) {
+      return new Date(valor);
+    }
+    const [year, month, day] = valor.split('-').map(Number);
+    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+      return new Date(year, month - 1, day);
+    }
+    return new Date(valor);
+  }
+
+  if (fechaString && typeof fechaString === 'object' && typeof fechaString.seconds === 'number') {
+    return new Date(fechaString.seconds * 1000);
+  }
+
+  return new Date(fechaString);
 }
 
 // Convierte un Firestore Timestamp o string YYYY-MM-DD a Date
 function parseFechaGeneral(val) {
   if (!val) return new Date();
-  if (val.toDate) return val.toDate(); // Firestore Timestamp
-  return parseFechaLocal(val);         // String YYYY-MM-DD
+  if (val.toDate && typeof val.toDate === 'function') return val.toDate(); // Firestore Timestamp
+  return parseFechaLocal(val);         // String YYYY-MM-DD / Date / Timestamp-like
+}
+
+function esGastoExternoVisible(gasto) {
+  if (!gasto || gasto.eliminado) return false;
+  if (!gasto.organizacion || !ORGANIZACIONES_EXTERNAS.includes(gasto.organizacion)) return false;
+  if (gasto.organizacion === 'meetup') return false;
+  if (gasto.fuente && gasto.fuente !== 'nuevo-gasto') return false;
+  return Boolean(gasto.fecha);
+}
+
+function formatearFechaSimple(valor) {
+  if (!valor) return '—';
+  const fecha = parseFechaGeneral(valor);
+  return fecha.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 // A partir de esta fecha se usa fechaAprobacion para agrupar/calcular
@@ -110,56 +169,12 @@ function getFechaEfectiva(gasto) {
   return parseFechaLocal(gasto.fecha); // Lógica anterior → usa fecha del gasto
 }
 
-// ==================== TEMA OSCURO / CLARO ====================
+// ==================== TEMA ====================
 function initTheme() {
-  const savedTheme = localStorage.getItem('theme');
-  const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  
-  if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
-    document.documentElement.setAttribute('data-theme', 'dark');
-      document.documentElement.classList.add('dark');
-      updateThemeIcons(true);
-    } else {
-      document.documentElement.setAttribute('data-theme', 'light');
-      document.documentElement.classList.remove('dark');
-      updateThemeIcons(false);
-    }
-  }
-  
-  function toggleTheme() {
-    const html = document.documentElement;
-    const isDark = html.getAttribute('data-theme') === 'dark';
-    
-    if (isDark) {
-      html.setAttribute('data-theme', 'light');
-      html.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-      updateThemeIcons(false);
-    } else {
-      html.setAttribute('data-theme', 'dark');
-      html.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-      updateThemeIcons(true);
-  }
-}
-
-function updateThemeIcons(isDark) {
-  const iconDesktop = document.getElementById('theme-icon-desktop');
-  const textDesktop = document.getElementById('theme-text-desktop');
-  const iconMobile = document.getElementById('theme-icon-mobile');
-  const textMobile = document.getElementById('theme-text-mobile');
-  
-  if (isDark) {
-    if(iconDesktop) iconDesktop.textContent = '☀️';
-    if(textDesktop) textDesktop.textContent = 'Modo Claro';
-    if(iconMobile) iconMobile.textContent = '☀️';
-    if(textMobile) textMobile.textContent = 'Modo Claro';
-  } else {
-    if(iconDesktop) iconDesktop.textContent = '🌙';
-    if(textDesktop) textDesktop.textContent = 'Modo Oscuro';
-    if(iconMobile) iconMobile.textContent = '🌙';
-    if(textMobile) textMobile.textContent = 'Modo Oscuro';
-  }
+  const html = document.documentElement;
+  html.setAttribute('data-theme', 'light');
+  html.classList.remove('dark');
+  localStorage.setItem('theme', 'light');
 }
 
 // ==================== OCULTAR SALDOS ====================
@@ -221,6 +236,22 @@ function initSaldos() {
   updateSaldosIcons(isHidden);
 }
 
+function actualizarEstadoMeetup() {
+  const section = document.getElementById('meetup-section');
+  const toggleBtn = document.getElementById('toggle-meetup-visibility');
+  if (!section || !toggleBtn) return;
+
+  const isHidden = localStorage.getItem('hideMeetup') === 'true';
+  section.classList.toggle('hidden', isHidden);
+  toggleBtn.textContent = isHidden ? 'Mostrar MeetUp' : 'Ocultar MeetUp';
+}
+
+window.toggleMeetupSection = function() {
+  const isHidden = localStorage.getItem('hideMeetup') === 'true';
+  localStorage.setItem('hideMeetup', String(!isHidden));
+  actualizarEstadoMeetup();
+};
+
 window.toggleSaldos = function() {
   marcarMontosSensiblesDinamicos();
   const isHidden = document.body.classList.toggle('hide-saldos');
@@ -281,6 +312,56 @@ let filtrosActivos = {
 let gastosOriginales = []; // Cache de todos los gastos
 let gastosFiltrados = []; // Gastos después de aplicar filtros
 
+// Abrir página de MeetUp
+async function abrirModalMeetup() {
+  const main = document.getElementById('main-content');
+  const source = document.getElementById('meetup-section');
+
+  if (!main || !source) {
+    console.error('No se encontró la vista de MeetUp en el DOM');
+    return;
+  }
+
+  // Mostrar primero la página. La carga de datos no debe bloquear la navegación.
+  source.classList.remove('hidden');
+  main.classList.add('meetup-page-active');
+  main.scrollTop = 0;
+
+  try {
+    await cargarMeetupStateDesdeFirebase();
+    actualizarMeetupDashboard();
+  } catch (error) {
+    console.warn('MeetUp se abrió, pero no se pudieron refrescar todos los datos:', error);
+  }
+}
+
+function cerrarModalMeetup() {
+  const main = document.getElementById('main-content');
+  const source = document.getElementById('meetup-section');
+
+  if (!main || !source) return;
+
+  source.classList.add('hidden');
+  main.classList.remove('meetup-page-active');
+  main.scrollTop = 0;
+}
+
+// Exponer explícitamente las funciones porque el menú usa onclick inline.
+window.abrirModalMeetup = abrirModalMeetup;
+window.cerrarModalMeetup = cerrarModalMeetup;
+
+
+// Marca visualmente gastos legacy de MeetUp que fueron guardados como "area".
+function marcarGastosMeetupLegacy() {
+  document.querySelectorAll('#lista-gastos-pendientes .gasto-card[data-organizacion="area"][data-categoria="actividades_area"]')
+    .forEach((card) => {
+      const texto = (card.textContent || '').toLowerCase();
+      if (texto.includes('meetup') || texto.includes('meet up')) {
+        card.classList.add('meetup-legacy');
+      }
+    });
+}
+
 // Abrir modal de búsqueda avanzada
 function abrirBusquedaAvanzada() {
   const modal = document.getElementById('modal-busqueda-avanzada');
@@ -334,7 +415,7 @@ async function aplicarBusquedaAvanzada() {
     gastosFiltrados = gastosOriginales.filter(gasto => {
       // Filtro de texto (busca en descripción, categoría, organización, nro recibo)
       if (filtrosActivos.texto) {
-        const textoGasto = `${gasto.descripcion} ${gasto.categoria} ${gasto.organizacion} ${gasto.nroRecibo || ''}`.toLowerCase();
+        const textoGasto = `${gasto.descripcion} ${gasto.pagadoA || ''} ${gasto.categoria} ${gasto.organizacion} ${gasto.nroRecibo || ''}`.toLowerCase();
         if (!textoGasto.includes(filtrosActivos.texto)) return false;
       }
 
@@ -734,6 +815,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Inicializar tema y saldos
   initTheme();
   initSaldos();
+  actualizarEstadoMeetup();
 
   try {
     // No loguear firebaseConfig por seguridad
@@ -805,6 +887,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Configurar event listeners después de que todo esté listo
     configurarEventListeners();
+    inicializarMeetupDashboard();
     
     // Protección anti-bypass: vigilar si alguien oculta el PIN screen desde DevTools
     configurarProteccionPantallaPIN();
@@ -856,13 +939,35 @@ async function inicializarConfiguracion() {
 function togglePinVisibility() {
   const pinInput = document.getElementById('pin-input');
   const toggleIcon = document.getElementById('pin-toggle-icon');
-  
-  if (pinInput.type === 'password') {
-    pinInput.type = 'text';
-    toggleIcon.textContent = '🙈';
-  } else {
-    pinInput.type = 'password';
-    toggleIcon.textContent = '👁️';
+
+  if (!pinInput || !toggleIcon) return;
+
+  const mostrar = pinInput.type === 'password';
+  pinInput.type = mostrar ? 'text' : 'password';
+
+  toggleIcon.innerHTML = mostrar
+    ? `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M3 3l18 18"/>
+        <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/>
+        <path d="M9.9 5.2A10.6 10.6 0 0 1 12 5c6 0 9.5 7 9.5 7a15.5 15.5 0 0 1-2.3 3.2"/>
+        <path d="M6.6 6.6C4 8.4 2.5 12 2.5 12S6 19 12 19c1.3 0 2.5-.3 3.6-.7"/>
+      </svg>`
+    : `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/>
+        <circle cx="12" cy="12" r="2.75"/>
+      </svg>`;
+
+  const button = toggleIcon.closest('button');
+  if (button) {
+    const label = mostrar ? 'Ocultar PIN' : 'Mostrar PIN';
+    button.setAttribute('aria-label', label);
+    button.setAttribute('title', label);
   }
 }
 
@@ -940,7 +1045,7 @@ async function validarPIN() {
       
       document.getElementById('pin-screen').classList.add('hidden');
       document.getElementById('app').style.display = 'flex';
-      document.getElementById('user-role-badge').innerHTML = '<span class="bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-bold mr-2">👑 ADMIN</span>';
+      document.getElementById('user-role-badge').innerHTML = '<span class="bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-bold mr-2"> ADMIN</span>';
       document.getElementById('btn-panel-admin').classList.remove('hidden');
       const btnAdminMobile = document.getElementById('btn-panel-admin-mobile');
       if (btnAdminMobile) btnAdminMobile.classList.remove('hidden');
@@ -1099,10 +1204,10 @@ async function calcularGastos() {
       // Verificar si es una organización externa que no afecta presupuesto/viáticos
       const esOrganizacionExterna = ORGANIZACIONES_EXTERNAS.includes(organizacion);
       
-      // Sumar gastos de organizaciones externas por separado
-      if (esOrganizacionExterna) {
+      // Sumar gastos de organizaciones externas por separado solo si pertenecen al flujo de nuevo gasto
+      if (esOrganizacionExterna && esGastoExternoVisible(gasto)) {
         totalGastosExternos += gasto.monto || 0;
-      } else {
+      } else if (!esOrganizacionExterna) {
         // Sumar para presupuesto y viáticos según la CATEGORÍA únicamente
         const esAñoActual = fechaGasto.getFullYear() === añoActual;
         const enTrimestre = fechaGasto >= inicioTrimestre && fechaGasto <= finTrimestre;
@@ -1187,7 +1292,7 @@ async function calcularGastos() {
     }
 
     // ==================== ACTUALIZAR PORCENTAJE DE EJECUCIÓN ====================
-    const porcentajePresupuesto = presupuestoTotal > 0 ? (totalPresupuesto / presupuestoTotal) * 100 : 0;
+    const porcentajePresupuesto = presupuestoTotal > 0 ? (totalPresupuestoAprobado / presupuestoTotal) * 100 : 0;
     const porcentajeUsadoEl = document.getElementById('porcentaje-usado');
     const barraProgresoEl = document.getElementById('barra-progreso');
     
@@ -1242,14 +1347,7 @@ async function calcularGastos() {
     const gastosExternosEl = document.getElementById('gastos-externos-monto');
     if (gastosExternosEl) {
       gastosExternosEl.textContent = `$${totalGastosExternos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-      // Colorear según monto y mantener monto-sensible
-      if (totalGastosExternos === 0) {
-        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-gray-400 leading-tight monto-sensible';
-      } else if (totalGastosExternos > 50000) {
-        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-orange-600 leading-tight monto-sensible';
-      } else {
-        gastosExternosEl.className = 'text-lg lg:text-xl xl:text-2xl font-bold text-blue-600 leading-tight monto-sensible';
-      }
+      gastosExternosEl.className = `text-lg lg:text-xl xl:text-2xl font-bold leading-tight monto-sensible external-kpi-amount ${totalGastosExternos === 0 ? 'is-empty' : 'has-value'}`;
     }
 
     // Porcentaje de viáticos
@@ -1274,15 +1372,13 @@ async function calcularGastos() {
     }
 
     // ==================== ALERTAS VISUALES ====================
-    // Mostrar alerta si se supera el 80% del presupuesto
-    if (porcentajePresupuesto >= 80 && porcentajePresupuesto < 100) {
-    } else if (porcentajePresupuesto >= 100) {
-      console.error(`🚨 Presupuesto excedido: ${porcentajePresupuesto.toFixed(1)}%`);
+    // Avisos de umbral: son condiciones de negocio, no errores de ejecución.
+    if (porcentajePresupuesto >= 100) {
+      console.warn(`⚠️ Presupuesto excedido: ${porcentajePresupuesto.toFixed(1)}%`);
     }
 
-    if (porcentajeViaticos >= 80 && porcentajeViaticos < 100) {
-    } else if (porcentajeViaticos >= 100) {
-      console.error(`🚨 Viáticos excedidos: ${porcentajeViaticos.toFixed(1)}%`);
+    if (porcentajeViaticos >= 100) {
+      console.warn(`⚠️ Viáticos excedidos: ${porcentajeViaticos.toFixed(1)}%`);
     }
 
   } catch (error) {
@@ -1301,7 +1397,7 @@ async function calcularEstadisticasDashboard() {
     
     const gastos = [];
     gastosSnapshot.forEach(doc => {
-      gastos.push({ id: doc.id, ...doc.data() });
+      gastos.push({ id: doc.id, tipo: doc.data().tipo || 'otro', ...doc.data() });
     });
 
 
@@ -1311,12 +1407,82 @@ async function calcularEstadisticasDashboard() {
     // Calcular evolución temporal
     await calcularEvolucionGastos(gastos);
 
+    // Alertar cierre fiscal solo cuando existen compromisos abiertos
+    actualizarAlertaCierreFiscal(gastos);
+
     // Validar coherencia de datos
     validarCoherenciaKPIs(gastos);
     
   } catch (error) {
     console.error('Error al calcular estadísticas del dashboard:', error);
   }
+}
+
+
+// ==================== ALERTA DE CIERRE FISCAL ====================
+function actualizarAlertaCierreFiscal(gastos) {
+  const banner = document.getElementById('alerta-cierre-fiscal');
+  if (!banner) return;
+
+  const hoy = new Date();
+  const anio = hoy.getFullYear();
+  const finAnio = new Date(anio, 11, 31, 23, 59, 59);
+  const inicioAnio = new Date(anio, 0, 1);
+  const diasRestantes = Math.max(0, Math.ceil((finAnio - hoy) / 86400000));
+
+  const abiertos = (gastos || []).filter(g => {
+    if (g.eliminado || g.aprobado === true) return false;
+    const fecha = getFechaEfectiva(g);
+    return fecha >= inicioAnio && fecha <= finAnio;
+  });
+
+  // También detectar compromisos vencidos de un año fiscal anterior.
+  const vencidos = (gastos || []).filter(g => {
+    if (g.eliminado || g.aprobado === true) return false;
+    const fecha = getFechaEfectiva(g);
+    return fecha < inicioAnio;
+  });
+
+  const debeMostrar = vencidos.length > 0 || (hoy.getMonth() === 11 && abiertos.length > 0);
+  if (!debeMostrar) {
+    banner.classList.add('hidden');
+    banner.classList.remove('is-yellow', 'is-orange', 'is-red');
+    return;
+  }
+
+  const lista = vencidos.length ? vencidos : abiertos;
+  const sinInformar = lista.filter(g => !g.registrado).length;
+  const esperandoAprobacion = lista.filter(g => g.registrado && !g.aprobado).length;
+  const totalPendiente = lista.reduce((sum, g) => sum + Number(g.monto || 0), 0);
+  const fmt = n => `$${n.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}`;
+
+  let nivel = 'is-yellow';
+  let titulo = 'Preparar cierre fiscal';
+  if (vencidos.length > 0 || diasRestantes <= 7) {
+    nivel = 'is-red';
+    titulo = vencidos.length ? 'Hay gastos pendientes del año fiscal anterior' : 'Cierre fiscal crítico';
+  } else if (diasRestantes <= 15) {
+    nivel = 'is-orange';
+    titulo = 'Cierre fiscal próximo';
+  }
+
+  banner.classList.remove('hidden', 'is-yellow', 'is-orange', 'is-red');
+  banner.classList.add(nivel);
+
+  const tituloEl = document.getElementById('alerta-cierre-fiscal-titulo');
+  const diasEl = document.getElementById('alerta-cierre-fiscal-dias');
+  const textoEl = document.getElementById('alerta-cierre-fiscal-texto');
+  const metaEl = document.getElementById('alerta-cierre-fiscal-meta');
+
+  if (tituloEl) tituloEl.textContent = titulo;
+  if (diasEl) diasEl.textContent = vencidos.length ? 'Requiere regularización' : `${diasRestantes} día${diasRestantes === 1 ? '' : 's'} para el 31/12`;
+  if (textoEl) textoEl.textContent = vencidos.length
+    ? 'El nuevo año fiscal ya comenzó y existen compromisos anteriores sin cerrar. Regularizalos para mantener el balance correcto.'
+    : 'Antes del cierre del año no deberían quedar gastos sin informar ni pendientes de aprobación.';
+  if (metaEl) metaEl.innerHTML = `
+    <span><b>${sinInformar}</b> sin informar</span>
+    <span><b>${esperandoAprobacion}</b> esperando aprobación</span>
+    <span><b>${fmt(totalPendiente)}</b> comprometidos</span>`;
 }
 
 // ==================== VALIDACIÓN DE COHERENCIA ====================
@@ -1360,7 +1526,7 @@ async function calcularGastosPorOrganizacion(gastos) {
     if (!gasto.fecha) return false;
     if (gasto.aprobado !== true) return false; // solo aprobados
     if (gasto.categoria === 'viaticos') return false; // excluir viáticos de esta vista
-    const fechaGasto = gasto.fecha.toDate ? gasto.fecha.toDate() : parseFechaLocal(gasto.fecha);
+    const fechaGasto = getFechaEfectiva(gasto);
     return fechaGasto >= periodoEfectivo.inicio && fechaGasto <= periodoEfectivo.fin;
   });
   
@@ -1425,35 +1591,47 @@ async function calcularGastosPorOrganizacion(gastos) {
   const listaOrg = document.getElementById('lista-organizaciones');
   if (listaOrg) {
     if (organizacionesOrdenadas.length === 0) {
+      const insight = document.getElementById('organizacion-destacada');
+      if (insight) insight.classList.add('hidden');
       listaOrg.innerHTML = `
-        <div class="text-center py-4 text-gray-400">
-          <p class="text-sm">📊 Sin gastos por organización</p>
-          <p class="text-xs mt-1">Los gastos aparecerán aquí cuando se registren</p>
+        <div class="organization-ranking-empty">
+          <strong>Sin gastos por organización</strong>
+          <span>Los movimientos aprobados aparecerán aquí.</span>
         </div>
       `;
     } else {
+      const maxOrganizacion = Math.max(...organizacionesOrdenadas.map(([, org]) => org.total), 1);
       const itemsHTML = organizacionesOrdenadas
         .map(([key, org], index) => {
-          const porcentaje = totalGastos > 0 ? (org.total / totalGastos * 100).toFixed(1) : 0;
-          // Ocultar items después del 4to en móviles
-          const hiddenClass = index >= 4 ? ' org-item-hidden' : '';
+          const porcentaje = totalGastos > 0 ? (org.total / totalGastos * 100) : 0;
+          const ancho = Math.max(3, (org.total / maxOrganizacion) * 100);
+          const hiddenClass = index >= 5 ? ' org-item-hidden' : '';
           return `
-            <div onclick="mostrarGastosOrganizacion('${key}', '${org.nombre}')" class="org-item${hiddenClass} flex items-center justify-between text-sm py-2 border-b border-gray-50 last:border-0 hover:bg-blue-50 rounded-lg px-2 transition-colors cursor-pointer group">
-              <div class="flex items-center gap-3 flex-1 min-w-0">
-                <div class="relative flex-shrink-0">
-                  <span class="w-3 h-3 rounded-full block" style="background-color: ${org.color}"></span>
+            <button type="button" onclick="mostrarGastosOrganizacion('${key}', '${org.nombre}')" class="organization-ranking-row${hiddenClass}">
+              <div class="organization-ranking-row-head">
+                <div class="organization-ranking-name">
+                  <span class="organization-ranking-dot" style="background:${org.color}"></span>
+                  <span>${org.nombre}</span>
                 </div>
-                <span class="text-gray-600 font-medium truncate group-hover:text-blue-600 transition-colors">${org.nombre}</span>
+                <div class="organization-ranking-amount">
+                  <strong>$${org.total.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</strong>
+                  <span>${porcentaje.toFixed(1)}%</span>
+                </div>
               </div>
-              <div class="text-right ml-4">
-                <div class="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">$${org.total.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
-                <div class="text-[10px] text-gray-400 font-medium bg-gray-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">${porcentaje}% del total</div>
-              </div>
-            </div>
+              <div class="organization-ranking-track"><i style="width:${ancho.toFixed(1)}%; background:${org.color}"></i></div>
+            </button>
           `;
         }).join('');
-      
+
       listaOrg.innerHTML = itemsHTML;
+
+      const insight = document.getElementById('organizacion-destacada');
+      if (insight && organizacionesOrdenadas.length > 0) {
+        const [, mayor] = organizacionesOrdenadas[0];
+        const pctMayor = totalGastos > 0 ? (mayor.total / totalGastos * 100) : 0;
+        insight.classList.remove('hidden');
+        insight.innerHTML = `<span>Mayor concentración</span><strong>${mayor.nombre}</strong><em>${pctMayor.toFixed(1)}% del trimestre</em>`;
+      }
       
       // Agregar botón "Ver más" solo en móviles si hay más de 4 organizaciones
       if (organizacionesOrdenadas.length > 4) {
@@ -1984,10 +2162,12 @@ async function mostrarGastosOrganizacion(organizacionKey, organizacionNombre) {
 function crearTarjetaGastoOrganizacion(gasto) {
   const categoriaInfo = {
     'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
-    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' },
+    'actividades_area': { emoji: '🌐', label: 'Actividades aprobadas por el área', color: 'violet' }
   };
 
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  const catBadge = obtenerClaseCategoria(cat.color);
   
   const comprobanteIcon = gasto.comprobanteAdjunto 
     ? '<span class="text-green-500 text-xs">✓ Con comprobante</span>' 
@@ -2002,7 +2182,7 @@ function crearTarjetaGastoOrganizacion(gasto) {
       <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
         <div class="flex-1 min-w-0">
           <div class="flex flex-wrap items-center gap-2 mb-2">
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-${cat.color}-100 text-${cat.color}-700">
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${catBadge}">
               ${cat.emoji} ${cat.label}
             </span>
             <span class="text-xs text-gray-500">📅 ${gasto.fecha}</span>
@@ -2134,10 +2314,12 @@ async function abrirModalComisionesML() {
 function crearTarjetaGastoComision(gasto) {
   const categoriaInfo = {
     'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
-    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' },
+    'actividades_area': { emoji: '🌐', label: 'Actividades aprobadas por el área', color: 'violet' }
   };
 
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  const catBadge = obtenerClaseCategoria(cat.color);
   
   const comprobanteIcon = gasto.comprobanteAdjunto 
     ? '<span class="text-green-600 text-xs font-medium flex items-center gap-1"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg> Comprobante</span>' 
@@ -2158,7 +2340,7 @@ function crearTarjetaGastoComision(gasto) {
         <!-- Sección izquierda: Info del gasto -->
         <div class="flex-1 min-w-0">
           <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
-            <span class="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold bg-${cat.color}-100 text-${cat.color}-700 border border-${cat.color}-200">
+            <span class="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold ${catBadge}">
               ${cat.emoji} ${cat.label}
             </span>
             <span class="inline-flex items-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
@@ -2559,7 +2741,7 @@ function renderComisionesPendientes(comisiones) {
         </button>
         
         <!-- Contenido del mes -->
-        <div id="grupo-mes-${grupo.clave}-pend" class="p-3 space-y-3 bg-gray-50 dark:bg-gray-900/50 ${estaExpandido ? '' : 'hidden'}">
+        <div id="grupo-mes-${grupo.clave}-pend" class="p-3 space-y-3 bg-blue-50/70 dark:bg-slate-900/60 border-t border-blue-100 dark:border-slate-700 ${estaExpandido ? '' : 'hidden'}">
           ${itemsHTML}
         </div>
       </div>
@@ -2696,7 +2878,7 @@ function renderComisionesInformadas(comisiones) {
         </button>
         
         <!-- Contenido del mes -->
-        <div id="grupo-mes-${grupo.clave}-inf" class="p-3 space-y-3 bg-gray-50 dark:bg-gray-900/50 ${estaExpandido ? '' : 'hidden'}">
+        <div id="grupo-mes-${grupo.clave}-inf" class="p-3 space-y-3 bg-blue-50/70 dark:bg-slate-900/60 border-t border-blue-100 dark:border-slate-700 ${estaExpandido ? '' : 'hidden'}">
           ${itemsHTML}
         </div>
       </div>
@@ -2836,17 +3018,16 @@ async function abrirModalGastosExternos() {
         ...doc.data()
       }))
       .filter(gasto => {
-        if (gasto.eliminado) return false;
-        if (!ORGANIZACIONES_EXTERNAS.includes(gasto.organizacion)) return false;
-        if (!gasto.fecha) return false;
-        const anio = gasto.fecha.substring(0, 4);
-        return anio === String(new Date().getFullYear());
+        if (!esGastoExternoVisible(gasto)) return false;
+
+        const fechaGasto = parseFechaGeneral(gasto.fecha);
+        return fechaGasto.getFullYear() === new Date().getFullYear();
       });
 
     // Ordenar por fecha (más recientes primero)
     gastosExternos.sort((a, b) => {
-      const fechaA = a.fecha ? parseFechaLocal(a.fecha) : new Date(0);
-      const fechaB = b.fecha ? parseFechaLocal(a.fecha) : new Date(0);
+      const fechaA = parseFechaGeneral(a.fecha);
+      const fechaB = parseFechaGeneral(b.fecha);
       return fechaB - fechaA;
     });
 
@@ -2920,10 +3101,12 @@ async function abrirModalGastosExternos() {
 function crearTarjetaGastoExterno(gasto) {
   const categoriaInfo = {
     'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
-    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' },
+    'actividades_area': { emoji: '🌐', label: 'Actividades aprobadas por el área', color: 'violet' }
   };
 
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  const catBadge = obtenerClaseCategoria(cat.color);
   
   const comprobanteIcon = gasto.comprobanteAdjunto 
     ? '<span class="text-green-500 text-xs">✓ Con comprobante</span>' 
@@ -2942,7 +3125,7 @@ function crearTarjetaGastoExterno(gasto) {
       <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
         <div class="flex-1 min-w-0">
           <div class="flex flex-wrap items-center gap-2 mb-2">
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-${cat.color}-100 text-${cat.color}-700">
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${catBadge}">
               ${cat.emoji} ${cat.label}
             </span>
             <span class="text-xs text-gray-500">📅 ${gasto.fecha}</span>
@@ -3020,7 +3203,7 @@ async function abrirModalViaticos() {
     }
 
     lista.innerHTML = gastos.map(g => {
-      const fecha = g.fecha ? g.fecha.split('-').reverse().join('/') : '—';
+      const fecha = formatearFechaSimple(g.fecha);
       const monto = '$' + (g.monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
       const org = g.organizacion || '—';
       const desc = g.descripcion || '—';
@@ -3102,7 +3285,7 @@ async function abrirModalGastosPorOrg() {
     lista.innerHTML = orgsOrdenadas.map(([org, data]) => {
       const orgTotal = '$' + data.total.toLocaleString('es-AR', { minimumFractionDigits: 2 });
       const items = data.gastos.slice(0, 5).map(g => {
-        const fecha = g.fecha ? g.fecha.split('-').reverse().join('/') : '—';
+        const fecha = formatearFechaSimple(g.fecha);
         const monto = '$' + (g.monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
         const estado = g.registrado ? '<span class="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">Reportado</span>' : '<span class="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-semibold">Pendiente</span>';
         return `<div class="flex items-center justify-between py-2 pl-4 border-l-2 border-blue-100 gap-2">
@@ -3157,7 +3340,7 @@ async function cargarGastosEliminados() {
       });
 
     lista.innerHTML = gastos.map(g => {
-      const fecha = g.fecha ? g.fecha.split('-').reverse().join('/') : '—';
+      const fecha = formatearFechaSimple(g.fecha);
       const monto = '$' + (g.monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
       const cat = g.categoria || '—';
       const desc = g.descripcion || 'Sin descripción';
@@ -3213,153 +3396,114 @@ window.cerrarModalTrimestreArchivado = cerrarModalTrimestreArchivado;
 
 // ==================== CALCULAR EVOLUCIÓN TEMPORAL DE GASTOS ====================
 async function calcularEvolucionGastos(gastos) {
-  const NOMBRES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const fmtARS = v => `$${v.toLocaleString('es-AR', {minimumFractionDigits:0, maximumFractionDigits:0})}`;
+  const grid = document.getElementById('quarterly-metrics-grid');
+  if (!grid) return;
 
-  // Período efectivo (trimestre anterior si estamos en transición)
-  const pe = calcularPeriodoEfectivo();
-  const mesInicioEfect = (pe.numero - 1) * 3;
-
-  // Trimestre anterior al efectivo
-  const numPrev  = pe.numero === 1 ? 4 : pe.numero - 1;
-  const anioPrev = pe.numero === 1 ? pe.anio - 1 : pe.anio;
-  const mesInicioPrev = (numPrev - 1) * 3;
-
-  // Acumular gastos: 3 meses trim.anterior + 3 meses trim.efectivo
-  const datosPrev  = [0, 0, 0];
-  const datosEfect = [0, 0, 0];
-  gastos.forEach(gasto => {
-    if (!gasto.fecha && !gasto.fechaAprobacion) return;
-    const fecha = getFechaEfectiva(gasto);
-    const mes   = fecha.getMonth();
-    const anio  = fecha.getFullYear();
-    for (let i = 0; i < 3; i++) {
-      if (anio === anioPrev  && mes === mesInicioPrev  + i) datosPrev[i]  += gasto.monto || 0;
-      if (anio === pe.anio   && mes === mesInicioEfect + i) datosEfect[i] += gasto.monto || 0;
-    }
-  });
-
-  const totalPrev  = datosPrev.reduce((s, v) => s + v, 0);
-  const totalEfect = datosEfect.reduce((s, v) => s + v, 0);
-
-  // Presupuesto total como referencia de escala
-  let presupuestoTotal = 0;
-  let presupuestosHistorial = {};
-  try {
-    const doc = await db.collection('configuracion').doc('sistema').get();
-    if (doc.exists) {
-      const _d = doc.data();
-      presupuestoTotal = _d.presupuestoTotal || 0;
-      presupuestosHistorial = _d.presupuestosHistorial || {};
-    }
-  } catch (e) {}
-
-  const maxValor = Math.max(...datosPrev, ...datosEfect, presupuestoTotal > 0 ? presupuestoTotal * 0.05 : 1);
-
-  // Color para barras del período efectivo según % del presupuesto
-  const colorEfect = v => {
-    if (v === 0) return '#e5e7eb';
-    if (presupuestoTotal === 0) return '#3b82f6';
-    const pct = v / presupuestoTotal * 100;
-    if (pct >= 80) return '#ef4444';
-    if (pct >= 50) return '#f59e0b';
-    if (pct >= 30) return '#3b82f6';
-    return '#10b981';
+  const periodoActivo = calcularPeriodoEfectivo();
+  const anio = periodoActivo.anio;
+  const fmtARS = valor => {
+    const n = Number(valor || 0);
+    const signo = n > 0 ? '+' : '';
+    return `${signo}$${n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
-  // ── Desktop / Tablet: 3 barras grises (anterior) + separador + 3 barras color (efectivo) ──
-  const chartMeses = document.getElementById('chart-evolucion-meses');
-  if (chartMeses) {
-    let html = '';
-    for (let i = 0; i < 3; i++) {
-      const v = datosPrev[i];
-      const h = v > 0 ? Math.max(8, (v / maxValor) * 100) : 4;
-      const lbl = `${NOMBRES[mesInicioPrev + i]} '${String(anioPrev).slice(-2)}`;
-      const tip = v > 0 ? `${lbl}: ${fmtARS(v)}` : `${lbl}: Sin movimientos`;
-      html += `<div class="flex-1 rounded-t transition-all duration-500 opacity-50" style="height:${h.toFixed(1)}%;min-height:4px;background:#94a3b8" title="${tip}"></div>`;
+  const yearEl = document.getElementById('quarterly-summary-year');
+  if (yearEl) yearEl.textContent = anio;
+
+  let config = {};
+  try {
+    const doc = await db.collection('configuracion').doc('sistema').get();
+    if (doc.exists) config = doc.data() || {};
+  } catch (error) {
+    console.warn('No se pudo cargar el historial de presupuestos:', error);
+  }
+
+  const historial = config.presupuestosHistorial || {};
+  const presupuestosLegacy = config.presupuestosTrimestres || {};
+  const metricas = [];
+
+  for (let numero = 1; numero <= 4; numero++) {
+    const id = `Q${numero}-${anio}`;
+    const mesInicio = (numero - 1) * 3;
+    const inicio = new Date(anio, mesInicio, 1);
+    const fin = new Date(anio, mesInicio + 3, 0, 23, 59, 59);
+    const registro = historial[id] || null;
+
+    let gastado = 0;
+    gastos.forEach(gasto => {
+      if (gasto.eliminado || gasto.aprobado !== true) return;
+      if (gasto.categoria !== 'presupuesto') return;
+      if (ORGANIZACIONES_EXTERNAS.includes(gasto.organizacion || '')) return;
+      const fecha = getFechaEfectiva(gasto);
+      if (fecha >= inicio && fecha <= fin) gastado += Number(gasto.monto || 0);
+    });
+
+    let presupuesto = registro?.total ?? (presupuestosLegacy[id] ?? null);
+    if (presupuesto == null && id === (config.presupuestoCargadoParaTrimestre || _trimestreCargadoId)) {
+      presupuesto = config.presupuestoTotal || 0;
     }
-    // Separador visual entre trimestres
-    html += `<div class="flex-shrink-0 self-stretch rounded" style="width:2px;background:rgba(156,163,175,0.35);margin:0 4px"></div>`;
-    for (let i = 0; i < 3; i++) {
-      const v = datosEfect[i];
-      const h = v > 0 ? Math.max(8, (v / maxValor) * 100) : 4;
-      const lbl = `${NOMBRES[mesInicioEfect + i]} '${String(pe.anio).slice(-2)}`;
-      const pct = presupuestoTotal > 0 ? ` (${(v / presupuestoTotal * 100).toFixed(1)}% ppto)` : '';
-      const tip = v > 0 ? `${lbl}: ${fmtARS(v)}${pct}` : `${lbl}: Sin movimientos`;
-      html += `<div class="flex-1 rounded-t transition-all duration-500" style="height:${h.toFixed(1)}%;min-height:4px;background:${colorEfect(v)}" title="${tip}"></div>`;
+
+    const tieneDatos = presupuesto != null || gastado > 0 || registro != null;
+    const base = Number(presupuesto || 0);
+    const saldo = base - gastado;
+    const porcentaje = base > 0 ? (gastado / base) * 100 : (gastado > 0 ? 100 : 0);
+
+    metricas.push({
+      numero,
+      id,
+      tieneDatos,
+      presupuesto: base,
+      gastado,
+      saldo,
+      porcentaje,
+      activo: numero === periodoActivo.numero && anio === periodoActivo.anio,
+      meses: [
+        ['Ene–Mar', 'Abr–Jun', 'Jul–Sep', 'Oct–Dic'][numero - 1]
+      ][0]
+    });
+  }
+
+  const estado = q => {
+    if (!q.tieneDatos) return { texto: 'Sin datos', clase: 'is-empty', barra: 0 };
+    if (q.saldo < 0 || q.porcentaje > 100 || (q.presupuesto === 0 && q.gastado > 0)) {
+      return { texto: 'Excedido', clase: 'is-danger', barra: 100 };
     }
-    chartMeses.innerHTML = html;
-  }
+    if (q.porcentaje >= 90) return { texto: `${q.porcentaje.toFixed(1)}% utilizado`, clase: 'is-warning', barra: Math.min(100, q.porcentaje) };
+    if (q.porcentaje >= 70) return { texto: `${q.porcentaje.toFixed(1)}% utilizado`, clase: 'is-moderate', barra: q.porcentaje };
+    return { texto: `${q.porcentaje.toFixed(1)}% utilizado`, clase: 'is-healthy', barra: q.porcentaje };
+  };
 
-  // ── Etiquetas de meses ──
-  const labelsGrid = document.getElementById('chart-meses-labels');
-  if (labelsGrid) {
-    labelsGrid.className = 'grid mt-2 text-[9px] lg:text-[10px] text-gray-500 text-center hidden sm:grid';
-    labelsGrid.style.gridTemplateColumns = 'repeat(3,1fr) 10px repeat(3,1fr)';
-    let lh = '';
-    for (let i = 0; i < 3; i++) lh += `<span class="opacity-60">${NOMBRES[mesInicioPrev + i]}</span>`;
-    lh += `<span></span>`;
-    for (let i = 0; i < 3; i++) lh += `<span>${NOMBRES[mesInicioEfect + i]}</span>`;
-    labelsGrid.innerHTML = lh;
-  }
+  grid.innerHTML = metricas.map(q => {
+    const e = estado(q);
+    if (!q.tieneDatos) {
+      return `
+        <article class="quarter-performance-item is-empty ${q.activo ? 'is-active' : ''}">
+          <div class="quarter-performance-top">
+            <div><strong>Q${q.numero}</strong><span>${q.meses}</span></div>
+            ${q.activo ? '<em>Actual</em>' : ''}
+          </div>
+          <div class="quarter-performance-no-data">Sin datos</div>
+          <div class="quarter-performance-track"><i style="width:0%"></i></div>
+          <div class="quarter-performance-status">Sin movimientos</div>
+        </article>`;
+    }
 
-  // ── Totales por trimestre ──
-  const labelsQ = document.getElementById('presupuestos-trimestre-labels');
-  if (labelsQ) {
-    const sfx = pe.enTransicion ? ' ·trans.' : '';
-    labelsQ.className = 'grid mt-1 mb-2 text-[9px] lg:text-[10px] font-medium text-center hidden sm:grid';
-    labelsQ.style.gridTemplateColumns = '3fr 10px 3fr';
-    const _pptoPrev  = presupuestosHistorial[`Q${numPrev}-${anioPrev}`]?.total || null;
-    const _pptoEfect = presupuestosHistorial[`Q${pe.numero}-${pe.anio}`]?.total || presupuestoTotal;
-    const _lblPrev  = _pptoPrev  !== null ? `Ppto: ${fmtARS(_pptoPrev)}`  : fmtARS(totalPrev);
-    const _lblEfect = `Ppto: ${fmtARS(_pptoEfect)}`;
-    labelsQ.innerHTML =
-      `<span class="border-t border-gray-200 pt-1 px-1 truncate text-gray-400 opacity-70">Q${numPrev} ${anioPrev}: ${_lblPrev}</span>` +
-      `<span></span>` +
-      `<span class="border-t border-blue-400 pt-1 px-1 truncate text-blue-500 font-semibold">Q${pe.numero} ${pe.anio}${sfx}: ${_lblEfect}</span>`;
-  }
+    const tooltip = `Presupuesto: $${q.presupuesto.toLocaleString('es-AR')} · Gastado: $${q.gastado.toLocaleString('es-AR')}`;
+    return `
+      <article class="quarter-performance-item ${e.clase} ${q.activo ? 'is-active' : ''}" title="${tooltip}">
+        <div class="quarter-performance-top">
+          <div><strong>Q${q.numero}</strong><span>${q.meses}</span></div>
+          ${q.activo ? '<em>Actual</em>' : ''}
+        </div>
+        <div class="quarter-performance-label">Saldo</div>
+        <div class="quarter-performance-balance ${q.saldo < 0 ? 'is-negative' : ''}">${fmtARS(q.saldo)}</div>
+        <div class="quarter-performance-track"><i style="width:${e.barra.toFixed(1)}%"></i></div>
+        <div class="quarter-performance-status">${e.texto}</div>
+      </article>`;
+  }).join('');
 
-  // ── Subtítulo y leyenda ──
   const subtitulo = document.getElementById('chart-evolucion-subtitulo');
-  if (subtitulo) subtitulo.textContent = `Q${numPrev} ${anioPrev} vs. Q${pe.numero} ${pe.anio}${pe.enTransicion ? ' (transición)' : ''}`;
-
-  const leyenda = document.getElementById('chart-evolucion-leyenda');
-  if (leyenda) {
-    leyenda.innerHTML =
-      `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-400 opacity-60"></span><span class="opacity-70">Anterior</span></span>` +
-      `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span><span>Bajo</span></span>` +
-      `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span><span>Moderado</span></span>` +
-      `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-500"></span><span>Alto</span></span>`;
-  }
-
-  // ── Móvil: 2 barras (trim.anterior vs trim.efectivo) ──
-  const chartTrim = document.getElementById('chart-evolucion-trimestres');
-  if (chartTrim) {
-    const maxT = Math.max(totalPrev, totalEfect, 1);
-    const hP = totalPrev  > 0 ? Math.max(15, (totalPrev  / maxT) * 100) : 15;
-    const hE = totalEfect > 0 ? Math.max(15, (totalEfect / maxT) * 100) : 15;
-    chartTrim.innerHTML =
-      `<div class="flex-1 rounded-t transition-all duration-500 opacity-60" style="height:${hP.toFixed(1)}%;min-height:20px;background:#94a3b8" title="Q${numPrev} ${anioPrev}: ${fmtARS(totalPrev)}"></div>` +
-      `<div class="flex-1 rounded-t transition-all duration-500" style="height:${hE.toFixed(1)}%;min-height:20px;background:${colorEfect(totalEfect)}" title="Q${pe.numero} ${pe.anio}: ${fmtARS(totalEfect)}"></div>`;
-  }
-
-  // Etiquetas móvil: nombre de meses de cada trimestre
-  const mobileMonthLabels = chartTrim ? chartTrim.nextElementSibling : null;
-  if (mobileMonthLabels && mobileMonthLabels.classList.contains('sm:hidden')) {
-    mobileMonthLabels.className = 'grid grid-cols-2 gap-1 mt-2 text-xs text-gray-500 text-center sm:hidden';
-    mobileMonthLabels.innerHTML =
-      `<span class="opacity-60">${NOMBRES[mesInicioPrev]}–${NOMBRES[mesInicioPrev+2]}</span>` +
-      `<span>${NOMBRES[mesInicioEfect]}–${NOMBRES[mesInicioEfect+2]}</span>`;
-  }
-
-  // Totales móvil
-  const labelsMQ = document.getElementById('presupuestos-trimestre-labels-mobile');
-  if (labelsMQ) {
-    labelsMQ.className = 'grid grid-cols-2 gap-1 mt-1 mb-2 text-[9px] text-gray-400 font-medium text-center sm:hidden tabular-nums tracking-tighter';
-    labelsMQ.innerHTML =
-      `<span class="border-t border-gray-200 pt-1 px-0.5 truncate opacity-70">Q${numPrev} ${anioPrev}: ${fmtARS(totalPrev)}</span>` +
-      `<span class="border-t border-blue-400 pt-1 px-0.5 truncate text-blue-500">Q${pe.numero} ${pe.anio}: ${fmtARS(totalEfect)}</span>`;
-  }
+  if (subtitulo) subtitulo.textContent = `${anio} · comparación visual de ejecución por trimestre`;
 }
 
 // Función auxiliar para actualizar barras (meses o trimestres)
@@ -3666,8 +3810,853 @@ function toggleOpcionIncluyeComision() {
 }
 window.toggleOpcionIncluyeComision = toggleOpcionIncluyeComision;
 
+// ==================== MEETUP 2027 ====================
+const meetupState = {
+  gastos: [],
+  ultimoGasto: null
+};
+
+let meetupEditandoGastoId = null;
+
+function cargarMeetupState() {
+  try {
+    const gastosGuardados = localStorage.getItem('meetupGastos');
+    if (!gastosGuardados) {
+      meetupState.gastos = [];
+      meetupState.ultimoGasto = null;
+      return;
+    }
+
+    const parsed = JSON.parse(gastosGuardados);
+    meetupState.gastos = Array.isArray(parsed) ? parsed : [];
+    meetupState.ultimoGasto = meetupState.gastos.at(-1) || null;
+  } catch (error) {
+    console.warn('No se pudieron restaurar los gastos de MeetUp:', error);
+    meetupState.gastos = [];
+    meetupState.ultimoGasto = null;
+  }
+}
+
+async function cargarMeetupStateDesdeFirebase() {
+  if (!db || !usuarioActual) {
+    cargarMeetupState();
+    return;
+  }
+
+  try {
+    // Evitamos where + where + orderBy para no depender de un índice compuesto.
+    // Filtramos y ordenamos en el navegador.
+    const snapshot = await db.collection('gastos')
+      .where('eliminado', '==', false)
+      .get();
+
+    const gastos = [];
+
+    snapshot.forEach((doc) => {
+      const data = doc.data() || {};
+      const descripcion = String(data.descripcion || '').toLowerCase();
+      const observaciones = String(data.observaciones || '').toLowerCase();
+
+      const esMeetupActual = data.organizacion === 'meetup';
+
+      // Compatibilidad con gastos creados durante una versión anterior
+      // que asignaba erróneamente organizacion="area".
+      const esMeetupLegacy =
+        data.organizacion === 'area' &&
+        data.categoria === 'actividades_area' &&
+        (
+          descripcion.includes('meetup') ||
+          descripcion.includes('meet up') ||
+          observaciones.includes('meetup') ||
+          observaciones.includes('meet up')
+        );
+
+      if (esMeetupActual || esMeetupLegacy) {
+        gastos.push({
+          id: doc.id,
+          tipo: data.tipo || 'otro',
+          ...data,
+          _meetupLegacy: esMeetupLegacy
+        });
+      }
+    });
+
+    const getTime = (valor) => {
+      if (!valor) return 0;
+      if (typeof valor.toDate === 'function') return valor.toDate().getTime();
+      const d = new Date(valor);
+      return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+    };
+
+    gastos.sort((a, b) => getTime(b.fecha) - getTime(a.fecha));
+
+    meetupState.gastos = gastos;
+    meetupState.ultimoGasto = gastos[0] || null;
+    guardarMeetupState();
+  } catch (error) {
+    console.warn('No se pudo cargar MeetUp desde Firebase, usando respaldo local:', error);
+    cargarMeetupState();
+  }
+}
+
+function guardarMeetupState() {
+  try {
+    localStorage.setItem('meetupGastos', JSON.stringify(meetupState.gastos));
+  } catch (error) {
+    console.warn('No se pudieron guardar los gastos de MeetUp:', error);
+  }
+}
+
+async function persistirMeetupEnFirebase(gasto) {
+  if (!db) {
+    throw new Error('Firebase no está inicializado');
+  }
+
+  const payload = {
+    descripcion: gasto.descripcion,
+    pagadoA: gasto.pagadoA || '',
+    monto: Number(gasto.monto || 0),
+    categoria: 'presupuesto',
+    organizacion: 'meetup',
+    fecha: gasto.fecha || new Date(),
+    comprobanteAdjunto: false,
+    tipoPago: null,
+    reembolsado: Boolean(gasto.reembolsado),
+    observaciones: gasto.observaciones || '',
+    imagenRecibo: null,
+    registrado: false,
+    eliminado: false,
+    tipo: gasto.tipo || 'otro',
+    informado: Boolean(gasto.informado),
+    aprobado: Boolean(gasto.aprobado),
+    fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+    creadoPor: usuarioActual || 'local'
+  };
+
+  const esGastoExistente = Boolean(gasto.id) && !String(gasto.id).startsWith('temp-meetup-') && !String(gasto.id).startsWith('meetup-');
+  if (esGastoExistente) {
+    await db.collection('gastos').doc(gasto.id).update(payload);
+    return gasto.id;
+  }
+
+  const docRef = await db.collection('gastos').add(payload);
+  return docRef.id;
+}
+
+function obtenerAnioMeetupActual() {
+  const anioActual = new Date().getFullYear();
+  return anioActual;
+}
+
+function actualizarAnioMeetupEnUI() {
+  const anio = obtenerAnioMeetupActual();
+  document.querySelectorAll('[data-meetup-year]').forEach((element) => {
+    element.textContent = anio;
+  });
+}
+
+function obtenerGastosPorTipoMeetup(tipo) {
+  const nombreTipo = String(tipo || '').toLowerCase();
+  return meetupState.gastos.filter((gasto) => String(gasto.tipo || '').toLowerCase() === nombreTipo);
+}
+
+function obtenerGastoTotalPorTipoMeetup(tipo) {
+  return obtenerGastosPorTipoMeetup(tipo).reduce((total, gasto) => total + Number(gasto.monto || 0), 0);
+}
+
+function renderMeetupAlertaPrincipal() {
+  const alerta = document.getElementById('meetup-alerta-principal');
+  if (!alerta) return;
+
+  // El aviso superior representa trabajo pendiente, no simplemente
+  // "el último gasto creado". Si ya fue informado, deja de aparecer.
+  const pendientesSinInformar = meetupState.gastos
+    .filter((gasto) => gasto && !Boolean(gasto.informado) && !Boolean(gasto.eliminado))
+    .sort((a, b) => {
+      const obtenerTiempo = (valor) => {
+        if (!valor) return 0;
+        if (typeof valor.toDate === 'function') return valor.toDate().getTime();
+        const fecha = new Date(valor);
+        return Number.isNaN(fecha.getTime()) ? 0 : fecha.getTime();
+      };
+      return obtenerTiempo(b.fechaCreacion || b.fecha) - obtenerTiempo(a.fechaCreacion || a.fecha);
+    });
+
+  const gastoPendiente = pendientesSinInformar[0];
+
+  if (!gastoPendiente) {
+    alerta.classList.add('hidden');
+    alerta.innerHTML = '';
+    return;
+  }
+
+  const { tipo, monto, descripcion } = gastoPendiente;
+  const nombreTipo =
+    tipo === 'capacitacion' ? 'Capacitación' :
+    tipo === 'decoracion' ? 'Decoración' :
+    tipo === 'comida' ? 'Comida' : 'Otro';
+
+  const cantidadPendiente = pendientesSinInformar.length;
+
+  alerta.innerHTML = `
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <p class="font-bold">${cantidadPendiente === 1 ? 'Gasto pendiente de informar' : `${cantidadPendiente} gastos pendientes de informar`}</p>
+        <p class="text-xs opacity-90">${nombreTipo} • ${descripcion || 'Sin descripción'} • ${formatearMontoMeetup(monto)}</p>
+      </div>
+      <span class="rounded-full bg-white/80 px-2 py-1 text-[10px] font-bold uppercase tracking-wide meetup-pending-badge">
+        Sin informar
+      </span>
+    </div>
+  `;
+  alerta.classList.remove('hidden');
+}
+
+function renderMeetupGastosPorCategoria(tipo) {
+  const lista = document.getElementById(`meetup-${tipo}-gastos`);
+  if (!lista) return;
+
+  const gastos = obtenerGastosPorTipoMeetup(tipo);
+  if (gastos.length === 0) {
+    lista.innerHTML = '<li class="text-gray-400">Sin gastos registrados</li>';
+    return;
+  }
+
+  const estadoBadge = {
+    informado: 'bg-blue-100 text-blue-700',
+    registrado: 'bg-green-100 text-green-700',
+    pendiente: 'bg-amber-100 text-amber-700'
+  };
+
+  lista.innerHTML = gastos.map((gasto) => {
+    const descripcion = gasto.descripcion || `${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`;
+    const estado = gasto.estado || 'informado';
+    const estadoLabel = estado === 'registrado' ? 'Registrado' : estado === 'pendiente' ? 'Pendiente' : 'Informado';
+    return `
+      <li class="border-b border-gray-100 pb-2 last:border-b-0">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <p class="font-medium text-gray-700 truncate">${descripcion}</p>
+            <p class="text-[10px] text-gray-400">${gasto.cantidad || 1} unidad${(gasto.cantidad || 1) === 1 ? '' : 'es'}</p>
+          </div>
+          <span class="text-[11px] font-semibold text-red-500">-${formatearMontoMeetup(gasto.monto)}</span>
+        </div>
+        <div class="mt-1 flex items-center justify-between gap-2">
+          <span class="text-[10px] text-gray-400">${estadoLabel}</span>
+          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-semibold ${estadoBadge[estado] || estadoBadge.informado}">${estadoLabel}</span>
+        </div>
+      </li>
+    `;
+  }).join('');
+}
+
+function actualizarEstadoCategoriaMeetup(tipo) {
+  const baseInput = document.getElementById(`meetup-${tipo}`);
+  const registradoEl = document.getElementById(`meetup-${tipo}-registrado`);
+  const saldoEl = document.getElementById(`meetup-${tipo}-saldo`);
+  const progressEl = document.getElementById(`meetup-${tipo}-progress`);
+  const percentageEl = document.getElementById(`meetup-${tipo}-percentage`);
+
+  if (!baseInput || !registradoEl || !saldoEl || !progressEl) return;
+
+  const base = parsearMontoMeetup(baseInput.value);
+  const registrado = obtenerGastoTotalPorTipoMeetup(tipo);
+  const saldo = base - registrado;
+  const porcentajeDisponible = base > 0
+    ? Math.max(0, Math.min((saldo / base) * 100, 100))
+    : 0;
+
+  registradoEl.textContent = formatearMontoMeetup(registrado);
+  saldoEl.textContent = formatearMontoMeetup(saldo);
+  progressEl.style.width = `${porcentajeDisponible}%`;
+
+  if (percentageEl) {
+    const porcentajeTexto = porcentajeDisponible.toLocaleString('es-AR', {
+      minimumFractionDigits: Number.isInteger(porcentajeDisponible) ? 0 : 1,
+      maximumFractionDigits: 1
+    });
+    percentageEl.textContent = saldo < 0 ? '0% disponible · excedido' : `${porcentajeTexto}% disponible`;
+    percentageEl.classList.toggle('is-danger', saldo < 0);
+  }
+
+  if (saldo < 0) {
+    saldoEl.className = 'font-semibold text-red-600';
+    progressEl.className = 'h-full rounded-full bg-red-500 transition-all duration-200';
+  } else if (saldo <= base * 0.2) {
+    saldoEl.className = 'font-semibold text-amber-600';
+    progressEl.className = 'h-full rounded-full bg-amber-500 transition-all duration-200';
+  } else {
+    saldoEl.className = 'font-semibold text-emerald-600';
+    progressEl.className = 'h-full rounded-full bg-emerald-500 transition-all duration-200';
+  }
+}
+
+function parsearMontoMeetup(valor) {
+  if (valor === null || valor === undefined || valor === '') return 0;
+
+  let limpio = String(valor)
+    .replace(/\$/g, '')
+    .replace(/\s+/g, '');
+
+  if (!limpio) return 0;
+
+  const tieneComa = limpio.includes(',');
+  const tienePunto = limpio.includes('.');
+
+  if (tieneComa && tienePunto) {
+    limpio = limpio.replace(/\./g, '').replace(',', '.');
+  } else if (tieneComa) {
+    limpio = limpio.replace(',', '.');
+  } else if (tienePunto) {
+    const ultimoPunto = limpio.lastIndexOf('.');
+    const parteIzquierda = limpio.slice(0, ultimoPunto);
+    const parteDerecha = limpio.slice(ultimoPunto + 1);
+    const tieneMiles = parteIzquierda.includes('.') || parteIzquierda.length > 3;
+
+    if (tieneMiles && parteDerecha.length <= 2) {
+      limpio = limpio.replace(/\./g, '');
+    }
+  }
+
+  const numero = Number(limpio);
+  return Number.isFinite(numero) ? numero : 0;
+}
+
+function formatearMontoMeetup(monto) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number(monto || 0));
+}
+
+function formatearMontoInputMeetup(monto) {
+  const numero = Number(monto || 0);
+  return `$${numero.toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+}
+
+function calcularTotalPlanificadoMeetup() {
+  const capacitacion = parsearMontoMeetup(document.getElementById('meetup-capacitacion')?.value);
+  const decoracion = parsearMontoMeetup(document.getElementById('meetup-decoracion')?.value);
+  const comidaUnitario = parsearMontoMeetup(document.getElementById('meetup-comida-unitario')?.value);
+  const participantes = Number(document.getElementById('meetup-participantes')?.value || 1);
+  return capacitacion + decoracion + (comidaUnitario * participantes);
+}
+
+async function cambiarEstadoMeetupGasto(id, campo, valor) {
+  const gasto = meetupState.gastos.find((item) => item.id === id);
+  if (!gasto) return;
+
+  const nuevoValor = valor === true || valor === 'true';
+  gasto[campo] = nuevoValor;
+
+  try {
+    if (db && id && !String(id).startsWith('temp-meetup-')) {
+      await db.collection('gastos').doc(id).update({
+        [campo]: nuevoValor,
+        fechaActualizacion: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    guardarMeetupState();
+    actualizarMeetupDashboard();
+  } catch (error) {
+    console.error('Error al actualizar estado de MeetUp:', error);
+    mostrarNotificacion('❌ No se pudo actualizar el estado en Firebase.', 'error');
+  }
+}
+
+function actualizarBotonSubmitMeetup(estaEditando) {
+  const boton = document.getElementById('btn-guardar-meetup-gasto');
+  if (!boton) return;
+  boton.textContent = estaEditando ? 'Actualizar gasto' : 'Ingresar nuevo gasto';
+}
+
+function resetearFormularioMeetupGasto() {
+  meetupEditandoGastoId = null;
+  const form = document.getElementById('form-meetup-gasto');
+  if (form) form.reset();
+
+  const montoInput = document.getElementById('meetup-gasto-monto');
+  if (montoInput) montoInput.value = '$0,00';
+
+  const tipoInput = document.getElementById('meetup-gasto-tipo');
+  if (tipoInput) tipoInput.value = 'capacitacion';
+
+  const pagadoAInput = document.getElementById('meetup-gasto-pagado-a');
+  if (pagadoAInput) pagadoAInput.value = '';
+
+  actualizarBotonSubmitMeetup(false);
+}
+
+function prepararEdicionMeetupGasto(id) {
+  const gasto = meetupState.gastos.find((item) => String(item.id || '') === String(id || ''));
+  if (!gasto) return;
+
+  meetupEditandoGastoId = String(id || '');
+
+  const tipoInput = document.getElementById('meetup-gasto-tipo');
+  const montoInput = document.getElementById('meetup-gasto-monto');
+  const descripcionInput = document.getElementById('meetup-gasto-descripcion');
+  const pagadoAInput = document.getElementById('meetup-gasto-pagado-a');
+
+  if (tipoInput) tipoInput.value = gasto.tipo || 'capacitacion';
+  if (montoInput) montoInput.value = formatearMontoInputMeetup(gasto.monto || 0);
+  if (descripcionInput) descripcionInput.value = gasto.descripcion || '';
+  if (pagadoAInput) pagadoAInput.value = gasto.pagadoA || '';
+
+  actualizarBotonSubmitMeetup(true);
+  document.getElementById('form-meetup-gasto')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+window.prepararEdicionMeetupGasto = prepararEdicionMeetupGasto;
+
+async function eliminarGastoMeetup(id) {
+  const gasto = meetupState.gastos.find((item) => String(item.id || '') === String(id || ''));
+  if (!gasto) return;
+
+  const confirmar = window.confirm(`¿Eliminar el gasto "${gasto.descripcion || 'Sin descripción'}"?`);
+  if (!confirmar) return;
+
+  try {
+    if (db && id && !String(id).startsWith('temp-meetup-')) {
+      await db.collection('gastos').doc(id).update({
+        eliminado: true,
+        fechaEliminacion: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    meetupState.gastos = meetupState.gastos.filter((item) => String(item.id || '') !== String(id || ''));
+
+    if (String(meetupEditandoGastoId || '') === String(id || '')) {
+      resetearFormularioMeetupGasto();
+    }
+
+    guardarMeetupState();
+    actualizarMeetupDashboard();
+    mostrarNotificacion('🗑️ Gasto eliminado', 'success');
+  } catch (error) {
+    console.error('Error al eliminar gasto de MeetUp:', error);
+    mostrarNotificacion('❌ No se pudo eliminar el gasto de Firebase.', 'error');
+  }
+}
+
+window.eliminarGastoMeetup = eliminarGastoMeetup;
+
+let meetupVistaMovimientos = 'proceso';
+let meetupCategoriaMovimientos = 'todos';
+const meetupCategoriasAbiertas = new Set(['capacitacion', 'decoracion', 'comida', 'otro']);
+
+function meetupMovimientoCompletado(gasto) {
+  return Boolean(gasto?.informado) && Boolean(gasto?.aprobado) && Boolean(gasto?.reembolsado);
+}
+
+function meetupNombreCategoria(tipo) {
+  const mapa = {
+    capacitacion: 'Capacitación',
+    decoracion: 'Decoración',
+    comida: 'Comida',
+    otro: 'Otros'
+  };
+  return mapa[tipo] || 'Otros';
+}
+
+function meetupIconoCategoria(tipo) {
+  const mapa = {
+    capacitacion: '⌂',
+    decoracion: '✳',
+    comida: '♨',
+    otro: '•'
+  };
+  return mapa[tipo] || '•';
+}
+
+function meetupRenderEstadoCompacto(gasto, campo, label) {
+  const activo = Boolean(gasto[campo]);
+  return `
+    <button
+      type="button"
+      class="meetup-state-chip ${activo ? 'is-complete' : 'is-pending'}"
+      data-gasto-id="${gasto.id}"
+      data-campo="${campo}"
+      data-valor="${activo ? 'false' : 'true'}">
+      <span class="meetup-state-chip-dot"></span>
+      <span>${label}</span>
+      <strong>${activo ? 'Sí' : 'No'}</strong>
+    </button>
+  `;
+}
+
+function meetupRenderMovimientoCompacto(gasto, esHistorial = false) {
+  const texto = gasto.descripcion
+    ? gasto.descripcion
+    : `${(gasto.tipo || 'otro').charAt(0).toUpperCase() + (gasto.tipo || 'otro').slice(1)}`;
+
+  const fecha = gasto.fecha ? formatearFechaSimple(gasto.fecha) : '';
+
+  return `
+    <article class="meetup-movement-row ${esHistorial ? 'is-history' : ''}">
+      <div class="meetup-movement-main">
+        <div class="meetup-movement-title-row">
+          <div class="meetup-movement-copy">
+            <h5>${texto}</h5>
+            <div class="meetup-movement-meta">
+              ${fecha ? `<span>${fecha}</span>` : ''}
+              ${gasto.pagadoA ? `<span class="meetup-movement-beneficiary">👤 ${gasto.pagadoA}</span>` : ''}
+            </div>
+          </div>
+          <strong class="meetup-movement-amount">-${formatearMontoMeetup(gasto.monto)}</strong>
+        </div>
+
+        <div class="meetup-movement-statuses">
+          ${meetupRenderEstadoCompacto(gasto, 'informado', 'Informado')}
+          ${meetupRenderEstadoCompacto(gasto, 'aprobado', 'Aprobado')}
+          ${meetupRenderEstadoCompacto(gasto, 'reembolsado', 'Reembolsado')}
+        </div>
+      </div>
+
+      <div class="meetup-movement-actions">
+        <button type="button" data-meetup-action="edit" data-gasto-id="${gasto.id}" class="meetup-movement-action meetup-movement-action--edit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l11-11a2.1 2.1 0 0 0-4-4L4 16v4zM13.5 6.5l4 4"/></svg>
+          <span>Editar</span>
+        </button>
+        <button type="button" data-meetup-action="delete" data-gasto-id="${gasto.id}" class="meetup-movement-action meetup-movement-action--delete">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/></svg>
+          <span>Eliminar</span>
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function meetupRenderGrupoCategoria(tipo, gastos, esHistorial) {
+  const total = gastos.reduce((sum, gasto) => sum + Number(gasto.monto || 0), 0);
+  const abierto = meetupCategoriasAbiertas.has(tipo);
+  const pendientes = gastos.filter((g) => !meetupMovimientoCompletado(g)).length;
+
+  return `
+    <section class="meetup-movement-group ${abierto ? 'is-open' : ''}" data-meetup-group="${tipo}">
+      <button type="button" class="meetup-movement-group-head" data-meetup-toggle-category="${tipo}">
+        <div class="meetup-movement-group-name">
+          <span class="meetup-movement-group-icon">${meetupIconoCategoria(tipo)}</span>
+          <div>
+            <strong>${meetupNombreCategoria(tipo)}</strong>
+            <small>
+              ${gastos.length} movimiento${gastos.length !== 1 ? 's' : ''}
+              ${!esHistorial && pendientes ? ` · ${pendientes} pendiente${pendientes !== 1 ? 's' : ''}` : ''}
+            </small>
+          </div>
+        </div>
+        <div class="meetup-movement-group-total">
+          <strong>${formatearMontoMeetup(total)}</strong>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </div>
+      </button>
+
+      <div class="meetup-movement-group-body">
+        ${gastos.map((gasto) => meetupRenderMovimientoCompacto(gasto, esHistorial)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderMeetupGastos() {
+  const lista = document.getElementById('meetup-gastos-lista');
+  const contador = document.getElementById('meetup-gastos-count');
+
+  const gastosValidos = (meetupState.gastos || []).filter((gasto) => gasto && !gasto.eliminado);
+  const enProceso = gastosValidos.filter((gasto) => !meetupMovimientoCompletado(gasto));
+  const historial = gastosValidos.filter(meetupMovimientoCompletado);
+  const totalRegistrado = gastosValidos.reduce((sum, gasto) => sum + Number(gasto.monto || 0), 0);
+
+  if (contador) contador.textContent = `${gastosValidos.length} ingreso(s)`;
+
+  const procesoCount = document.getElementById('meetup-proceso-count');
+  const historialCount = document.getElementById('meetup-historial-count');
+  const tabProcesoCount = document.getElementById('meetup-tab-proceso-count');
+  const tabHistorialCount = document.getElementById('meetup-tab-historial-count');
+  const movimientosTotal = document.getElementById('meetup-movimientos-total');
+
+  if (procesoCount) procesoCount.textContent = String(enProceso.length);
+  if (historialCount) historialCount.textContent = String(historial.length);
+  if (tabProcesoCount) tabProcesoCount.textContent = String(enProceso.length);
+  if (tabHistorialCount) tabHistorialCount.textContent = String(historial.length);
+  if (movimientosTotal) movimientosTotal.textContent = formatearMontoMeetup(totalRegistrado);
+
+  document.querySelectorAll('.meetup-movement-tab').forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.meetupView === meetupVistaMovimientos);
+  });
+
+  document.querySelectorAll('.meetup-category-filter').forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.meetupCategory === meetupCategoriaMovimientos);
+  });
+
+  if (!lista) return;
+
+  const fuente = meetupVistaMovimientos === 'historial' ? historial : enProceso;
+  const esHistorial = meetupVistaMovimientos === 'historial';
+
+  const filtrados = meetupCategoriaMovimientos === 'todos'
+    ? fuente
+    : fuente.filter((gasto) => (gasto.tipo || 'otro') === meetupCategoriaMovimientos);
+
+  if (filtrados.length === 0) {
+    lista.innerHTML = `
+      <div class="meetup-movement-empty">
+        <span>${esHistorial ? '✓' : '○'}</span>
+        <strong>${esHistorial ? 'Todavía no hay movimientos completados' : 'No hay movimientos pendientes'}</strong>
+        <p>${esHistorial
+          ? 'Cuando un gasto esté informado, aprobado y reembolsado aparecerá aquí.'
+          : 'Los gastos que requieren alguna acción aparecerán en esta sección.'}</p>
+      </div>
+    `;
+  } else {
+    const ordenCategorias = ['capacitacion', 'decoracion', 'comida', 'otro'];
+    const grupos = new Map();
+
+    filtrados.forEach((gasto) => {
+      const tipo = ordenCategorias.includes(gasto.tipo) ? gasto.tipo : 'otro';
+      if (!grupos.has(tipo)) grupos.set(tipo, []);
+      grupos.get(tipo).push(gasto);
+    });
+
+    lista.innerHTML = ordenCategorias
+      .filter((tipo) => grupos.has(tipo))
+      .map((tipo) => meetupRenderGrupoCategoria(tipo, grupos.get(tipo), esHistorial))
+      .join('');
+  }
+
+  lista.onclick = async (event) => {
+    const boton = event.target.closest('button');
+    if (!boton) return;
+
+    const toggleCategoria = boton.dataset.meetupToggleCategory;
+    if (toggleCategoria) {
+      if (meetupCategoriasAbiertas.has(toggleCategoria)) {
+        meetupCategoriasAbiertas.delete(toggleCategoria);
+      } else {
+        meetupCategoriasAbiertas.add(toggleCategoria);
+      }
+      renderMeetupGastos();
+      return;
+    }
+
+    if (boton.dataset.campo && boton.dataset.valor) {
+      await cambiarEstadoMeetupGasto(
+        boton.dataset.gastoId,
+        boton.dataset.campo,
+        boton.dataset.valor
+      );
+      return;
+    }
+
+    const action = boton.dataset.meetupAction;
+    if (action === 'edit') {
+      prepararEdicionMeetupGasto(boton.dataset.gastoId);
+      return;
+    }
+
+    if (action === 'delete') {
+      await eliminarGastoMeetup(boton.dataset.gastoId);
+    }
+  };
+
+  document.querySelectorAll('.meetup-movement-tab').forEach((btn) => {
+    btn.onclick = () => {
+      meetupVistaMovimientos = btn.dataset.meetupView || 'proceso';
+      renderMeetupGastos();
+    };
+  });
+
+  document.querySelectorAll('.meetup-category-filter').forEach((btn) => {
+    btn.onclick = () => {
+      meetupCategoriaMovimientos = btn.dataset.meetupCategory || 'todos';
+      renderMeetupGastos();
+    };
+  });
+}
+
+function actualizarMeetupDashboard() {
+  const planificado = calcularTotalPlanificadoMeetup();
+  const gastado = meetupState.gastos.reduce((total, gasto) => total + Number(gasto.monto || 0), 0);
+  const saldoFinal = planificado - gastado;
+
+  const totalPlanificadoEl = document.getElementById('meetup-total-planificado');
+  const gastosRegistradosEl = document.getElementById('meetup-gastos-registrados-total');
+  const subtotalComidaEl = document.getElementById('meetup-comida-subtotal');
+  const capacitacionTotalEl = document.getElementById('meetup-capacitacion-total');
+  const decoracionTotalEl = document.getElementById('meetup-decoracion-total');
+
+  if (totalPlanificadoEl) totalPlanificadoEl.textContent = formatearMontoMeetup(planificado);
+  if (gastosRegistradosEl) gastosRegistradosEl.textContent = formatearMontoMeetup(gastado);
+  if (subtotalComidaEl) {
+    const comidaUnitario = parsearMontoMeetup(document.getElementById('meetup-comida-unitario')?.value);
+    const participantesRaw = Number(document.getElementById('meetup-participantes')?.value || 1);
+    const participantes = Number.isFinite(participantesRaw) && participantesRaw > 0 ? participantesRaw : 1;
+    subtotalComidaEl.textContent = formatearMontoMeetup(comidaUnitario * participantes);
+  }
+  if (capacitacionTotalEl) capacitacionTotalEl.textContent = formatearMontoMeetup(parsearMontoMeetup(document.getElementById('meetup-capacitacion')?.value));
+  if (decoracionTotalEl) decoracionTotalEl.textContent = formatearMontoMeetup(parsearMontoMeetup(document.getElementById('meetup-decoracion')?.value));
+
+  ['capacitacion', 'decoracion'].forEach((tipo) => {
+    actualizarEstadoCategoriaMeetup(tipo);
+    renderMeetupGastosPorCategoria(tipo);
+  });
+
+  guardarMeetupState();
+  renderMeetupGastos();
+  renderMeetupAlertaPrincipal();
+}
+
+async function inicializarMeetupDashboard() {
+  await cargarMeetupStateDesdeFirebase();
+  const valores = [
+    'meetup-capacitacion',
+    'meetup-decoracion',
+    'meetup-comida-unitario',
+    'meetup-participantes'
+  ];
+
+  valores.forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) {
+      input.addEventListener('focus', () => {
+        if (id === 'meetup-capacitacion' || id === 'meetup-decoracion' || id === 'meetup-comida-unitario') {
+          const valor = parsearMontoMeetup(input.value);
+          if (valor === 0) {
+            input.value = '';
+          } else {
+            input.value = String(valor).replace('.', ',');
+          }
+        }
+      });
+
+      input.addEventListener('blur', () => {
+        if (id === 'meetup-capacitacion' || id === 'meetup-decoracion' || id === 'meetup-comida-unitario') {
+          const valor = parsearMontoMeetup(input.value);
+          input.value = formatearMontoInputMeetup(valor);
+        }
+        actualizarMeetupDashboard();
+      });
+
+      input.addEventListener('input', () => {
+        if (id === 'meetup-capacitacion' || id === 'meetup-decoracion' || id === 'meetup-comida-unitario') {
+          const texto = input.value.replace(/[^\d,.-]/g, '');
+          input.value = texto;
+        }
+        actualizarMeetupDashboard();
+      });
+
+      if (id === 'meetup-capacitacion' || id === 'meetup-decoracion' || id === 'meetup-comida-unitario') {
+        input.value = formatearMontoInputMeetup(parsearMontoMeetup(input.value));
+      }
+    }
+  });
+
+  const formMeetupGasto = document.getElementById('form-meetup-gasto');
+  if (formMeetupGasto) {
+    const montoInput = document.getElementById('meetup-gasto-monto');
+
+    if (montoInput) {
+      montoInput.value = '$0,00';
+      montoInput.addEventListener('focus', () => {
+        const valor = parsearMontoMeetup(montoInput.value);
+        montoInput.value = valor === 0 ? '' : String(valor).replace('.', ',');
+      });
+      montoInput.addEventListener('blur', () => {
+        const valor = parsearMontoMeetup(montoInput.value);
+        montoInput.value = formatearMontoInputMeetup(valor);
+      });
+      montoInput.addEventListener('input', () => {
+        montoInput.value = montoInput.value.replace(/[^\d,.-]/g, '');
+      });
+    }
+
+    formMeetupGasto.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const tipo = document.getElementById('meetup-gasto-tipo')?.value || 'otro';
+      const monto = parsearMontoMeetup(document.getElementById('meetup-gasto-monto')?.value);
+      const descripcion = document.getElementById('meetup-gasto-descripcion')?.value.trim() || `${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`;
+      const pagadoA = document.getElementById('meetup-gasto-pagado-a')?.value.trim() || '';
+
+      if (!monto || monto <= 0) {
+        mostrarNotificacion('❌ Ingresá un monto válido para el gasto de MeetUp.', 'error');
+        return;
+      }
+
+      try {
+        if (meetupEditandoGastoId) {
+          const index = meetupState.gastos.findIndex((gasto) => gasto.id === meetupEditandoGastoId);
+          if (index !== -1) {
+            const gastoActualizado = {
+              ...meetupState.gastos[index],
+              tipo,
+              monto,
+              descripcion,
+              pagadoA,
+              fecha: new Date(),
+              informado: Boolean(meetupState.gastos[index].informado),
+              aprobado: Boolean(meetupState.gastos[index].aprobado),
+              reembolsado: Boolean(meetupState.gastos[index].reembolsado)
+            };
+
+            const idGuardado = await persistirMeetupEnFirebase(gastoActualizado);
+            meetupState.gastos[index] = {
+              ...gastoActualizado,
+              id: idGuardado
+            };
+            meetupState.ultimoGasto = meetupState.gastos[index];
+            mostrarNotificacion('✅ Gasto actualizado correctamente', 'success');
+          }
+        } else {
+          const nuevoGasto = {
+            id: `temp-meetup-${Date.now()}`,
+            tipo,
+            monto,
+            descripcion,
+            pagadoA,
+            informado: false,
+            aprobado: false,
+            reembolsado: false,
+            fecha: new Date()
+          };
+
+          const idGuardado = await persistirMeetupEnFirebase(nuevoGasto);
+          const gastoPersistido = {
+            ...nuevoGasto,
+            id: idGuardado,
+            fecha: new Date()
+          };
+
+          meetupState.gastos.push(gastoPersistido);
+          meetupState.ultimoGasto = gastoPersistido;
+          mostrarNotificacion('✅ Gasto ingresado y descontado del saldo final', 'success');
+        }
+
+        guardarMeetupState();
+        actualizarMeetupDashboard();
+      } catch (error) {
+        console.error('Error al guardar MeetUp en Firebase:', error);
+        mostrarNotificacion('❌ Error al guardar en Firebase: ' + error.message, 'error');
+      }
+
+      resetearFormularioMeetupGasto();
+    });
+  }
+
+  actualizarMeetupDashboard();
+  actualizarAnioMeetupEnUI();
+}
+
 // ==================== CONFIGURAR EVENT LISTENERS ====================
 function configurarEventListeners() {
+  // Categoría y organización son independientes.
+  // Esto permite, por ejemplo, una actividad aprobada por el área que pertenezca a MeetUp.
+
   // Formulario de nuevo gasto
   const formGasto = document.getElementById('form-gasto');
   if (formGasto) {
@@ -3690,6 +4679,7 @@ function configurarEventListeners() {
         }
 
         const observaciones = document.getElementById('observaciones').value.trim();
+        const pagadoA = document.getElementById('pagado-a')?.value.trim() || '';
         const organizacion = document.getElementById('organizacion')?.value || 'presupuesto';
         
         // Lógica de comisión
@@ -3734,6 +4724,7 @@ function configurarEventListeners() {
 
         const gasto = {
           descripcion: document.getElementById('descripcion').value,
+          pagadoA: pagadoA,
           monto: montoReal,
           comision: montoComision,
           tieneComision: aplicaComision,
@@ -3747,6 +4738,7 @@ function configurarEventListeners() {
           imagenRecibo: urlImagenSubida || null,
           registrado: false,
           eliminado: false,
+          fuente: 'nuevo-gasto',
           creadoPor: usuarioActual,
           fechaCreacion: firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -3757,6 +4749,7 @@ function configurarEventListeners() {
           // Actualizar gasto existente
           const datosActualizados = {
             ...gasto,
+            fuente: 'nuevo-gasto',
             fechaEdicion: firebase.firestore.FieldValue.serverTimestamp(),
             editadoPor: usuarioActual
           };
@@ -3774,6 +4767,17 @@ function configurarEventListeners() {
 
         cerrarModal();
         await cargarDatos(); // Recargar todos los datos para reflejar cambios
+
+        // Si el gasto pertenece a MeetUp, sincronizar inmediatamente
+        // la página del evento y su evolución de gastos.
+        if (organizacion === 'meetup') {
+          try {
+            await cargarMeetupStateDesdeFirebase();
+            actualizarMeetupDashboard();
+          } catch (meetupError) {
+            console.warn('El gasto se guardó, pero no se pudo refrescar MeetUp:', meetupError);
+          }
+        }
 
       } catch (error) {
         console.error('❌ Error al guardar gasto:', error);
@@ -4139,6 +5143,8 @@ async function editarGasto(id) {
     // Rellenar el formulario con los datos del gasto
     document.getElementById('descripcion').value = gasto.descripcion || '';
     document.getElementById('monto').value = gasto.monto || 0;
+    const pagadoAInput = document.getElementById('pagado-a');
+    if (pagadoAInput) pagadoAInput.value = gasto.pagadoA || '';
     
     // Cargar datos de comisión
     const checkAplica = document.getElementById('aplica-comision');
@@ -4298,10 +5304,12 @@ async function renderGastos(gastosArray = null) {
 function crearTarjetaGasto(gasto) {
   const categoriaInfo = {
     'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
-    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' },
+    'actividades_area': { emoji: '🌐', label: 'Actividades aprobadas por el área', color: 'violet' }
   };
 
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  const catBadge = obtenerClaseCategoria(cat.color);
   
   const comprobanteIcon = gasto.comprobanteAdjunto 
     ? '<span class="text-green-400 text-sm">✓ Comprobante adjunto</span>' 
@@ -4415,7 +5423,7 @@ function crearTarjetaGasto(gasto) {
       <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
         <div class="flex-1 min-w-0">
           <div class="flex flex-wrap items-center gap-2 mb-3">
-            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs lg:text-sm font-bold bg-${cat.color}-900 text-${cat.color}-300 border border-${cat.color}-700 whitespace-nowrap">
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs lg:text-sm font-bold ${catBadge} whitespace-nowrap">
               ${cat.emoji} ${cat.label}
             </span>
             <span class="text-xs lg:text-sm text-gray-400 whitespace-nowrap">📅 ${gasto.fecha}</span>
@@ -4726,49 +5734,72 @@ async function actualizarPresupuestos() {
 
     // Actualizar solo los campos completados
     if (inputPresupuesto) {
-      const nuevoValor = parseFloat(inputPresupuesto);
-      const _pe = calcularPeriodoEfectivo();
-      _trimCalendario = calcularTrimestreActual();
+      const nuevaAsignacion = parseFloat(inputPresupuesto);
+      const trimestreCalendario = calcularTrimestreActual();
+      _trimCalendario = trimestreCalendario;
 
-      // Si estamos en transición, calcular remanente del trimestre anterior
-      if (_pe.enTransicion) {
-        const _gastosSnap = await db.collection('gastos').where('eliminado', '==', false).get();
-        let _totalAprobadoPrev = 0;
-        _gastosSnap.forEach(doc => {
-          const g = doc.data();
-          if (g.aprobado !== true || g.categoria !== 'presupuesto') return;
-          if (ORGANIZACIONES_EXTERNAS.includes(g.organizacion || '')) return;
-          const fecha = g.fecha?.toDate ? g.fecha.toDate() : (typeof g.fecha === 'string' ? new Date(g.fecha + 'T12:00:00') : null);
-          if (fecha && fecha >= _pe.inicio && fecha <= _pe.fin) _totalAprobadoPrev += g.monto || 0;
-        });
-        _remanente = Math.max(0, (configActual.presupuestoTotal || 0) - _totalAprobadoPrev);
-      }
+      // El presupuesto operativo es acumulativo entre trimestres:
+      // remanente REAL del trimestre anterior + nueva asignación.
+      // Los pendientes NO se descuentan aquí; siguen afectando únicamente al simulado.
+      const trimestreActivoId = configActual.presupuestoCargadoParaTrimestre || _trimestreCargadoId || null;
+      const cambiaDeTrimestre = trimestreActivoId && trimestreActivoId !== trimestreCalendario.id;
 
-      nuevoPresupuestoTotal = nuevoValor + _remanente;
-      updates.presupuestoTotal = nuevoPresupuestoTotal;
-
-      // Marcar que el presupuesto ya fue cargado para este trimestre.
-      // calcularPeriodoEfectivo() usará esto para mostrar el nuevo trimestre de inmediato.
-      updates.presupuestoCargadoParaTrimestre = _trimCalendario.id;
-
-      // Guardar historial del nuevo trimestre
-      updates[`presupuestosHistorial.${_trimCalendario.id}`] = {
-        ingresado: nuevoValor,
-        remanente: _remanente,
-        total: nuevoPresupuestoTotal
-      };
-
-      // Registrar el trimestre anterior si aún no tiene historial
-      if (_pe.enTransicion) {
-        const _prevKey = `Q${_pe.numero}-${_pe.anio}`;
-        if (!(configActual.presupuestosHistorial || {})[_prevKey]) {
-          updates[`presupuestosHistorial.${_prevKey}`] = {
-            ingresado: configActual.presupuestoTotal || 0,
-            remanente: 0,
-            total: configActual.presupuestoTotal || 0
+      if (cambiaDeTrimestre) {
+        const match = /^Q([1-4])-(\d{4})$/.exec(trimestreActivoId);
+        let periodoAnterior = null;
+        if (match) {
+          const numero = Number(match[1]);
+          const anio = Number(match[2]);
+          const mesInicio = (numero - 1) * 3;
+          periodoAnterior = {
+            numero,
+            anio,
+            inicio: new Date(anio, mesInicio, 1),
+            fin: new Date(anio, mesInicio + 3, 0, 23, 59, 59),
+            id: trimestreActivoId
           };
         }
+
+        let totalAprobadoPeriodoAnterior = 0;
+        if (periodoAnterior) {
+          const gastosSnap = await db.collection('gastos').where('eliminado', '==', false).get();
+          gastosSnap.forEach(doc => {
+            const g = doc.data();
+            if (g.aprobado !== true || g.categoria !== 'presupuesto') return;
+            if (ORGANIZACIONES_EXTERNAS.includes(g.organizacion || '')) return;
+            const fechaContable = getFechaEfectiva(g);
+            if (fechaContable >= periodoAnterior.inicio && fechaContable <= periodoAnterior.fin) {
+              totalAprobadoPeriodoAnterior += g.monto || 0;
+            }
+          });
+        }
+
+        _remanente = Math.max(0, (configActual.presupuestoTotal || 0) - totalAprobadoPeriodoAnterior);
+        nuevoPresupuestoTotal = _remanente + nuevaAsignacion;
+      } else if (!trimestreActivoId) {
+        // Primera carga con la nueva lógica: usar el valor ingresado como base del trimestre.
+        _remanente = 0;
+        nuevoPresupuestoTotal = nuevaAsignacion;
+      } else {
+        // Mismo trimestre: respetar el modo elegido por el administrador.
+        // "sumar" agrega una asignación extraordinaria; "reemplazar" redefine la base.
+        if (modoActualizacion === 'sumar') {
+          nuevoPresupuestoTotal = (configActual.presupuestoTotal || 0) + nuevaAsignacion;
+        } else {
+          nuevoPresupuestoTotal = nuevaAsignacion;
+        }
       }
+
+      updates.presupuestoTotal = nuevoPresupuestoTotal;
+      updates.presupuestoCargadoParaTrimestre = trimestreCalendario.id;
+
+      // Historial: registrar asignación, remanente arrastrado y base operativa del trimestre.
+      updates[`presupuestosHistorial.${trimestreCalendario.id}`] = {
+        ingresado: nuevaAsignacion,
+        remanente: _remanente,
+        total: nuevoPresupuestoTotal,
+        actualizadoEn: new Date().toISOString()
+      };
     }
     
     if (inputViaticos) {
@@ -4785,10 +5816,10 @@ async function actualizarPresupuestos() {
     const fmt = (n) => '$' + n.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     let mensajeConfirmacion = '<div style="text-align:left;font-size:14px;">';
     if (inputPresupuesto) {
-      if (_remanente > 0 && _trimCalendario) {
+      if (_trimCalendario && configActual.presupuestoCargadoParaTrimestre && configActual.presupuestoCargadoParaTrimestre !== _trimCalendario.id) {
         mensajeConfirmacion += `<p><b>Presupuesto ${_trimCalendario.nombre}:</b></p>` +
           `<p>Nueva asignación: ${fmt(parseFloat(inputPresupuesto))}</p>` +
-          `<p>+ Remanente anterior: <b style="color:#60a5fa">${fmt(_remanente)}</b></p>` +
+          `<p>+ Remanente real anterior: <b style="color:#60a5fa">${fmt(_remanente)}</b></p>` +
           `<hr style="border-color:#374151;margin:6px 0">` +
           `<p>Total: <b style="color:#10b981;font-size:16px">${fmt(nuevoPresupuestoTotal)}</b></p><br>`;
       } else {
@@ -5353,9 +6384,11 @@ function renderGastosPendientesAprobacion(gastos) {
 function crearTarjetaGastoAprobacion(gasto) {
   const categoriaInfo = {
     'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
-    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' },
+    'actividades_area': { emoji: '🌐', label: 'Actividades aprobadas por el área', color: 'violet' }
   };
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  const catBadge = obtenerClaseCategoria(cat.color);
 
   const aprobarBtn = esAdmin ? `
     <button onclick="aprobarGasto('${gasto.id}')"
@@ -5389,9 +6422,10 @@ function crearTarjetaGastoAprobacion(gasto) {
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap mb-2">
             <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 border border-orange-200 dark:border-orange-700">⏳ ESPERANDO APROBACIÓN</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-50 dark:bg-${cat.color}-900/40 text-${cat.color}-700 dark:text-${cat.color}-300 border border-${cat.color}-100 dark:border-${cat.color}-700 flex items-center gap-1">${cat.emoji} ${cat.label}</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${catBadge} flex items-center gap-1">${cat.emoji} ${cat.label}</span>
           </div>
           <h4 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-1 leading-tight">${gasto.descripcion}</h4>
+          ${gasto.pagadoA ? `<div class="beneficiary-inline"><span>👤</span><span>Pagar / reembolsar a:</span><strong>${gasto.pagadoA}</strong></div>` : ''}
           
           <div class="flex flex-col gap-0.5 text-[10px] text-gray-500 dark:text-gray-400 mt-2">
             <span class="flex items-center gap-1.5" title="Fecha en que se realizó el gasto">
@@ -5654,7 +6688,7 @@ function renderGastosAgrupados(grupos, vista) {
           </div>
         </div>
         
-        <div id="${grupoId}" class="p-3 bg-gray-50 dark:bg-gray-900/50 transition-all duration-300 ${estaExpandido ? '' : 'hidden'}">
+        <div id="${grupoId}" class="p-3 bg-blue-50/60 dark:bg-slate-900/60 border-t border-blue-100 dark:border-slate-700 transition-all duration-300 ${estaExpandido ? '' : 'hidden'}">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
             ${grupo.gastos.map(crearTarjetaGastoReportado).join('')}
           </div>
@@ -5698,10 +6732,12 @@ function toggleGrupoGastoMes(mesId) {
 function crearTarjetaGastoPendiente(gasto) {
   const categoriaInfo = {
     'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
-    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' },
+    'actividades_area': { emoji: '🌐', label: 'Actividades aprobadas por el área', color: 'violet' }
   };
 
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  const catBadge = obtenerClaseCategoria(cat.color || 'gray');
   
   const comprobanteIcon = gasto.comprobanteAdjunto 
     ? '<span class="text-green-600 text-xs font-semibold flex items-center gap-1"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg><span class="hidden sm:inline">Con comprobante</span></span>' 
@@ -5770,14 +6806,18 @@ function crearTarjetaGastoPendiente(gasto) {
     </button>
   ` : '';
 
+  const topBandStyle = gasto.categoria === 'viaticos'
+    ? 'background: linear-gradient(135deg, #fbe7eb 0%, #f9dfe5 100%); border-bottom: 2px solid #d78a9b;'
+    : 'background: linear-gradient(135deg, #e8f7ee 0%, #dfeee6 100%); border-bottom: 2px solid #a5c8b5;';
+
   return `
-    <div id="card-gasto-${gasto.id}" class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all overflow-hidden w-full">
+    <div id="card-gasto-${gasto.id}" data-categoria="${gasto.categoria || 'presupuesto'}" data-organizacion="${gasto.organizacion || ''}" data-estado="pendiente" class="gasto-card bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all overflow-hidden w-full">
 
       <!-- Franja superior: badges + monto -->
-      <div class="flex items-start justify-between gap-3 px-4 py-2.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-100 dark:border-gray-700">
+      <div class="flex items-start justify-between gap-3 px-4 py-2.5 border-b border-gray-100 dark:border-gray-700" style="${topBandStyle}">
         <div class="flex items-center gap-1.5 flex-wrap min-w-0 pt-0.5">
           <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">SIN REGISTRAR</span>
-          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-50 dark:bg-${cat.color}-900/40 text-${cat.color}-700 dark:text-${cat.color}-300 border border-${cat.color}-100 dark:border-${cat.color}-700 flex items-center gap-1">${cat.emoji} ${cat.label}</span>
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${catBadge} flex items-center gap-1">${cat.emoji} ${cat.label}</span>
           ${gasto.impresionLCRF ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700">🖨️ IMPRESO</span>' : ''}
         </div>
         <div class="text-right flex-shrink-0">
@@ -5825,10 +6865,12 @@ function crearTarjetaGastoPendiente(gasto) {
 function crearTarjetaGastoReportado(gasto) {
   const categoriaInfo = {
     'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
-    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' },
+    'actividades_area': { emoji: '🌐', label: 'Actividades aprobadas por el área', color: 'violet' }
   };
 
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
+  const catBadge = obtenerClaseCategoria(cat.color);
   
   const comprobanteIcon = gasto.comprobanteAdjunto 
     ? '<span class="text-green-600 text-xs lg:text-sm font-semibold">✓ Comprobante</span>' 
@@ -5852,8 +6894,9 @@ function crearTarjetaGastoReportado(gasto) {
   const tipoPagoIcon = `<span class="${pagoInfo.color} text-xs lg:text-sm font-semibold flex items-center gap-1">${tipoPagoText}</span>`;
 
   const verBtn = `
-    <button onclick='mostrarDetalleGasto(${JSON.stringify(gasto).replace(/'/g, "&#39;")})' 
-      class="bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white p-2.5 rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95" 
+    <button onclick='mostrarDetalleGasto(${JSON.stringify(gasto).replace(/'/g, "&#39;")})'
+      data-approved-action="view"
+      class="approved-view-btn"
       title="Ver detalle del gasto">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -5878,14 +6921,18 @@ function crearTarjetaGastoReportado(gasto) {
     </button>
   ` : '';
 
+  const topBandStyleAprobado = gasto.categoria === 'viaticos'
+    ? 'background: linear-gradient(135deg, #fbe7eb 0%, #f9dfe5 100%); border: 1px solid #d78a9b;'
+    : 'background: linear-gradient(135deg, #e8f7ee 0%, #dfeee6 100%); border: 1px solid #a5c8b5;';
+
   return `
-    <div class="bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-200 rounded-lg p-3 hover:shadow-md transition-all">
+    <div class="gasto-card bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-200 rounded-lg p-3 hover:shadow-md transition-all" data-categoria="${gasto.categoria || 'presupuesto'}" data-organizacion="${gasto.organizacion || ''}" data-estado="aprobado" style="${topBandStyleAprobado}">
       <!-- Header con badges -->
       <div class="flex flex-wrap items-center gap-1.5 mb-2">
         <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 flex-shrink-0">
           ✅ APROBADO
         </span>
-        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-${cat.color}-100 text-${cat.color}-800 flex-shrink-0">
+        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${catBadge} flex-shrink-0">
           ${cat.emoji} ${cat.label}
         </span>
       </div>
@@ -5893,6 +6940,7 @@ function crearTarjetaGastoReportado(gasto) {
       <!-- Contenido principal -->
       <div class="mb-2">
         <h4 class="text-xs font-bold text-gray-900 mb-1.5 line-clamp-2">${gasto.descripcion}</h4>
+        ${gasto.pagadoA ? `<div class="beneficiary-inline beneficiary-inline--compact"><span>👤</span><strong>${gasto.pagadoA}</strong></div>` : ''}
         ${gasto.comision && gasto.comision > 0 ? `
             <div class="flex flex-col items-start gap-1">
                 <p class="text-lg font-bold text-sky-700" title="Monto del gasto">$${gasto.monto.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
@@ -6354,11 +7402,13 @@ function mostrarDetalleGasto(gasto) {
 
   const categoriaInfo = {
     'viaticos': { emoji: '🚗', label: 'Viáticos', color: 'green' },
-    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' }
+    'presupuesto': { emoji: '💰', label: 'Presupuesto', color: 'orange' },
+    'actividades_area': { emoji: '🌐', label: 'Actividades aprobadas por el área', color: 'violet' }
   };
-  
+
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria, color: 'gray' };
-  
+  const catBadge = obtenerClaseCategoria(cat.color || 'gray');
+
   // Formatear fecha
   const fecha = parseFechaLocal(gasto.fecha).toLocaleDateString('es-ES', { 
     weekday: 'long', 
@@ -6378,7 +7428,7 @@ function mostrarDetalleGasto(gasto) {
       <!-- Encabezado con monto y estado -->
       <div class="flex justify-between items-start">
         <div>
-          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-${cat.color}-100 text-${cat.color}-800 border border-${cat.color}-200 mb-2">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${catBadge} mb-2">
             ${cat.emoji} ${cat.label}
           </span>
           <h2 class="text-3xl font-bold text-gray-900">$${montoReal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</h2>
@@ -6391,6 +7441,15 @@ function mostrarDetalleGasto(gasto) {
         <label class="text-xs font-bold text-gray-400 uppercase tracking-wide">Descripción</label>
         <p class="text-gray-800 font-medium text-lg mt-1">${gasto.descripcion}</p>
       </div>
+
+      ${gasto.pagadoA ? `
+      <div class="beneficiary-detail-card">
+        <div class="beneficiary-detail-icon">👤</div>
+        <div>
+          <label>Pagar / Reembolsar a</label>
+          <p>${gasto.pagadoA}</p>
+        </div>
+      </div>` : ''}
 
       ${tieneComision ? `
       <!-- Desglose de montos con comisión -->
@@ -6629,7 +7688,7 @@ async function imprimirSeleccionLCRF() {
           <span style="color:#f59e0b">$${g.monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
         </p>
         <label style="display:block;font-size:11px;font-weight:700;color:#374151;margin-bottom:4px">Pagado a *</label>
-        <input id="swal-pagado-a-${i}" class="swal2-input" placeholder="Nombre del comercio o persona" 
+        <input id="swal-pagado-a-${i}" class="swal2-input" placeholder="Nombre del comercio o persona" value="${(g.pagadoA || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" 
           style="width:100%;margin:0 0 10px 0;font-size:13px">
         <label style="display:block;font-size:11px;font-weight:700;color:#374151;margin-bottom:4px">Tipo de desembolso</label>
         <select id="swal-tipo-${i}" class="swal2-select" style="width:100%;margin:0;font-size:13px">
@@ -6938,7 +7997,7 @@ async function imprimirDesembolsoLCRF(gasto) {
     html: `
       <div style="text-align:left; padding: 4px 0">
         <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">Pagado a *</label>
-        <input id="swal-pagado-a" class="swal2-input" placeholder="Nombre del comercio o persona" style="width:100%;margin:0 0 14px 0;font-size:14px">
+        <input id="swal-pagado-a" class="swal2-input" placeholder="Nombre del comercio o persona" value="${(gasto.pagadoA || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')}" style="width:100%;margin:0 0 14px 0;font-size:14px">
         <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em">Tipo de desembolso *</label>
         <select id="swal-tipo-desembolso" class="swal2-select" style="width:100%;margin:0;font-size:14px">
           <option value="presupuesto" ${defaultTipo==='presupuesto'?'selected':''}>💰 Presupuesto</option>
@@ -7290,7 +8349,8 @@ function descargarDetallePDF() {
   // Categorías
   const categoriaInfo = {
     'viaticos': { emoji: '🚗', label: 'Viáticos' },
-    'presupuesto': { emoji: '💰', label: 'Presupuesto' }
+    'presupuesto': { emoji: '💰', label: 'Presupuesto' },
+    'actividades_area': { emoji: '🌐', label: 'Actividades aprobadas por el área' }
   };
   
   const cat = categoriaInfo[gasto.categoria] || { emoji: '📋', label: gasto.categoria };
@@ -7479,3 +8539,14 @@ function descargarDetallePDF() {
 // Se mantiene la referencia original para compatibilidad
 
 // ==================== INICIALIZACIÓN DE FIREBASE ====================
+
+// Mantiene la identificación visual de gastos legacy aunque la lista se regenere.
+const meetupLegacyObserver = new MutationObserver(() => marcarGastosMeetupLegacy());
+document.addEventListener('DOMContentLoaded', () => {
+  const lista = document.getElementById('lista-gastos-pendientes');
+  if (lista) {
+    meetupLegacyObserver.observe(lista, { childList: true, subtree: true });
+    marcarGastosMeetupLegacy();
+  }
+});
+

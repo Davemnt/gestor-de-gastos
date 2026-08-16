@@ -35,2194 +35,131 @@
   <!-- pdf-lib para llenar formularios PDF -->
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   
-  <style>
-    /* ==================== VARIABLES CSS ==================== */
-    :root {
-      /* Tema Claro (Default) */
-      --primary-color: #3b82f6; /* Azul moderno */
-      --secondary-color: #64748b; /* Gris slate */
-      --accent-color: #8b5cf6; /* Púrpura */
-      --primary-gray: #475569;
-      --light-gray: #94a3b8;
-      --bg-gray: #f8fafc; /* Gris muy claro */
-      --surface-gray: #ffffff; /* Blanco puro */
-      --border-gray: #e2e8f0;
-      --text-dark: #0f172a;
-      --text-secondary: #64748b;
-      --success-green: #10b981;
-      --warning-yellow: #f59e0b;
-      --danger-red: #ef4444;
-
-      /* Colores adicionales para modo claro */
-      --card-bg: #ffffff;
-      --card-border: #e2e8f0;
-      --input-bg: #f8fafc;
-      --input-border: #e2e8f0;
-      --input-focus-bg: #ffffff;
-      --btn-hover-bg: #f1f5f9;
-      --text-muted: #94a3b8;
-    }
-
-    /* Tema Oscuro */
-    [data-theme="dark"] {
-      --primary-color: #3b82f6;
-      --secondary-color: #94a3b8;
-      --accent-color: #a78bfa;
-      --primary-gray: #cbd5e1;
-      --light-gray: #64748b;
-      --bg-gray: #0f172a; /* Fondo principal oscuro */
-      --surface-gray: #1e293b; /* Fondo de tarjetas */
-      --border-gray: #334155; /* Bordes oscuros */
-      --text-dark: #f1f5f9; /* Texto principal claro */
-      --text-secondary: #cbd5e1; /* Texto secundario claro */
-      
-      --card-bg: #1e293b;
-      --card-border: #334155;
-      --input-bg: #0f172a;
-      --input-border: #334155;
-      --input-focus-bg: #1e293b;
-      --btn-hover-bg: #334155;
-      --text-muted: #64748b;
-
-      /* Resetear colores de Tailwind hardcodeados */
-      --tw-text-opacity: 1;
-      --tw-bg-opacity: 1;
-    }
-
-    /* ==================== FUENTES Y LAYOUT ==================== */
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
-      background: var(--bg-gray);
-      color: var(--text-dark);
-      font-size: 15px;
-      line-height: 1.6;
-      transition: background-color 0.3s ease, color 0.3s ease;
-    }
-
-    /* ==================== COMPONENTES ==================== */
-    .btn-primary {
-      background: var(--primary-color);
-      transition: all 0.15s ease;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      min-height: 40px;
-      border-radius: 10px;
-      font-weight: 500;
-    }
-
-    .btn-primary:hover {
-      background: #2563eb;
-      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-    }
-    
-    .btn-primary:active {
-      transform: scale(0.98);
-    }
-
-    .card-dark {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.2s ease;
-      border-radius: 16px;
-      overflow: hidden;
-    }
-
-    .card-dark:hover {
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-      border-color: var(--primary-color);
-    }
-
-    [data-theme="dark"] .card-dark:hover {
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      border-color: var(--primary-color);
-    }
-
-    /* Clases de utilidad para montos responsivos */
-    .amount-display {
-      font-variant-numeric: tabular-nums;
-      letter-spacing: -0.02em;
-      word-break: break-word;
-      hyphens: auto;
-    }
-
-    /* Ajuste automático de tamaño de fuente para montos grandes */
-    @media (max-width: 1024px) {
-      .amount-display {
-        font-size: clamp(1rem, 4vw, 1.5rem);
-      }
-    }
-
-    .input-dark {
-      background: var(--input-bg);
-      border: 1.5px solid var(--input-border);
-      color: var(--text-dark);
-      transition: none;
-      min-height: 44px;
-      border-radius: 10px;
-      font-size: 15px;
-    }
-
-    .input-dark:focus {
-      background: var(--input-focus-bg);
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-      outline: none;
-    }
-
-    .input-dark::placeholder {
-      color: var(--text-muted);
-    }
-
-    /* Adaptaciones para elementos específicos en modo oscuro */
-    [data-theme="dark"] .bg-white {
-      background-color: var(--surface-gray) !important;
-      color: var(--text-dark);
-    }
-    
-    /* Formularios modo claro - Sin transiciones para respuesta inmediata */
-    input[type="date"],
-    input[type="text"],
-    input[type="number"],
-    select,
-    textarea {
-        transition: none !important;
-        backface-visibility: hidden;
-        -webkit-font-smoothing: antialiased;
-        transform: translateZ(0);
-    }
-    
-    input[type="date"]:focus,
-    input[type="text"]:focus,
-    input[type="number"]:focus,
-    select:focus,
-    textarea:focus {
-        transition: none !important;
-    }
-    
-    /* Optimizar renderizado de options */
-    select option {
-        transition: none !important;
-        backface-visibility: hidden;
-    }
-    
-    [data-theme="dark"] .bg-gray-50 {
-      background-color: var(--bg-gray) !important;
-    }
-
-    [data-theme="dark"] .bg-gray-100 {
-      background-color: #334155 !important;
-      color: #e2e8f0 !important;
-    }
-
-    [data-theme="dark"] .text-gray-900 {
-      color: #f8fafc !important;
-    }
-
-    [data-theme="dark"] .text-gray-800 {
-      color: #f1f5f9 !important;
-    }
-
-    [data-theme="dark"] .text-gray-700 {
-      color: #e2e8f0 !important;
-    }
-
-    [data-theme="dark"] .text-gray-600 {
-      color: #cbd5e1 !important;
-    }
-
-    [data-theme="dark"] .text-gray-500 {
-      color: #94a3b8 !important;
-    }
-    
-    [data-theme="dark"] .text-gray-400 {
-      color: #64748b !important;
-    }
-
-    [data-theme="dark"] .border-gray-100,
-    [data-theme="dark"] .border-gray-200,
-    [data-theme="dark"] .border-gray-300 {
-      border-color: var(--border-gray) !important;
-    }
-
-    /* Mejorar contraste de badges en modo oscuro */
-    [data-theme="dark"] .bg-blue-50 {
-      background-color: rgba(59, 130, 246, 0.2) !important;
-      color: #60a5fa !important;
-    }
-    
-    [data-theme="dark"] .bg-red-50 {
-      background-color: rgba(239, 68, 68, 0.2) !important;
-      color: #f87171 !important;
-    }
-
-    [data-theme="dark"] .bg-green-50 {
-      background-color: rgba(16, 185, 129, 0.2) !important;
-      color: #34d399 !important;
-    }
-
-    [data-theme="dark"] .bg-purple-50 {
-      background-color: rgba(139, 92, 246, 0.2) !important;
-      color: #a78bfa !important;
-    }
-
-    [data-theme="dark"] .bg-yellow-100 {
-      background-color: rgba(245, 158, 11, 0.2) !important;
-      color: #fbbf24 !important;
-    }
-
-    [data-theme="dark"] .bg-green-100 {
-        background-color: rgba(16, 185, 129, 0.2) !important;
-        color: #34d399 !important;
-    }
-    
-    [data-theme="dark"] .bg-orange-100 {
-        background-color: rgba(249, 115, 22, 0.2) !important;
-        color: #fb923c !important;
-    }
-    
-    [data-theme="dark"] .mobile-menu {
-        background: #0f172a; /* Slate 900 for drawer */
-        border-left: 1px solid #1e293b;
-    }
-
-    [data-theme="dark"] header.bg-white {
-        background-color: var(--surface-gray) !important;
-        border-color: var(--border-gray) !important;
-    }
-    
-    [data-theme="dark"] .shadow-sm, [data-theme="dark"] .shadow-md {
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Sidebar Dark Mode */
-    [data-theme="dark"] aside {
-        background-color: #0f172a !important;
-        border-color: #1e293b !important;
-    }
-    
-    [data-theme="dark"] aside .bg-white {
-        background-color: #0f172a !important;
-    }
-    
-    [data-theme="dark"] aside .border-gray-100 {
-        border-color: #1e293b !important;
-    }
-    
-    [data-theme="dark"] aside h1 {
-        color: #f1f5f9 !important;
-    }
-    
-    /* Usuario Activo Card - Dark Mode */
-    [data-theme="dark"] .bg-gradient-to-br.from-blue-50 {
-        background: linear-gradient(to bottom right, rgba(59, 130, 246, 0.15), rgba(99, 102, 241, 0.15)) !important;
-        border-color: rgba(59, 130, 246, 0.3) !important;
-    }
-    
-    [data-theme="dark"] .text-blue-600 {
-        color: #60a5fa !important;
-    }
-    
-    [data-theme="dark"] aside .text-gray-500,
-    [data-theme="dark"] aside .text-gray-600 {
-        color: #cbd5e1 !important;
-    }
-    
-    [data-theme="dark"] aside .text-gray-400 {
-        color: #94a3b8 !important;
-    }
-    
-    /* Botones del sidebar en modo oscuro */
-    [data-theme="dark"] aside button.hover\:bg-gray-100:hover {
-        background-color: #1e293b !important;
-    }
-    
-    [data-theme="dark"] aside .bg-blue-600 {
-        background-color: #2563eb !important;
-    }
-    
-    [data-theme="dark"] aside .bg-blue-600:hover {
-        background-color: #1d4ed8 !important;
-    }
-    
-    /* Botón cerrar sesión en modo oscuro */
-    [data-theme="dark"] aside .text-red-600 {
-        color: #f87171 !important;
-    }
-    
-    [data-theme="dark"] aside .hover\:bg-red-50:hover {
-        background-color: rgba(239, 68, 68, 0.1) !important;
-    }
-    
-    /* Separadores y borders adicionales en sidebar */
-    [data-theme="dark"] aside .border-gray-200 {
-        border-color: #1e293b !important;
-    }
-    
-    [data-theme="dark"] aside .text-gray-700 {
-        color: #e2e8f0 !important;
-    }
-    
-    /* Badge y elementos especiales */
-    [data-theme="dark"] .bg-red-500 {
-        background-color: #dc2626 !important;
-        box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
-    }
-
-    /* Modal Fixes for Dark Mode */
-    [data-theme="dark"] .bg-white.rounded-2xl {
-        background-color: var(--surface-gray) !important;
-    }
-    
-    /* Formularios en modo oscuro - Optimizados sin transiciones */
-    [data-theme="dark"] input[type="date"],
-    [data-theme="dark"] input[type="text"],
-    [data-theme="dark"] input[type="number"],
-    [data-theme="dark"] select,
-    [data-theme="dark"] textarea {
-        background-color: #1e293b !important;
-        border-color: #334155 !important;
-        color: #f1f5f9 !important;
-        transition: none !important;
-        will-change: auto;
-        backface-visibility: hidden;
-        -webkit-font-smoothing: antialiased;
-        transform: translateZ(0);
-    }
-    
-    [data-theme="dark"] input[type="date"]:hover,
-    [data-theme="dark"] input[type="text"]:hover,
-    [data-theme="dark"] input[type="number"]:hover,
-    [data-theme="dark"] select:hover,
-    [data-theme="dark"] textarea:hover {
-        background-color: #0f172a !important;
-        border-color: #475569 !important;
-        transition: none !important;
-    }
-    
-    [data-theme="dark"] input[type="date"]:focus,
-    [data-theme="dark"] input[type="text"]:focus,
-    [data-theme="dark"] input[type="number"]:focus,
-    [data-theme="dark"] select:focus,
-    [data-theme="dark"] textarea:focus {
-        background-color: #0f172a !important;
-        border-color: #3b82f6 !important;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
-        transition: none !important;
-    }
-    
-    /* Placeholders en modo oscuro */
-    [data-theme="dark"] input::placeholder,
-    [data-theme="dark"] textarea::placeholder {
-        color: #64748b !important;
-    }
-    
-    /* Labels en modo oscuro */
-    [data-theme="dark"] label {
-        color: #cbd5e1 !important;
-    }
-    
-    /* Options en select modo oscuro */
-    [data-theme="dark"] select option {
-        background-color: #1e293b !important;
-        color: #f1f5f9 !important;
-        transition: none !important;
-        backface-visibility: hidden;
-    }
-    
-    /* Optimizar date picker nativo - Modo Oscuro */
-    [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
-        filter: invert(1);
-        cursor: pointer;
-        opacity: 1;
-    }
-    
-    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit {
-        color: #f1f5f9 !important;
-    }
-    
-    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit-fields-wrapper {
-        color: #f1f5f9 !important;
-    }
-    
-    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit-text {
-        color: #94a3b8 !important;
-    }
-    
-    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit-month-field,
-    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit-day-field,
-    [data-theme="dark"] input[type="date"]::-webkit-datetime-edit-year-field {
-        color: #f1f5f9 !important;
-    }
-    
-    /* Date picker en modo claro */
-    input[type="date"]::-webkit-calendar-picker-indicator {
-        cursor: pointer;
-        opacity: 1;
-    }
-    
-    input[type="date"]::-webkit-datetime-edit {
-        color: #111827 !important;
-    }
-    
-    input[type="date"]::-webkit-datetime-edit-fields-wrapper {
-        color: #111827 !important;
-    }
-    
-    input[type="date"]::-webkit-datetime-edit-text {
-        color: #6b7280 !important;
-    }
-    
-    input[type="date"]::-webkit-datetime-edit-month-field,
-    input[type="date"]::-webkit-datetime-edit-day-field,
-    input[type="date"]::-webkit-datetime-edit-year-field {
-        color: #111827 !important;
-    }
-    
-    /* Checkbox en modo oscuro */
-    [data-theme="dark"] input[type="checkbox"] {
-        background-color: #1e293b !important;
-        border-color: #334155 !important;
-    }
-    
-    [data-theme="dark"] input[type="checkbox"]:checked {
-        background-color: #3b82f6 !important;
-        border-color: #3b82f6 !important;
-    }
-    
-    /* Símbolos y textos especiales en inputs */
-    [data-theme="dark"] .absolute.left-3 {
-        color: #94a3b8 !important;
-    }
-    
-    /* Botones del modal en oscuro */
-    [data-theme="dark"] button.hover\:bg-gray-100:not(.btn-primary):hover {
-        background-color: #1e293b !important;
-    }
-    
-    [data-theme="dark"] .text-gray-600:not(.btn-primary) {
-        color: #cbd5e1 !important;
-    }
-    
-    [data-theme="dark"] .hover\:text-gray-800:hover {
-        color: #f1f5f9 !important;
-    }
-    
-    /* T\u00edtulos de modal en oscuro */
-    [data-theme="dark"] #modal-title {
-        color: #f1f5f9 !important;
-    }
-    
-    /* Iconos SVG en labels del formulario */
-    [data-theme="dark"] label svg {
-        opacity: 0.9;
-    }
-    
-    /* ==================== MODAL COMISIONES - MODO CLARO ==================== */
-    .modal-comisiones-container {
-        background-color: #ffffff;
-    }
-    
-    .modal-comisiones-header {
-        background: linear-gradient(to right, #faf5ff, #ffffff);
-        border-color: #e9d5ff;
-        position: relative;
-    }
-    
-    .modal-comisiones-close-btn {
-        background-color: #ffffff;
-        border: 1px solid #e5e7eb;
-        color: #6b7280;
-    }
-    
-    .modal-comisiones-close-btn:hover {
-        color: #1f2937;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-    
-    .modal-comisiones-title {
-        color: #1f2937;
-    }
-    
-    .modal-comisiones-subtitle {
-        color: #6b7280;
-    }
-    
-    .modal-comisiones-content {
-        background-color: #ffffff;
-    }
-    
-    .modal-comisiones-empty {
-        color: #9ca3af;
-    }
-    
-    /* Tarjetas de resumen - Modo Claro */
-    .comision-card {
-        background: linear-gradient(to bottom right, var(--from-color), var(--to-color));
-    }
-    
-    .comision-card-purple {
-        --from-color: #faf5ff;
-        --to-color: #f3e8ff;
-        border-color: #e9d5ff !important;
-    }
-    
-    .comision-card-purple .comision-card-label,
-    .comision-card-purple .comision-card-sublabel {
-        color: #9333ea;
-    }
-    
-    .comision-card-purple .comision-card-value {
-        color: #581c87;
-    }
-    
-    .comision-card-orange {
-        --from-color: #fff7ed;
-        --to-color: #ffedd5;
-        border-color: #fed7aa !important;
-    }
-    
-    .comision-card-orange .comision-card-label,
-    .comision-card-orange .comision-card-sublabel {
-        color: #ea580c;
-    }
-    
-    .comision-card-orange .comision-card-value {
-        color: #7c2d12;
-    }
-    
-    .comision-card-green {
-        --from-color: #f0fdf4;
-        --to-color: #dcfce7;
-        border-color: #bbf7d0 !important;
-    }
-    
-    .comision-card-green .comision-card-label,
-    .comision-card-green .comision-card-sublabel {
-        color: #16a34a;
-    }
-    
-    .comision-card-green .comision-card-value {
-        color: #14532d;
-    }
-    
-    /* ==================== MODAL COMISIONES - MODO OSCURO ==================== */
-    [data-theme="dark"] .modal-comisiones-container {
-        background-color: #1e293b;
-        border: 1px solid #334155;
-    }
-    
-    [data-theme="dark"] .modal-comisiones-header {
-        background: linear-gradient(to right, #1e293b, #0f172a);
-        border-color: #334155 !important;
-    }
-    
-    [data-theme="dark"] .modal-comisiones-close-btn {
-        background-color: #334155;
-        border-color: #475569;
-        color: #cbd5e1;
-    }
-    
-    [data-theme="dark"] .modal-comisiones-close-btn:hover {
-        background-color: #475569;
-        color: #f1f5f9;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-    }
-    
-    [data-theme="dark"] .modal-comisiones-title {
-        color: #f1f5f9;
-    }
-    
-    [data-theme="dark"] .modal-comisiones-subtitle {
-        color: #94a3b8;
-    }
-    
-    [data-theme="dark"] .modal-comisiones-content {
-        background-color: #0f172a;
-    }
-    
-    [data-theme="dark"] .modal-comisiones-empty {
-        color: #64748b;
-    }
-    
-    /* Tarjetas de resumen - Modo Oscuro */
-    [data-theme="dark"] .comision-card-purple {
-        background: linear-gradient(to bottom right, rgba(139, 92, 246, 0.15), rgba(109, 40, 217, 0.15));
-        border-color: rgba(139, 92, 246, 0.3) !important;
-    }
-    
-    [data-theme="dark"] .comision-card-purple .comision-card-label,
-    [data-theme="dark"] .comision-card-purple .comision-card-sublabel {
-        color: #c4b5fd !important;
-    }
-    
-    [data-theme="dark"] .comision-card-purple .comision-card-value {
-        color: #e9d5ff !important;
-    }
-    
-    [data-theme="dark"] .comision-card-orange {
-        background: linear-gradient(to bottom right, rgba(249, 115, 22, 0.15), rgba(234, 88, 12, 0.15));
-        border-color: rgba(249, 115, 22, 0.3) !important;
-    }
-    
-    [data-theme="dark"] .comision-card-orange .comision-card-label,
-    [data-theme="dark"] .comision-card-orange .comision-card-sublabel {
-        color: #fdba74 !important;
-    }
-    
-    [data-theme="dark"] .comision-card-orange .comision-card-value {
-        color: #fed7aa !important;
-    }
-    
-    [data-theme="dark"] .comision-card-green {
-        background: linear-gradient(to bottom right, rgba(34, 197, 94, 0.15), rgba(22, 163, 74, 0.15));
-        border-color: rgba(34, 197, 94, 0.3) !important;
-    }
-    
-    [data-theme="dark"] .comision-card-green .comision-card-label,
-    [data-theme="dark"] .comision-card-green .comision-card-sublabel {
-        color: #86efac !important;
-    }
-    
-    [data-theme="dark"] .comision-card-green .comision-card-value {
-        color: #bbf7d0 !important;
-    }
-    
-    /* ==================== ITEMS DE COMISIÓN - MODO CLARO ==================== */
-    .comision-item {
-        background-color: #ffffff;
-        border: 1px solid #e5e7eb;
-    }
-    
-    .comision-item-informada {
-        background-color: #f0fdf4;
-        border-color: #bbf7d0;
-    }
-    
-    .comision-item-title {
-        color: #1f2937;
-    }
-    
-    .comision-item-date {
-        color: #6b7280;
-    }
-    
-    .comision-item-amount {
-        color: #9333ea;
-    }
-    
-    .comision-item-label,
-    .comision-item-gasto-label {
-        color: #6b7280;
-    }
-    
-    .comision-item-note {
-        color: #6b7280;
-        background-color: #f9fafb;
-        border-color: #d1d5db;
-    }
-    
-    .comision-item-footer {
-        border-top: 1px solid #f3f4f6;
-    }
-    
-    .comision-badge-informada {
-        background-color: #dcfce7;
-        color: #15803d;
-        border: 1px solid #bbf7d0;
-    }
-    
-    .comision-badge-pendiente {
-        background-color: #ffedd5;
-        color: #c2410c;
-        border: 1px solid #fed7aa;
-    }
-    
-    /* ==================== MONTOS DE COMISIONES ==================== */
-    .comision-montos-container {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-    }
-    
-    .comision-monto-box {
-        background-color: #eff6ff;
-        border: 1px solid #bfdbfe;
-    }
-    
-    .comision-monto-label {
-        color: #1e40af;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.025em;
-    }
-    
-    .comision-monto-value {
-        color: #1e40af;
-    }
-    
-    .comision-comision-box {
-        background-color: #faf5ff;
-        border: 1px solid #e9d5ff;
-    }
-    
-    .comision-comision-label {
-        color: #7c3aed;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.025em;
-    }
-    
-    /* ==================== PESTAÑAS DE COMISIONES ==================== */
-    .tab-comision {
-        background: transparent;
-        color: #64748b;
-        border-bottom: 2px solid transparent;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    
-    .tab-comision:hover {
-        color: #3b82f6;
-        background-color: rgba(59, 130, 246, 0.05);
-    }
-    
-    .tab-comision-active {
-        color: #3b82f6;
-        border-bottom-color: #3b82f6;
-        background-color: rgba(59, 130, 246, 0.05);
-    }
-    
-    .badge-tab {
-        background-color: #e2e8f0;
-        color: #475569;
-        font-size: 0.7rem;
-        min-width: 1.5rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .tab-comision-active .badge-tab {
-        background-color: #3b82f6;
-        color: white;
-    }
-    
-    .tab-content {
-        animation: fadeIn 0.3s ease-in;
-    }
-    
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(-10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    /* ==================== ITEMS DE COMISIÓN - MODO OSCURO ==================== */
-    [data-theme="dark"] .comision-item {
-        background-color: #1e293b;
-        border-color: #334155;
-    }
-    
-    [data-theme="dark"] .comision-item-informada {
-        background-color: rgba(34, 197, 94, 0.1);
-        border-color: rgba(34, 197, 94, 0.3);
-    }
-    
-    [data-theme="dark"] .comision-item-title {
-        color: #f1f5f9;
-    }
-    
-    [data-theme="dark"] .comision-item-date {
-        color: #94a3b8;
-    }
-    
-    [data-theme="dark"] .comision-item-amount {
-        color: #c4b5fd;
-    }
-    
-    [data-theme="dark"] .comision-item-label,
-    [data-theme="dark"] .comision-item-gasto-label {
-        color: #64748b;
-    }
-    
-    [data-theme="dark"] .comision-item-note {
-        color: #94a3b8;
-        background-color: #0f172a;
-        border-color: #334155;
-    }
-    
-    [data-theme="dark"] .comision-item-footer {
-        border-top-color: #334155;
-    }
-    
-    [data-theme="dark"] .comision-montos-container {
-        background-color: #0f172a;
-        border-color: #334155;
-    }
-    
-    [data-theme="dark"] .comision-monto-box {
-        background-color: rgba(59, 130, 246, 0.1);
-        border-color: rgba(59, 130, 246, 0.3);
-    }
-    
-    [data-theme="dark"] .comision-monto-label {
-        color: #60a5fa;
-    }
-    
-    [data-theme="dark"] .comision-monto-value {
-        color: #93c5fd;
-    }
-    
-    [data-theme="dark"] .comision-comision-box {
-        background-color: rgba(139, 92, 246, 0.1);
-        border-color: rgba(139, 92, 246, 0.3);
-    }
-    
-    [data-theme="dark"] .comision-comision-label {
-        color: #a78bfa;
-    }
-    
-    [data-theme="dark"] .comision-badge-informada {
-        background-color: rgba(34, 197, 94, 0.2);
-        color: #86efac;
-        border-color: rgba(34, 197, 94, 0.4);
-    }
-    
-    [data-theme="dark"] .comision-badge-pendiente {
-        background-color: rgba(249, 115, 22, 0.2);
-        color: #fdba74;
-        border-color: rgba(249, 115, 22, 0.4);
-    }
-    
-    [data-theme="dark"] .comision-checkbox {
-        background-color: #1e293b;
-        border-color: #475569;
-    }
-    
-    [data-theme="dark"] .comision-checkbox:checked {
-        background-color: #8b5cf6;
-        border-color: #8b5cf6;
-    }
-    
-    /* ==================== PESTAÑAS DE COMISIONES - MODO OSCURO ==================== */
-    [data-theme="dark"] .tab-comision {
-        color: #94a3b8;
-        border-bottom-color: transparent;
-    }
-    
-    [data-theme="dark"] .tab-comision:hover {
-        color: #60a5fa;
-        background-color: rgba(59, 130, 246, 0.1);
-    }
-    
-    [data-theme="dark"] .tab-comision-active {
-        color: #60a5fa;
-        border-bottom-color: #60a5fa;
-        background-color: rgba(59, 130, 246, 0.15);
-    }
-    
-    [data-theme="dark"] .badge-tab {
-        background-color: #334155;
-        color: #cbd5e1;
-    }
-    
-    [data-theme="dark"] .tab-comision-active .badge-tab {
-        background-color: #3b82f6;
-        color: white;
-    }
-    
-    /* ==================== GASTOS POR ORGANIZACIÓN - MODO OSCURO ==================== */
-    /* Card container oscuro */
-    [data-theme="dark"] .card-dark {
-        background-color: #1e293b;
-        border-color: #334155;
-    }
-    
-    /* Hover en lista de organizaciones para modo oscuro */
-    [data-theme="dark"] #lista-organizaciones .hover\:bg-blue-50:hover {
-        background-color: rgba(59, 130, 246, 0.1) !important;
-    }
-    
-    [data-theme="dark"] #lista-organizaciones .border-gray-50 {
-        border-color: #334155 !important;
-    }
-    
-    [data-theme="dark"] #lista-organizaciones .text-gray-600 {
-        color: #cbd5e1 !important;
-    }
-    
-    [data-theme="dark"] #lista-organizaciones .text-gray-900 {
-        color: #f1f5f9 !important;
-    }
-    
-    [data-theme="dark"] #lista-organizaciones .text-gray-400 {
-        color: #94a3b8 !important;
-    }
-    
-    [data-theme="dark"] #lista-organizaciones .bg-gray-100 {
-        background-color: rgba(148, 163, 184, 0.2) !important;
-    }
-    
-    /* Hover para items en modo oscuro */
-    [data-theme="dark"] #lista-organizaciones .group:hover .group-hover\:text-blue-600 {
-        color: #60a5fa !important;
-    }
-    
-    /* Círculo de fondo del gráfico */
-    [data-theme="dark"] #chart-dona circle[stroke="#e5e7eb"] {
-        stroke: #334155 !important;
-    }
-    
-    /* Botón ver más en móviles */
-    .btn-ver-mas-org {
-        background: linear-gradient(to right, #3b82f6, #2563eb);
-        color: white;
-        padding: 0.5rem 1rem;
-        border-radius: 0.5rem;
-        font-size: 0.875rem;
-        font-weight: 600;
-        transition: all 0.2s ease;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        margin: 0.75rem auto 0;
-        width: 100%;
-        max-width: 200px;
-    }
-    
-    .btn-ver-mas-org:hover {
-        background: linear-gradient(to right, #2563eb, #1d4ed8);
-        box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
-        transform: translateY(-1px);
-    }
-    
-    [data-theme="dark"] .btn-ver-mas-org {
-        background: linear-gradient(to right, #3b82f6, #2563eb);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    }
-    
-    [data-theme="dark"] .btn-ver-mas-org:hover {
-        background: linear-gradient(to right, #60a5fa, #3b82f6);
-        box-shadow: 0 2px 6px rgba(59, 130, 246, 0.5);
-    }
-    
-    /* Ocultar items extras en móviles */
-    @media (max-width: 768px) {
-        .org-item-hidden {
-            display: none !important;
-        }
-        
-        .org-item-hidden.org-item-hidden-active {
-            display: flex !important;
-        }
-    }
-    
-    /* ==================== BOTONES Y ELEMENTOS CON HOVER:BG-WHITE - MODO OSCURO ==================== */
-    /* Corregir todos los elementos que tienen hover:bg-white o hover:bg-gray-50 */
-    [data-theme="dark"] .hover\:bg-white:hover {
-        background-color: #1e293b !important;
-    }
-    
-    [data-theme="dark"] .bg-white:not(.btn-primary):not(button) {
-        background-color: #1e293b !important;
-    }
-    
-    [data-theme="dark"] .hover\:bg-gray-50:hover {
-        background-color: #1e293b !important;
-    }
-    
-    /* Mejorar botones de cerrar modal */
-    [data-theme="dark"] .bg-gray-100.text-gray-500 {
-        background-color: #1e293b !important;
-        color: #cbd5e1 !important;
-    }
-    
-    [data-theme="dark"] .bg-gray-100.text-gray-500:hover {
-        background-color: #334155 !important;
-        color: #f1f5f9 !important;
-    }
-    
-    /* Optimizar color del borde inferior del header */
-    [data-theme="dark"] .border-b.border-gray-100 {
-        border-color: #1e293b !important;
-    }
-
-    /* ==================== MODO OCULTAR SALDOS ==================== */
-    body.hide-saldos .monto-sensible,
-    body.hide-saldos .monto-sensible-auto {
-      filter: blur(6px);
-      user-select: none;
-      -webkit-user-select: none;
-      opacity: 0.7;
-      transition: filter 0.3s ease, opacity 0.3s ease;
-    }
-    
-    body.hide-saldos .monto-sensible:hover,
-    body.hide-saldos .monto-sensible-auto:hover {
-      filter: blur(0px);
-      opacity: 1;
-    }
-
-    body:not(.hide-saldos) .monto-sensible,
-    body:not(.hide-saldos) .monto-sensible-auto {
-      filter: blur(0px);
-      transition: filter 0.3s ease, opacity 0.3s ease;
-    }
-
-    [data-theme="dark"] .bg-gradient-to-r.from-gray-50 {
-        from { background-color: var(--border-gray); } 
-        to { background-color: var(--surface-gray); }
-        background-image: linear-gradient(to right, var(--border-gray), var(--surface-gray)) !important;
-    }
-    
-    /* Scrollbar Dark */
-    [data-theme="dark"] ::-webkit-scrollbar-track {
-      background: #0f172a;
-    }
-    
-    [data-theme="dark"] ::-webkit-scrollbar-thumb {
-      background: #334155;
-    }
-    
-    [data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-      background: #475569;
-    }
-    
-    /* Pin Screen - Dark Mode */
-    [data-theme="dark"] #pin-screen {
-      background: linear-gradient(to bottom right, #0f172a, #1e293b) !important;
-    }
-    
-    [data-theme="dark"] #pin-screen .card-dark {
-      background-color: #1e293b !important;
-      border-color: #334155 !important;
-    }
-    
-    [data-theme="dark"] #pin-screen h2 {
-      color: #f1f5f9 !important;
-    }
-    
-    [data-theme="dark"] #pin-screen p {
-      color: #cbd5e1 !important;
-    }
-    
-    [data-theme="dark"] #pin-screen .text-blue-600 {
-      color: #60a5fa !important;
-    }
-    
-    [data-theme="dark"] #pin-screen .hover\:text-blue-800:hover {
-      color: #93c5fd !important;
-    }
-    
-    [data-theme="dark"] #pin-screen input {
-      background-color: #0f172a !important;
-      border-color: #334155 !important;
-      color: #f1f5f9 !important;
-    }
-    
-    [data-theme="dark"] #pin-screen #pin-error {
-      background-color: rgba(239, 68, 68, 0.2) !important;
-      border-color: rgba(239, 68, 68, 0.4) !important;
-    }
-    
-    [data-theme="dark"] #pin-screen #pin-error p {
-      color: #fca5a5 !important;
-    }
-    
-    [data-theme="dark"] #pin-screen .text-gray-500 {
-      color: #94a3b8 !important;
-    }
-    
-    [data-theme="dark"] #pin-screen svg {
-      color: #94a3b8 !important;
-    }
-    
-    [data-theme="dark"] #pin-screen .border-gray-100 {
-      border-color: #334155 !important;
-    }
-    
-    /* ==================== HISTORIAL - MODO OSCURO ==================== */
-    /* Acordeones de grupos del historial */
-    [data-theme="dark"] #historial-reportados .bg-gradient-to-r.from-sky-100 {
-      background: linear-gradient(to right, rgba(56, 189, 248, 0.15), rgba(59, 130, 246, 0.15)) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .bg-gradient-to-r.from-sky-100:hover {
-      background: linear-gradient(to right, rgba(56, 189, 248, 0.25), rgba(59, 130, 246, 0.25)) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .bg-gradient-to-r h3,
-    [data-theme="dark"] #historial-reportados .text-gray-800 {
-      color: #f1f5f9 !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .text-gray-600 {
-      color: #cbd5e1 !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .text-sky-600 {
-      color: #38bdf8 !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .border-gray-200 {
-      border-color: #334155 !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .bg-gray-50 {
-      background-color: #0f172a !important;
-    }
-    
-    /* Tarjetas de gastos reportados */
-    [data-theme="dark"] #historial-reportados .bg-gradient-to-br.from-sky-50 {
-      background: linear-gradient(to bottom right, rgba(14, 165, 233, 0.12), rgba(59, 130, 246, 0.08)) !important;
-      border-color: rgba(56, 189, 248, 0.25) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .bg-gradient-to-br.from-sky-50:hover {
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .text-gray-900 {
-      color: #f1f5f9 !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .text-gray-400 {
-      color: #94a3b8 !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .text-gray-500 {
-      color: #cbd5e1 !important;
-    }
-    
-    /* Badges en tarjetas del historial */
-    [data-theme="dark"] #historial-reportados .bg-green-100 {
-      background-color: rgba(34, 197, 94, 0.15) !important;
-      border-color: rgba(34, 197, 94, 0.3) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .text-green-800 {
-      color: #86efac !important;
-    }
-    
-    /* Botones de editar y eliminar en tarjetas reportadas */
-    [data-theme="dark"] #historial-reportados .bg-blue-100 {
-      background-color: rgba(59, 130, 246, 0.15) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .bg-blue-100:hover {
-      background-color: rgba(59, 130, 246, 0.25) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .text-blue-600,
-    [data-theme="dark"] #historial-reportados .text-blue-700 {
-      color: #60a5fa !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .bg-red-100 {
-      background-color: rgba(239, 68, 68, 0.15) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .bg-red-100:hover {
-      background-color: rgba(239, 68, 68, 0.25) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados .text-red-600,
-    [data-theme="dark"] #historial-reportados .text-red-700 {
-      color: #f87171 !important;
-    }
-    
-    /* Badges de categorías en historial */
-    [data-theme="dark"] #historial-reportados [class*="bg-green-"] {
-      background-color: rgba(34, 197, 94, 0.15) !important;
-      border-color: rgba(34, 197, 94, 0.3) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados [class*="text-green-"] {
-      color: #86efac !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados [class*="bg-orange-"] {
-      background-color: rgba(249, 115, 22, 0.15) !important;
-      border-color: rgba(249, 115, 22, 0.3) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados [class*="text-orange-"] {
-      color: #fdba74 !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados [class*="bg-purple-"] {
-      background-color: rgba(168, 85, 247, 0.15) !important;
-      border-color: rgba(168, 85, 247, 0.3) !important;
-    }
-    
-    [data-theme="dark"] #historial-reportados [class*="text-purple-"] {
-      color: #c084fc !important;
-    }
-    
-    /* Tabs del historial (Mes, Trimestre, Año) */
-    [data-theme="dark"] #contenido-reportados .tab-btn {
-      color: #94a3b8 !important;
-    }
-    
-    [data-theme="dark"] #contenido-reportados .tab-btn.text-gray-500 {
-      color: #94a3b8 !important;
-    }
-    
-    [data-theme="dark"] #contenido-reportados .tab-btn.text-gray-800 {
-      color: #f1f5f9 !important;
-      border-color: #38bdf8 !important;
-    }
-    
-    [data-theme="dark"] #contenido-reportados .tab-btn:hover {
-      color: #f1f5f9 !important;
-    }
-    
-    [data-theme="dark"] #contenido-reportados .border-gray-200 {
-      border-color: #334155 !important;
-    }
-    
-    /* Filtros de categoría en historial */
-    [data-theme="dark"] #contenido-reportados .filtro-btn.bg-gray-100 {
-      background-color: #1e293b !important;
-      color: #cbd5e1 !important;
-      border: 1px solid #334155;
-    }
-    
-    [data-theme="dark"] #contenido-reportados .filtro-btn.bg-gray-100:hover {
-      background-color: #334155 !important;
-      color: #f1f5f9 !important;
-    }
-    
-    /* Encabezado del historial */
-    [data-theme="dark"] #icon-reportados,
-    [data-theme="dark"] #count-reportados {
-      color: #94a3b8 !important;
-    }
-    
-    [data-theme="dark"] #count-reportados {
-      background-color: rgba(148, 163, 184, 0.15) !important;
-    }
-    
-    /* Mensaje vacío del historial */
-    [data-theme="dark"] #historial-reportados .text-center .text-gray-400 {
-      color: #94a3b8 !important;
-    }
-    
-    /* Botón de tema */
-    .theme-toggle {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem;
-        border-radius: 0.75rem;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        color: var(--text-date);
-    }
-    
-    .theme-toggle:hover {
-        background-color: var(--btn-hover-bg);
-    }
-
-    /* Ocultar iconos nativos de revelado/auto-completado de contraseñas en navegadores */
-    input::-webkit-credentials-auto-fill-button,
-    input::-webkit-textfield-decoration-container,
-    input::-webkit-autofill-button {
-      display: none !important;
-      -webkit-appearance: none !important;
-    }
-
-    input::-ms-reveal,
-    input::-ms-clear {
-      display: none !important;
-    }
-    
-    /* Números grandes estilo fintech */
-    .numero-grande {
-      font-size: clamp(1.5rem, 5vw, 2.25rem) !important;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      line-height: 1.15;
-    }
-    
-    /* Ajustes responsive para textos de montos */
-    @media (max-width: 640px) {
-      .text-3xl, .text-4xl {
-        font-size: 1.5rem !important;
-        line-height: 1.2 !important;
-      }
-      
-      .text-2xl {
-        font-size: 1.25rem !important;
-        line-height: 1.25 !important;
-      }
-      
-      .text-xl {
-        font-size: 1.125rem !important;
-      }
-      
-      /* Mejorar legibilidad de texto pequeño en móviles */
-      .text-xs {
-        font-size: 0.7rem !important;
-      }
-      
-      .text-sm {
-        font-size: 0.8rem !important;
-      }
-
-      /* Reducir padding en cards para móviles */
-      .card-dark {
-        padding: 0.875rem !important;
-      }
-    }
-
-    @media (min-width: 641px) and (max-width: 1024px) {
-      .text-3xl {
-        font-size: 1.75rem !important;
-      }
-      
-      .text-2xl {
-        font-size: 1.375rem !important;
-      }
-      
-      .text-xl {
-        font-size: 1.125rem !important;
-      }
-    }
-    
-    /* Botones responsive */
-    button, a, .tab-btn, .filtro-btn {
-      min-height: 40px;
-      -webkit-tap-highlight-color: rgba(59, 130, 246, 0.1);
-      cursor: pointer;
-    }
-    
-    button:active, .tab-btn:active, .filtro-btn:active {
-      transform: scale(0.98);
-    }
-    
-    /* Mejorar scrollbars en móviles */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-    
-    ::-webkit-scrollbar-track {
-      background: #f3f4f6;
-      border-radius: 4px;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-      background: var(--secondary-color);
-      border-radius: 4px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--primary-color);
-    }
-
-    /* ==================== ANIMACIONES ==================== */
-    @keyframes slideInRight {
-      from {
-        opacity: 0;
-        transform: translateX(100%);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
-    }
-
-    @keyframes pulse-blue {
-      0%, 100% {
-        box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
-      }
-      50% {
-        box-shadow: 0 0 30px rgba(14, 165, 233, 0.6);
-      }
-    }
-
-    .notification {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 9999;
-      animation: slideInRight 0.3s ease-out;
-    }
-
-    .progress-bar {
-      transition: width 0.5s ease-out;
-    }
-
-    .pin-glow {
-      animation: pulse-blue 2s infinite;
-    }
-    
-    /* ==================== MENÚ MÓVIL ==================== */
-    .mobile-menu {
-      display: none;
-      position: fixed;
-      top: 0;
-      right: -100%;
-      width: 280px;
-      height: 100vh;
-      background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
-      box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5);
-      transition: right 0.3s ease;
-      z-index: 100;
-      padding: 1.5rem;
-    }
-    
-    .mobile-menu.active {
-      right: 0;
-    }
-    
-    .mobile-menu-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.7);
-      z-index: 99;
-    }
-    
-    .mobile-menu-overlay.active {
-      display: block;
-    }
-    
-    .hamburger {
-      display: none;
-      flex-direction: column;
-      gap: 0.375rem;
-      cursor: pointer;
-      padding: 0.625rem;
-      position: relative;
-      z-index: 50;
-      background: transparent;
-      border: none;
-      transition: all 0.2s ease;
-    }
-    
-    .hamburger:active {
-      transform: scale(0.95);
-    }
-    
-    .hamburger span {
-      display: block;
-      width: 1.75rem;
-      height: 0.1875rem;
-      background: #1f2937;
-      border-radius: 2px;
-      transition: all 0.3s ease;
-    }
-
-    [data-theme="dark"] .hamburger span {
-      background: #f1f5f9;
-    }
-    
-    .hamburger.active span:nth-child(1) {
-      transform: rotate(45deg) translate(0.5rem, 0.5rem);
-    }
-    
-    .hamburger.active span:nth-child(2) {
-      opacity: 0;
-    }
-    
-    .hamburger.active span:nth-child(3) {
-      transform: rotate(-45deg) translate(0.5rem, -0.5rem);
-    }
-    
-    @media (max-width: 768px) {
-      .hamburger {
-        display: flex;
-      }
-      
-      .mobile-menu {
-        display: block;
-      }
-      
-      .desktop-buttons {
-        display: none !important;
-      }
-    }
-
-    /* ==================== SCROLL NAVBAR ==================== */
-    /* Navbar scrolls naturally with page content */
-
-    /* ==================== ESTADOS ==================== */
-    .status-good { color: #10b981; }
-    .status-warning { color: #f59e0b; }
-    .status-danger { color: #ef4444; }
-    
-    .bg-status-good { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
-    .bg-status-warning { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
-    .bg-status-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
-
-    /* ==================== RESPONSIVE ==================== */
-    
-    /* Tablets */
-    @media (max-width: 1024px) {
-      .max-w-7xl {
-        padding-left: 1rem;
-        padding-right: 1rem;
-      }
-      
-      .grid-cols-1.lg\:grid-cols-2 {
-        grid-template-columns: 1fr;
-      }
-    }
-    
-    /* Móviles */
-    @media (max-width: 768px) {
-      body {
-        font-size: 14px;
-        overflow-x: hidden;
-      }
-      
-      #app {
-        overflow-x: hidden;
-        width: 100%;
-      }
-      
-      main {
-        overflow-x: hidden;
-      }
-      
-      /* Header responsive */
-      header > div > div.flex {
-        position: relative;
-      }
-      
-      header .flex.items-center.space-x-3 {
-        flex: 1;
-        min-width: 0;
-      }
-      
-      header .flex.items-center.space-x-6 {
-        flex-direction: row;
-        width: 100%;
-      }
-      
-      header .w-20 {
-        width: 3rem;
-        height: 3rem;
-      }
-      
-      header h1 {
-        font-size: 1.25rem !important;
-        line-height: 1.5;
-      }
-      
-      header p {
-        font-size: 0.75rem !important;
-      }
-      
-      header .flex.space-x-4 {
-        flex-direction: column;
-        width: 100%;
-        gap: 0.5rem;
-      }
-      
-      header .flex.space-x-4 button {
-        width: 100%;
-        padding: 0.75rem 1rem !important;
-        font-size: 0.875rem !important;
-      }
-      
-      /* Tarjetas */
-      .card-dark {
-        margin: 0.5rem 0;
-        padding: 1rem !important;
-      }
-      
-      .card-dark > div {
-        flex-direction: column !important;
-        align-items: flex-start !important;
-      }
-      
-      .card-dark .text-right {
-        text-align: left !important;
-        margin-left: 0 !important;
-        margin-top: 0.75rem;
-        width: 100%;
-      }
-      
-      .card-dark .flex.items-start {
-        flex-direction: column;
-      }
-      
-      .card-dark .flex.items-center.space-x-3 {
-        flex-wrap: wrap;
-        gap: 0.5rem;
-      }
-      
-      .card-dark .flex.items-center.justify-between {
-        flex-direction: column;
-        align-items: flex-start !important;
-        gap: 0.75rem;
-      }
-      
-      .card-dark h2 {
-        font-size: 1.25rem !important;
-        margin-bottom: 1.5rem !important;
-      }
-      
-      .card-dark .w-12 {
-        width: 2.5rem;
-        height: 2.5rem;
-        font-size: 1.5rem;
-      }
-      
-      /* Grid responsive */
-      .grid.grid-cols-1.lg\:grid-cols-2,
-      .grid.grid-cols-1.md\:grid-cols-2 {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-      }
-      
-      /* Botones */
-      .btn-primary {
-        padding: 0.875rem 1rem;
-        font-size: 0.875rem;
-      }
-      
-      /* Filtros scrolleables */
-      .flex.space-x-3,
-      .flex.space-x-2 {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        padding-bottom: 0.5rem;
-      }
-      
-      .flex.space-x-3::-webkit-scrollbar,
-      .flex.space-x-2::-webkit-scrollbar {
-        height: 4px;
-      }
-      
-      .flex.space-x-3::-webkit-scrollbar-thumb,
-      .flex.space-x-2::-webkit-scrollbar-thumb {
-        background: var(--primary-blue);
-        border-radius: 2px;
-      }
-      
-      .filtro-btn,
-      .tab-btn {
-        white-space: nowrap;
-        flex-shrink: 0;
-        padding: 0.75rem 1.25rem;
-        font-size: 0.875rem;
-      }
-      
-      /* Modales */
-      #modal-gasto .card-dark,
-      #modal-admin .card-dark {
-        margin: 1rem;
-        padding: 1.5rem !important;
-        max-height: 95vh;
-      }
-      
-      #modal-gasto h3,
-      #modal-admin h3 {
-        font-size: 1.5rem !important;
-      }
-      
-      #modal-gasto .text-3xl,
-      #modal-admin .text-4xl {
-        font-size: 1.5rem !important;
-      }
-      
-      #modal-gasto input,
-      #modal-gasto select,
-      #modal-admin input {
-        padding: 0.75rem 1rem !important;
-        font-size: 1rem !important;
-      }
-      
-      #modal-gasto label,
-      #modal-admin label {
-        font-size: 1rem !important;
-        margin-bottom: 0.5rem !important;
-      }
-      
-      #modal-gasto .flex.space-x-6,
-      #modal-admin button {
-        flex-direction: column;
-        gap: 0.75rem;
-      }
-      
-      #modal-gasto button,
-      #modal-admin button {
-        padding: 1rem !important;
-        font-size: 1rem !important;
-      }
-      
-      /* PIN Screen */
-      #pin-screen .card-dark {
-        margin: 1rem;
-        padding: 2rem !important;
-      }
-      
-      #pin-screen h2 {
-        font-size: 2rem !important;
-      }
-      
-      #pin-screen .text-4xl {
-        font-size: 2rem !important;
-      }
-      
-      #pin-input {
-        font-size: 2rem !important;
-        padding: 1rem !important;
-        letter-spacing: 0.5em;
-      }
-      
-      /* Notificaciones */
-      .notification {
-        top: 10px;
-        right: 10px;
-        left: 10px;
-        font-size: 0.875rem;
-      }
-      
-      /* Textos responsive */
-      .text-4xl { font-size: 1.875rem !important; }
-      .text-3xl { font-size: 1.5rem !important; }
-      .text-2xl { font-size: 1.25rem !important; }
-      .text-xl { font-size: 1.125rem !important; }
-      .text-lg { font-size: 1rem !important; }
-      
-      .card-dark h4 {
-        font-size: 1.125rem !important;
-        line-height: 1.5 !important;
-        word-wrap: break-word;
-      }
-      
-      .card-dark .text-3xl {
-        font-size: 1.75rem !important;
-      }
-      
-      /* Espaciado */
-      .px-8 { padding-left: 1rem !important; padding-right: 1rem !important; }
-      .py-8 { padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }
-      .px-6 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
-      .py-6 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
-      
-      .space-y-8 > * + * { margin-top: 1.5rem !important; }
-      .space-y-6 > * + * { margin-top: 1rem !important; }
-      
-      /* Márgenes */
-      .mb-12 { margin-bottom: 2rem !important; }
-      .mb-8 { margin-bottom: 1.5rem !important; }
-      .mb-6 { margin-bottom: 1rem !important; }
-    }
-
-    /* ==================== MEJORAS RESPONSIVE ADICIONALES ==================== */
-    /* Pendientes: columna única, cada grupo de mes ocupa todo el ancho */
-    .pendientes-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 0.625rem;
-    }
-
-    .pendiente-card {
-      width: 100%;
-      max-width: 420px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-
-    .pendiente-card .card-body {
-      flex: 1 1 auto;
-    }
-
-    .pendiente-card .card-actions {
-      display: flex;
-      gap: 0.75rem;
-    }
-
-    /* Ajuste del tamaño del monto dentro de tarjetas pendientes
-       - Usa `clamp` para escalar entre tamaños razonables según viewport
-       - Evita overflow y aplica truncamiento visual si es necesario */
-    .pendiente-card .numero-grande,
-    .pendiente-card .text-3xl,
-    .pendiente-card .text-2xl,
-    .pendiente-card .text-6xl,
-    .pendiente-card .text-5xl {
-      font-size: clamp(1rem, 3.6vw, 1.75rem) !important;
-      font-weight: 700;
-      line-height: 1.1;
-      /* permitir que el monto se adapte y envuelva en varias líneas si es necesario */
-      white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-      max-width: 100%;
-      display: block;
-    }
-
-    /* Selector genérico para tarjetas generadas dinámicamente dentro de la lista de pendientes */
-    #lista-gastos-pendientes .text-2xl,
-    #lista-gastos-pendientes .text-3xl,
-    #lista-gastos-pendientes .text-5xl,
-    #lista-gastos-pendientes .text-6xl,
-    .pendientes-grid .text-2xl,
-    .pendientes-grid .text-3xl,
-    .pendientes-grid .text-5xl,
-    .pendientes-grid .text-6xl {
-      font-size: clamp(1rem, 3.2vw, 1.5rem) !important;
-      line-height: 1.05;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-      margin-bottom: 0.25rem;
-    }
-    /* Reported cards styling */
-    .card-reportado {
-      overflow: hidden;
-      min-height: 84px;
-      display: block;
-    }
-    .card-reportado .text-right p {
-      margin: 0;
-    }
-
-    /* Grid de dashboard responsive */
-    @media (max-width: 1024px) {
-      .grid.grid-cols-1.md\:grid-cols-4 {
-        grid-template-columns: repeat(2, 1fr) !important;
-      }
-    }
-
-    @media (max-width: 640px) {
-      .grid.grid-cols-1.md\:grid-cols-4 {
-        grid-template-columns: 1fr !important;
-      }
-    }
-
-    @media (max-width: 768px) {
-      .pendiente-card .card-actions {
-        flex-direction: column;
-      }
-
-      /* Asegurar que botones ocupen todo el ancho */
-      .pendiente-card .card-actions button,
-      .pendiente-card .card-actions a {
-        width: 100%;
-      }
-
-      /* Modales: ocupar casi todo el ancho */
-      #modal-gasto .card-dark,
-      #modal-admin .card-dark {
-        width: calc(100% - 2rem) !important;
-        max-width: none !important;
-        margin: 1rem auto !important;
-        border-radius: 12px !important;
-      }
-
-      /* Formularios: inputs a 100% y mejor espaciado */
-      #modal-gasto input,
-      #modal-gasto select,
-      #modal-gasto textarea {
-        width: 100% !important;
-      }
-
-      /* Alinear badges y etiquetas en tarjetas */
-      .badge-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-      }
-
-      /* Grid de reportados responsive: 1 columna en móviles */
-      #historial-reportados .grid {
-        grid-template-columns: 1fr !important;
-      }
-
-      /* Mejorar acordeones en móviles */
-      .bg-gradient-to-r.from-sky-100 {
-        padding: 1rem !important;
-      }
-
-      .bg-gradient-to-r.from-sky-100 h3 {
-        font-size: 1rem !important;
-      }
-
-      .bg-gradient-to-r.from-sky-100 .text-right p {
-        font-size: 0.875rem !important;
-      }
-
-      /* Historial section responsive */
-      #contenido-reportados {
-        max-height: none !important;
-      }
-
-      /* Tarjetas de gastos reportados más compactas */
-      .bg-gradient-to-br.from-white {
-        padding: 0.75rem !important;
-      }
-
-      .bg-gradient-to-br.from-white .text-base {
-        font-size: 0.875rem !important;
-      }
-
-      /* Evolución y organizaciones responsive */
-      #chart-evolucion-meses {
-        height: 140px !important;
-      }
-      
-      #chart-evolucion-meses > div {
-        min-height: 5px !important;
-      }
-      
-      #chart-evolucion-trimestres {
-        height: 180px !important;
-      }
-      
-      #chart-evolucion-trimestres > div {
-        min-height: 18px !important;
-      }
-
-      #lista-organizaciones {
-        font-size: 0.75rem !important;
-      }
-      
-      /* Leyenda del gráfico de evolución */
-      .flex.items-center.gap-2.text-xs {
-        flex-wrap: wrap;
-        justify-content: center;
-      }
-      
-      .flex.items-center.gap-2.text-xs span.hidden {
-        display: inline !important;
-      }
-    }
-    
-    /* Móviles pequeños */
-    @media (max-width: 480px) {
-      #pin-input {
-        font-size: 1.5rem !important;
-        letter-spacing: 0.3em;
-      }
-      
-      .card-dark {
-        padding: 1rem !important;
-      }
-      
-      header .px-4 {
-        padding-left: 0.75rem !important;
-        padding-right: 0.75rem !important;
-      }
-      
-      .filtro-btn,
-      .tab-btn {
-        padding: 0.625rem 1rem;
-        font-size: 0.8125rem;
-      }
-
-      /* Tarjetas de resumen más compactas */
-      .card-dark .text-4xl {
-        font-size: 1.5rem !important;
-      }
-
-      .card-dark .text-3xl {
-        font-size: 1.25rem !important;
-      }
-
-      /* Reducir padding de pendientes y reportados */
-      .pendiente-card {
-        padding: 0.75rem !important;
-      }
-
-      /* Badges más pequeños */
-      .badge-row span {
-        font-size: 0.625rem !important;
-        padding: 0.25rem 0.5rem !important;
-      }
-
-      /* Gráfico de evolución más pequeño en móviles pequeños */
-      #chart-evolucion-meses {
-        height: 120px !important;
-      }
-      
-      #chart-evolucion-meses > div {
-        min-height: 4px !important;
-      }
-      
-      #chart-evolucion-trimestres {
-        height: 160px !important;
-      }
-      
-      #chart-evolucion-trimestres > div {
-        min-height: 16px !important;
-      }
-
-      /* Lista de organizaciones más compacta */
-      #lista-organizaciones .text-sm {
-        font-size: 0.7rem !important;
-      }
-
-      #lista-organizaciones .font-semibold {
-        font-size: 0.75rem !important;
-      }
-
-      /* Acordeones del historial más compactos */
-      .bg-gradient-to-r.from-sky-100 {
-        padding: 0.75rem !important;
-      }
-
-      .bg-gradient-to-r.from-sky-100 h3 {
-        font-size: 0.875rem !important;
-      }
-      
-      /* Montos en tarjetas pendientes responsive */
-      .text-5xl, .text-6xl {
-        font-size: 2rem !important;
-      }
-      
-      /* Leyenda completa en móviles pequeños */
-      .flex.items-center.gap-2.text-xs {
-        gap: 0.5rem !important;
-      }
-    }
-
-    /* ==================== iOS / MOBILE VIEWPORT FIX ==================== */
-    /* svh = small viewport height (excludes browser chrome like address bar) */
-    #app {
-      height: 100vh; /* fallback */
-      height: 100svh;
-    }
-
-    /* ==================== NOTIFICATION RESPONSIVE ==================== */
-    @media (max-width: 639px) {
-      #notification-container {
-        left: 0.75rem;
-        right: 0.75rem;
-        top: 0.75rem;
-        max-width: calc(100vw - 1.5rem);
-      }
-      .notification {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 0.75rem 1rem !important;
-        font-size: 0.875rem !important;
-        border-radius: 14px !important;
-      }
-    }
-
-    /* ==================== MODAL HEADER / KPI RESPONSIVE ==================== */
-    @media (max-width: 480px) {
-      /* Prevent KPI card amounts overflowing */
-      #presupuesto-total, #total-gastado,
-      #presupuesto-disponible, #presupuesto-proyectado,
-      #viaticos-disponible, #viaticos-gastados-texto,
-      #gastos-externos-monto {
-        word-break: break-all;
-        overflow-wrap: anywhere;
-        font-size: clamp(0.9rem, 5vw, 1.25rem) !important;
-      }
-
-      /* Admin stats row - compact labels */
-      #modal-admin .grid.grid-cols-3 .text-\[11px\] {
-        font-size: 0.625rem !important;
-        letter-spacing: 0 !important;
-      }
-      #modal-admin .grid.grid-cols-3 .text-lg {
-        font-size: 0.9rem !important;
-      }
-    }
-
-    /* ==================== CARDS AMOUNT ON MOBILE ==================== */
-    @media (max-width: 400px) {
-      /* Historial card amounts - prevent overflow */
-      .card-reportado .text-2xl,
-      .card-reportado .text-3xl {
-        font-size: 1.1rem !important;
-      }
-    }
-  </style>
+  
 
   <!-- Estilo corporativo claro / minimalista (solo apariencia, no altera funcionamiento) -->
+  
+  <!-- Dashboard visual: scoped to #app; no afecta login ni lógica -->
+  <!-- Diseño interno de la aplicación: gris oscuro + naranja -->
+  
+
+
+  
+
+  
+
+
+  <!-- Estilos generales de la aplicación -->
   <link rel="stylesheet" href="./styles.css">
+
 </head>
 
 <body class="min-h-full bg-gray-50">
   
-  <!-- ==================== MODAL DE PIN SEGURO ==================== -->
-  <div id="pin-screen" class="fixed inset-0 bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center z-[9999] p-4">
-    <div class="card-dark rounded-2xl p-8 lg:p-12 w-full max-w-md text-center shadow-xl border border-gray-100">
-      
-      <!-- Logo Profesional -->
-      <div class="w-20 h-20 lg:w-24 lg:h-24 mx-auto mb-6 lg:mb-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
-        <svg class="w-10 h-10 lg:w-12 lg:h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-        </svg>
-      </div>
-      
-      <h2 class="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 lg:mb-3">Acceso Presidencia de Estaca Aldo Bonzi</h2>
-      <p class="text-gray-600 mb-6 lg:mb-8 text-sm lg:text-base">Ingresa PIN para continuar</p>
+  <!-- ==================== LOGIN / ACCESO SEGURO ==================== -->
+  <div id="pin-screen" class="login-screen fixed inset-0 z-[9999]">
+    <div class="login-shell">
 
-      <!-- Contenedor del PIN -->
-      <div class="relative mb-6 lg:mb-8">
-        <input 
-          type="password" 
-          id="pin-input" 
-          inputmode="numeric"
-          pattern="[0-9]*"
-          class="input-dark w-full text-center text-xl lg:text-2xl tracking-[0.5em] lg:tracking-[0.6em] rounded-2xl py-4 lg:py-6 font-mono"
-          placeholder="••••••"
-        />
-        
-        <!-- Botón de Visibilidad (SVG profesional) -->
-        <button type="button" onclick="togglePinVisibility()" aria-label="Mostrar u ocultar PIN"
-          class="absolute right-4 lg:right-6 top-1/2 transform -translate-y-1/2 hover:text-sky-500 text-xl lg:text-2xl">
-          <span id="pin-toggle-icon" class="flex items-center">
-            <!-- Eye-off (hidden) SVG by default -->
-            <svg id="icon-eye-off" class="w-7 h-7 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-              <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-4.477 0-8.268-2.943-9.542-7a10.94 10.94 0 0 1 4.216-5.06"></path>
-              <path d="M1 1l22 22"></path>
-              <path d="M9.88 9.88A3 3 0 0 0 12 15a3 3 0 0 0 2.12-5.12"></path>
+      <!-- Panel visual / Templo -->
+      <section class="login-visual" aria-label="Templo de Buenos Aires">
+        <div class="login-visual-overlay"></div>
+
+        <div class="login-brand">
+          <div class="login-brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 20h16M6 20V9l6-5 6 5v11M9 20v-6h6v6M9 10h.01M15 10h.01"/>
             </svg>
-            <svg id="icon-eye" class="w-7 h-7 text-gray-600 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-              <path d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-          </span>
-        </button>
-      </div>
+          </div>
+          <div>
+            <p class="login-brand-title">Presidencia de Estaca</p>
+            <p class="login-brand-subtitle">Aldo Bonzi</p>
+          </div>
+        </div>
 
-      <!-- Botón de Ingreso -->
-      <button onclick="validarPIN()" id="login-btn"
-        class="w-full btn-primary text-white font-semibold py-4 lg:py-5 rounded-xl text-base lg:text-lg mb-4 lg:mb-6">
-        <span class="flex items-center justify-center">
-            <svg class="w-5 h-5 mr-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg">
-              <rect x="3" y="11" width="18" height="11" rx="2"></rect>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
-            Acceder al Sistema
-        </span>
-      </button>
+        <div class="login-welcome">
+          <span class="login-eyebrow">Sistema de administración</span>
+          <h1>Bienvenido<br>de nuevo</h1>
+          <p>Accedé al sistema para administrar gastos, presupuestos y reportes de manera simple y segura.</p>
+        </div>
 
-      <!-- Botón de recuperación de cuenta -->
-      <button onclick="solicitarRecuperacionCuenta()" 
-        class="w-full text-blue-600 hover:text-blue-800 font-medium py-2 text-sm lg:text-base transition-all">
-        ¿Olvidaste tu PIN? Solicitar recuperación
-      </button>
+        <div class="login-visual-footer">
+          <div class="login-feature">
+            <span class="login-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 4.5-2.8 8.2-7 10-4.2-1.8-7-5.5-7-10V6l7-3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4"/></svg>
+            </span>
+            <span>Acceso protegido</span>
+          </div>
+          <div class="login-feature">
+            <span class="login-feature-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></svg>
+            </span>
+            <span>Gestión centralizada</span>
+          </div>
+        </div>
+      </section>
 
-      <!-- Mensaje de Error -->
-      <div id="pin-error" class="hidden p-3 lg:p-4 bg-red-50 border border-red-200 rounded-xl">
-        <p class="text-red-800 font-medium text-sm lg:text-base">❌ Error de conexión. Intenta más tarde.</p>
-      </div>
+      <!-- Panel formulario -->
+      <section class="login-form-panel">
+        <div class="login-form-wrap">
+          <div class="login-form-heading">
+            <span class="login-mobile-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20h16M6 20V9l6-5 6 5v11M9 20v-6h6v6"/></svg>
+            </span>
+            <span class="login-kicker">Acceso seguro</span>
+            <h2>Iniciar sesión</h2>
+            <p>Ingresá tu PIN para continuar al panel de administración.</p>
+          </div>
 
-      <!-- Texto de Ayuda -->
-      <div class="mt-6 lg:mt-8 text-xs text-gray-500">
-        <p>🔒 Sistema protegido | Solo Presidencia de Estaca Aldo Bonzi</p>
-      </div>
+          <div class="login-field-group">
+            <label for="pin-input">PIN de acceso</label>
+            <div class="login-pin-field">
+              <span class="login-field-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="10" width="14" height="10" rx="2"/><path stroke-linecap="round" d="M8 10V7a4 4 0 018 0v3"/></svg>
+              </span>
+              <input
+                type="password"
+                id="pin-input"
+                autocomplete="current-password"
+                placeholder="Ingresá tu PIN o clave"
+              />
+              <button type="button" onclick="togglePinVisibility()" class="login-eye-btn" aria-label="Mostrar u ocultar PIN">
+                <span id="pin-toggle-icon" class="flex items-center">
+                  <!-- <svg id="icon-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-4.477 0-8.268-2.943-9.542-7a10.94 10.94 0 0 1 4.216-5.06"/><path d="M1 1l22 22"/><path d="M9.88 9.88A3 3 0 0 0 12 15a3 3 0 0 0 2.12-5.12"/>
+                  </svg> -->
+                  <svg id="icon-eye" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div class="login-actions-row">
+            <span class="login-secure-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 4.5-2.8 8.2-7 10-4.2-1.8-7-5.5-7-10V6l7-3z"/></svg>
+              Sesión protegida
+            </span>
+            <button type="button" onclick="solicitarRecuperacionCuenta()" class="login-recovery">¿Olvidaste tu PIN?</button>
+          </div>
+
+          <button type="button" onclick="validarPIN()" id="login-btn" class="login-submit">
+            <span>Acceder al sistema</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-5-5l5 5-5 5"/></svg>
+          </button>
+
+          <div id="pin-error" class="login-error hidden">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5m0 3h.01"/></svg>
+            <p>Error de conexión. Intentá nuevamente más tarde.</p>
+          </div>
+
+          <div class="login-footer-note">
+            <span></span>
+            <p>Uso exclusivo de Presidencia de Estaca Aldo Bonzi</p>
+            <span></span>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 
@@ -2284,6 +221,11 @@
            <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
            <span class="font-medium">Búsqueda Avanzada</span>
         </button>
+
+        <button onclick="abrirModalMeetup()" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-100 group transition-colors text-left mb-2">
+           <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+           <span class="font-medium">MeetUp <span data-meetup-year>2026</span></span>
+        </button>
         
         <button id="btn-panel-admin" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-100 group transition-colors text-left hidden mb-2">
            <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
@@ -2296,12 +238,6 @@
              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"></path></svg>
            </span>
            <span id="saldos-text-desktop" class="font-medium">Ocultar Saldos</span>
-        </button>
-
-        <!-- Toggle Dark Mode Button (Desktop) -->
-        <button onclick="toggleTheme()" class="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 rounded-xl hover:bg-gray-100 group transition-colors text-left">
-           <span id="theme-icon-desktop" class="mr-3 text-xl">🌙</span>
-           <span id="theme-text-desktop" class="font-medium">Modo Oscuro</span>
         </button>
 
       </div>
@@ -2342,6 +278,7 @@
     <!-- Content Wrapper -->
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
 
+        <!-- En escritorio las acciones permanecen en el menú lateral. -->
         <!-- Mobile Header -->
         <header class="bg-white border-b border-gray-200 md:hidden flex items-center justify-between p-4 z-20 shadow-sm relative sticky top-0">
             <div class="flex items-center">
@@ -2355,7 +292,7 @@
               <!-- Botón rápido Nuevo Gasto -->
               <button
                 onclick="document.getElementById('modal-gasto').classList.remove('hidden');(function(){var n=new Date();document.getElementById('fecha').value=new Date(n.getTime()-n.getTimezoneOffset()*60000).toISOString().split('T')[0];})()"
-                class="w-9 h-9 btn-primary text-white rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
+                class="mobile-quick-add btn-primary text-white rounded-xl flex items-center justify-center shadow-sm flex-shrink-0"
                 aria-label="Nuevo Gasto" title="Nuevo Gasto">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
@@ -2375,42 +312,41 @@
         <div class="mobile-menu bg-gray-900">
             <div class="flex justify-between items-center mb-8 p-4 border-b border-gray-800">
                 <div class="flex items-center">
-                    <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white mr-3">
-                        💼
-                    </div>
+                    <div class="mobile-menu-title-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="7" width="16" height="12" rx="2"/><path stroke-linecap="round" d="M9 7V5h6v2M4 12h16"/></svg></div>
                     <h3 class="text-lg font-bold text-white">Menú</h3>
                 </div>
                 <!-- Reuse hamburger class for close logic if needed, or simple button -->
                 <button onclick="toggleMobileMenu()" class="text-gray-400 hover:text-white text-2xl">✕</button>
             </div>
           
-            <div class="space-y-3 px-4">
-                <button id="btn-nuevo-gasto-mobile" class="w-full btn-primary text-white font-bold px-4 py-3 rounded-xl text-left flex items-center shadow-lg" onclick="toggleMobileMenu()"> 
-                <span class="mr-3">➕</span> Nuevo Gasto 
+            <div class="mobile-menu-nav">
+                <button id="btn-nuevo-gasto-mobile" class="mobile-menu-item mobile-menu-item--primary" onclick="toggleMobileMenu()">
+                  <span class="mobile-menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg></span>
+                  <span>Nuevo Gasto</span>
                 </button>
-                <button onclick="mostrarModalComisiones(); toggleMobileMenu()" class="w-full bg-purple-900/50 text-purple-100 font-bold px-4 py-3 rounded-xl text-left flex items-center border border-purple-800hover:bg-purple-900 transition-colors"> 
-                <span class="mr-3">💰</span> Comisiones ML 
+                <button onclick="mostrarModalComisiones(); toggleMobileMenu()" class="mobile-menu-item">
+                  <span class="mobile-menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M15.2 8.8c-.7-.7-1.8-1.1-3-1.1-1.7 0-3 .8-3 2s1.1 1.8 3 2.2c1.9.4 3 .9 3 2.2s-1.3 2.2-3 2.2c-1.3 0-2.5-.4-3.3-1.2M12 6.2v11.6"/></svg></span>
+                  <span>Comisiones ML</span>
                 </button>
-                <button onclick="abrirBusquedaAvanzada(); toggleMobileMenu()" class="w-full bg-blue-900/50 text-blue-100 font-bold px-4 py-3 rounded-xl text-left flex items-center border border-blue-800 hover:bg-blue-900 transition-colors">
-                <span class="mr-3">🔍</span> Búsqueda Avanzada
+                <button onclick="abrirBusquedaAvanzada(); toggleMobileMenu()" class="mobile-menu-item">
+                  <span class="mobile-menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path stroke-linecap="round" d="m16 16 4.5 4.5"/></svg></span>
+                  <span>Búsqueda Avanzada</span>
                 </button>
-                <button id="btn-panel-admin-mobile" class="hidden w-full bg-slate-800 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center border border-slate-700 hover:bg-slate-700 transition-colors mb-3" onclick="toggleMobileMenu()"> 
-                <span class="mr-3">⚙️</span> Configuración 
+                <button onclick="abrirModalMeetup(); toggleMobileMenu()" class="mobile-menu-item mobile-menu-item--meetup">
+                  <span class="mobile-menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20M9.5 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM21 20v-1.5a3.6 3.6 0 0 0-2.7-3.5M16.5 3.7a3.5 3.5 0 0 1 0 6.8"/></svg></span>
+                  <span>MeetUp <span data-meetup-year>2026</span></span>
                 </button>
-                <!-- Toggle Mask Balances Button (Mobile) -->
-                <button onclick="toggleSaldos()" class="w-full bg-slate-800 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center border border-slate-700 hover:bg-slate-700 transition-colors mb-3"> 
-                  <span id="saldos-icon-mobile" class="mr-3 flex items-center text-gray-400">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z"></path></svg>
-                  </span> 
-                  <span id="saldos-text-mobile">Ocultar Saldos</span> 
+                <button id="btn-panel-admin-mobile" class="hidden mobile-menu-item" onclick="toggleMobileMenu()">
+                  <span class="mobile-menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path stroke-linecap="round" d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg></span>
+                  <span>Configuración</span>
                 </button>
-                <!-- Toggle Dark Mode Button (Mobile) -->
-                <button onclick="toggleTheme()" class="w-full bg-slate-800 text-white font-bold px-4 py-3 rounded-xl text-left flex items-center border border-slate-700 hover:bg-slate-700 transition-colors mb-3"> 
-                  <span id="theme-icon-mobile" class="mr-3 text-lg">🌙</span> 
-                  <span id="theme-text-mobile">Modo Oscuro</span> 
+                <button onclick="toggleSaldos()" class="mobile-menu-item">
+                  <span id="saldos-icon-mobile" class="mobile-menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg></span>
+                  <span id="saldos-text-mobile">Ocultar Saldos</span>
                 </button>
-                <button id="btn-cerrar-sesion-mobile" class="w-full bg-red-900/50 text-red-100 font-bold px-4 py-3 rounded-xl text-left flex items-center border border-red-900 hover:bg-red-900 transition-colors" onclick="toggleMobileMenu()"> 
-                <span class="mr-3">🚪</span> Salir 
+                <button id="btn-cerrar-sesion-mobile" class="mobile-menu-item mobile-menu-item--danger" onclick="toggleMobileMenu()">
+                  <span class="mobile-menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M14 8l4 4-4 4M18 12H9"/></svg></span>
+                  <span>Salir</span>
                 </button>
             </div>
 
@@ -2421,7 +357,20 @@
         </div>
 
         <!-- ==================== CONTENIDO PRINCIPAL ==================== -->
-        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-4 sm:p-6 lg:p-8">
+        <main id="main-content" class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 p-4 sm:p-6 lg:p-8">
+
+      <!-- Alerta automática de cierre fiscal: solo se muestra cuando corresponde -->
+      <section id="alerta-cierre-fiscal" class="fiscal-year-alert hidden" role="status" aria-live="polite">
+        <div class="fiscal-year-alert-icon" aria-hidden="true"></div>
+        <div class="fiscal-year-alert-copy">
+          <div class="fiscal-year-alert-title-row">
+            <strong id="alerta-cierre-fiscal-titulo">Cierre fiscal</strong>
+            <span id="alerta-cierre-fiscal-dias"></span>
+          </div>
+          <p id="alerta-cierre-fiscal-texto"></p>
+          <div class="fiscal-year-alert-meta" id="alerta-cierre-fiscal-meta"></div>
+        </div>
+      </section>
       
       <!-- Resumen de Presupuestos - Estilo Dashboard -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 xl:gap-5 mb-5 lg:mb-7">
@@ -2495,14 +444,14 @@
         </div>
 
         <!-- Gastos Externos -->
-        <div onclick="abrirModalGastosExternos()" class="card-dark p-4 lg:p-5 transition-all duration-200 hover:shadow-lg border border-gray-100 cursor-pointer hover:border-blue-300">
+        <div onclick="abrirModalGastosExternos()" class="card-dark external-kpi-card p-4 lg:p-5 transition-all duration-200 hover:shadow-lg border cursor-pointer">
           <div class="flex items-center justify-center mb-3">
-            <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 mr-2 lg:mr-3">
+            <div class="external-kpi-icon w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center mr-2 lg:mr-3">
                 <svg class="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
             </div>
             <div>
               <p class="text-xs lg:text-sm font-semibold text-gray-700 leading-tight">Gastos Externos</p>
-              <p class="text-[10px] lg:text-xs text-blue-500 font-medium">Meetup • PFJ • Área</p>
+              <p class="external-kpi-subtitle text-[10px] lg:text-xs font-medium">MeetUp • PFJ • Área</p>
             </div>
           </div>
           <div class="text-center">
@@ -2513,9 +462,237 @@
         </div>
       </div>
 
+      <div id="meetup-dashboard-host" class="mt-8"></div>
+
+      <!-- ==================== MEETUP 2026 - ARGENTINA · INTEGRADO EN ESTE INDEX ==================== -->
+      <div id="meetup-section" class="hidden meetup-event-shell">
+        <section class="meetup-event-hero">
+          <button type="button" onclick="cerrarModalMeetup()" class="meetup-page-back" aria-label="Volver al control de gastos">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/>
+            </svg>
+            <span>Volver al control de gastos</span>
+          </button>
+          <div class="meetup-event-hero-copy">
+            <span class="meetup-event-kicker">EVENTO ESPECIAL · ARGENTINA</span>
+            <h3>MeetUp <span data-meetup-year>2026</span></h3>
+            <p>Control específico de presupuesto y gastos del evento.</p>
+          </div>
+          <div class="meetup-event-status">
+            <span class="meetup-event-status-dot"></span>
+            Gestión activa
+          </div>
+        </section>
+
+        <div id="meetup-alerta-principal" class="hidden meetup-main-alert"></div>
+
+        <section class="meetup-summary-grid">
+          <article class="meetup-summary-card">
+            <div class="meetup-summary-icon meetup-summary-icon--orange">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m3-9.5c-.7-.7-1.7-1-3-1-1.7 0-3 .8-3 2s1.1 1.8 3 2 3 1 3 2-1.3 2-3 2c-1.4 0-2.5-.4-3.3-1.2"/></svg>
+            </div>
+            <div>
+              <span>Gastos registrados</span>
+              <strong id="meetup-gastos-registrados-total">$0,00</strong>
+            </div>
+          </article>
+          <article class="meetup-summary-card">
+            <div class="meetup-summary-icon meetup-summary-icon--soft">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12l4 4L19 6"/></svg>
+            </div>
+            <div>
+              <span>Movimientos</span>
+              <strong id="meetup-gastos-count">0 ingreso(s)</strong>
+            </div>
+          </article>
+        </section>
+
+        <section class="meetup-budget-section">
+          <div class="meetup-section-heading">
+            <div>
+              <span>PARTIDAS DEL EVENTO</span>
+              <h4>Presupuesto por categoría</h4>
+            </div>
+            <p>Cada categoría conserva su monto y seguimiento individual.</p>
+          </div>
+
+          <div class="meetup-budget-grid">
+            <article class="meetup-budget-card meetup-budget-card--blue">
+              <div class="meetup-budget-card-top">
+                <div class="meetup-budget-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19.5V8.2L12 4l8 4.2v11.3M8 20v-7h8v7M9 9h.01M15 9h.01"/></svg>
+                </div>
+                <div>
+                  <span>CAPACITACIÓN</span>
+                  <h5>Sesiones y materiales</h5>
+                </div>
+                <span class="meetup-unit-badge">/ sesión</span>
+              </div>
+              <div class="meetup-base-compact">
+                <label class="meetup-field-label" for="meetup-capacitacion">Monto base</label>
+                <input id="meetup-capacitacion" type="text" inputmode="numeric" value="$191.800,00" class="meetup-money-input amount-display" />
+              </div>
+              <div class="meetup-budget-details meetup-budget-details--compact">
+                <div><span>Planificado</span><strong id="meetup-capacitacion-total">$191.800,00</strong></div>
+                <div><span>Registrado</span><strong id="meetup-capacitacion-registrado">$0,00</strong></div>
+              </div>
+              <div class="meetup-balance-highlight">
+                <div class="meetup-balance-row">
+                  <span>Saldo disponible <small id="meetup-capacitacion-percentage" class="meetup-balance-percentage">100% disponible</small></span>
+                  <strong id="meetup-capacitacion-saldo">$191.800,00</strong>
+                </div>
+                <div class="meetup-progress-track" aria-label="Porcentaje de saldo disponible"><div id="meetup-capacitacion-progress" class="meetup-progress-value" style="width:100%"></div></div>
+              </div>
+            </article>
+
+            <article class="meetup-budget-card meetup-budget-card--orange">
+              <div class="meetup-budget-card-top">
+                <div class="meetup-budget-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></svg>
+                </div>
+                <div>
+                  <span>DECORACIÓN</span>
+                  <h5>Ambientación del evento</h5>
+                </div>
+                <span class="meetup-unit-badge">/ sesión</span>
+              </div>
+              <div class="meetup-base-compact">
+                <label class="meetup-field-label" for="meetup-decoracion">Monto base</label>
+                <input id="meetup-decoracion" type="text" inputmode="numeric" value="$447.552,00" class="meetup-money-input amount-display" />
+              </div>
+              <div class="meetup-budget-details meetup-budget-details--compact">
+                <div><span>Planificado</span><strong id="meetup-decoracion-total">$447.552,00</strong></div>
+                <div><span>Registrado</span><strong id="meetup-decoracion-registrado">$0,00</strong></div>
+              </div>
+              <div class="meetup-balance-highlight">
+                <div class="meetup-balance-row">
+                  <span>Saldo disponible <small id="meetup-decoracion-percentage" class="meetup-balance-percentage">100% disponible</small></span>
+                  <strong id="meetup-decoracion-saldo">$447.552,00</strong>
+                </div>
+                <div class="meetup-progress-track" aria-label="Porcentaje de saldo disponible"><div id="meetup-decoracion-progress" class="meetup-progress-value" style="width:100%"></div></div>
+              </div>
+            </article>
+
+            <article class="meetup-budget-card meetup-budget-card--green">
+              <div class="meetup-budget-card-top">
+                <div class="meetup-budget-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3v7a4 4 0 008 0V3M9 3v7M15 3v7M12 14v7"/></svg>
+                </div>
+                <div>
+                  <span>COMIDA</span>
+                  <h5>Costo por participante</h5>
+                </div>
+                <span class="meetup-unit-badge">x persona</span>
+              </div>
+              <div class="meetup-food-fields meetup-food-fields--compact">
+                <div>
+                  <label class="meetup-field-label" for="meetup-comida-unitario">Valor unitario</label>
+                  <input id="meetup-comida-unitario" type="text" inputmode="numeric" value="$25.574,00" class="meetup-money-input amount-display" />
+                </div>
+                <div>
+                  <label class="meetup-field-label" for="meetup-participantes">Participantes</label>
+                  <input id="meetup-participantes" type="number" min="1" step="1" value="1" class="meetup-money-input amount-display" />
+                </div>
+              </div>
+              <div class="meetup-food-subtotal meetup-food-subtotal--highlight">
+                <span>Subtotal estimado</span>
+                <strong id="meetup-comida-subtotal">$25.574,00</strong>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="meetup-workspace-grid">
+          <article class="meetup-history-panel meetup-movements-panel">
+            <div class="meetup-section-heading meetup-section-heading--compact">
+              <div>
+                <span>ACTIVIDAD DEL EVENTO</span>
+                <h4>Movimientos del evento</h4>
+                <p>Seguimiento de gastos en proceso e historial del evento.</p>
+              </div>
+              <span class="meetup-history-live"><i></i> Actualización en tiempo real</span>
+            </div>
+
+            <div class="meetup-movement-summary">
+              <div>
+                <span class="meetup-summary-dot meetup-summary-dot--pending"></span>
+                <div><strong id="meetup-proceso-count">0</strong><small>En proceso</small></div>
+              </div>
+              <div>
+                <span class="meetup-summary-dot meetup-summary-dot--done"></span>
+                <div><strong id="meetup-historial-count">0</strong><small>Completados</small></div>
+              </div>
+              <div class="meetup-movement-summary-total">
+                <small>Total registrado</small>
+                <strong id="meetup-movimientos-total">$0,00</strong>
+              </div>
+            </div>
+
+            <div class="meetup-movement-tabs" role="tablist" aria-label="Estado de movimientos">
+              <button type="button" class="meetup-movement-tab is-active" data-meetup-view="proceso">
+                En proceso <span id="meetup-tab-proceso-count">0</span>
+              </button>
+              <button type="button" class="meetup-movement-tab" data-meetup-view="historial">
+                Historial <span id="meetup-tab-historial-count">0</span>
+              </button>
+            </div>
+
+            <div class="meetup-category-filters" aria-label="Filtrar movimientos por categoría">
+              <button type="button" class="meetup-category-filter is-active" data-meetup-category="todos">Todos</button>
+              <button type="button" class="meetup-category-filter" data-meetup-category="capacitacion">Capacitación</button>
+              <button type="button" class="meetup-category-filter" data-meetup-category="decoracion">Decoración</button>
+              <button type="button" class="meetup-category-filter" data-meetup-category="comida">Comida</button>
+              <button type="button" class="meetup-category-filter" data-meetup-category="otro">Otros</button>
+            </div>
+
+            <div id="meetup-gastos-lista" class="meetup-compact-movements"></div>
+          </article>
+
+          <aside class="meetup-entry-panel">
+            <div class="meetup-entry-panel-header">
+              <div class="meetup-entry-plus">+</div>
+              <div>
+                <span>NUEVO MOVIMIENTO</span>
+                <h4>Registrar gasto</h4>
+              </div>
+            </div>
+            <p>Este gasto queda asociado únicamente a MeetUp <span data-meetup-year>2026</span>.</p>
+            <form id="form-meetup-gasto" class="meetup-entry-form">
+              <div>
+                <label for="meetup-gasto-tipo">Tipo de gasto</label>
+                <select id="meetup-gasto-tipo" class="meetup-form-control">
+                  <option value="capacitacion">Capacitación</option>
+                  <option value="decoracion">Decoración</option>
+                  <option value="comida">Comida</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              <div>
+                <label for="meetup-gasto-monto">Monto</label>
+                <input id="meetup-gasto-monto" type="text" inputmode="numeric" placeholder="$0,00" class="meetup-form-control meetup-form-control--amount" required />
+              </div>
+              <div>
+                <label for="meetup-gasto-descripcion">Descripción</label>
+                <input id="meetup-gasto-descripcion" type="text" placeholder="Ej. catering, alquiler, materiales" class="meetup-form-control" />
+              </div>
+              <div>
+                <label for="meetup-gasto-pagado-a">Pagar / Reembolsar a <span class="meetup-optional-label">(opcional)</span></label>
+                <input id="meetup-gasto-pagado-a" type="text" placeholder="Ej. Juan Pérez o nombre del comercio" class="meetup-form-control" autocomplete="off" />
+              </div>
+              <button id="btn-guardar-meetup-gasto" type="submit" class="meetup-submit-btn">
+                <span>Registrar gasto</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-5-5l5 5-5 5"/></svg>
+              </button>
+            </form>
+          </aside>
+        </section>
+      </div>
+
+      <!-- MeetUp se muestra ahora como página interna, no como modal -->
+
       <!-- ==================== MODAL DE BÚSQUEDA AVANZADA ==================== -->
       <div id="modal-busqueda-avanzada" class="fixed inset-0 bg-black bg-opacity-75 hidden flex items-center justify-center z-50 p-4">
-        <div class="card-dark rounded-2xl p-5 lg:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div class="advanced-search-panel rounded-2xl p-5 lg:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
           <!-- Header -->
           <div class="flex items-center justify-between mb-5">
             <div class="flex items-center gap-3">
@@ -2540,7 +717,7 @@
                 type="text" 
                 id="busqueda-texto" 
                 placeholder="Buscar por descripción, categoría, nro recibo..." 
-                class="input-dark w-full pl-10 pr-4 py-2.5"
+                class="advanced-search-control w-full pl-10 pr-4 py-2.5"
                 oninput="aplicarBusquedaAvanzada()"
               />
               <svg class="w-5 h-5 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
@@ -2554,7 +731,7 @@
                 <input 
                   type="date" 
                   id="filtro-fecha-desde" 
-                  class="input-dark w-full text-sm"
+                  class="advanced-search-control w-full text-sm"
                   onchange="aplicarBusquedaAvanzada()"
                 />
               </div>
@@ -2565,7 +742,7 @@
                 <input 
                   type="date" 
                   id="filtro-fecha-hasta" 
-                  class="input-dark w-full text-sm"
+                  class="advanced-search-control w-full text-sm"
                   onchange="aplicarBusquedaAvanzada()"
                 />
               </div>
@@ -2575,12 +752,13 @@
                 <label class="block text-xs font-medium text-gray-700 mb-1.5">Categoría</label>
                 <select 
                   id="filtro-categoria-avanzado" 
-                  class="input-dark w-full text-sm"
+                  class="advanced-search-control w-full text-sm"
                   onchange="aplicarBusquedaAvanzada()"
                 >
                   <option value="">Todas</option>
                   <option value="presupuesto">Presupuesto</option>
                   <option value="viaticos">Viáticos</option>
+                  <option value="actividades-area">Actividades aprobadas por el área</option>
                   <option value="meetup">MeetUp</option>
                   <option value="pfj">PFJ</option>
                   <option value="area">Área</option>
@@ -2592,7 +770,7 @@
                 <label class="block text-xs font-medium text-gray-700 mb-1.5">Estado</label>
                 <select 
                   id="filtro-estado-avanzado" 
-                  class="input-dark w-full text-sm"
+                  class="advanced-search-control w-full text-sm"
                   onchange="aplicarBusquedaAvanzada()"
                 >
                   <option value="">Todos</option>
@@ -2606,7 +784,7 @@
                 <label class="block text-xs font-medium text-gray-700 mb-1.5">Organización</label>
                 <select 
                   id="filtro-organizacion" 
-                  class="input-dark w-full text-sm"
+                  class="advanced-search-control w-full text-sm"
                   onchange="aplicarBusquedaAvanzada()"
                 >
                   <option value="">Todas</option>
@@ -2671,72 +849,33 @@
 
       <!-- Dashboard de Análisis -->
       <!-- Fila 1: Evolución y Gastos por Organización -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mb-4 lg:mb-6">
+      <div class="analysis-overview-grid mb-4 lg:mb-6">
         
-        <!-- Evolución de los gastos -->
-        <div class="card-dark p-4 lg:p-5">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 lg:mb-3 gap-2">
+        <!-- Resumen trimestral -->
+        <div class="card-dark quarterly-summary-card">
+          <div class="quarterly-summary-head">
             <div>
-              <h3 class="text-sm lg:text-base font-semibold text-gray-900 leading-tight">Evolución de los gastos</h3>
-              <p id="chart-evolucion-subtitulo" class="text-[10px] lg:text-xs text-gray-400 mt-0.5">Altura relativa al presupuesto total</p>
+              <span class="quarterly-summary-kicker">CONTROL ANUAL</span>
+              <h3>Resumen por trimestre</h3>
+              <p id="chart-evolucion-subtitulo">Asignación, remanente, ejecución y picos mensuales</p>
             </div>
-            <div id="chart-evolucion-leyenda" class="flex items-center gap-2 text-xs text-gray-500">
-              <span class="flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-green-500"></span>
-                <span>Bajo</span>
-              </span>
-              <span class="flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                <span>Moderado</span>
-              </span>
-              <span class="flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-orange-500"></span>
-                <span>Alto</span>
-              </span>
-            </div>
+            <div class="quarterly-summary-year" id="quarterly-summary-year">2026</div>
           </div>
-          <!-- Gráfico por meses (Desktop/Tablet) -->
-          <div class="h-40 lg:h-52 flex items-end justify-between gap-1.5 lg:gap-2 hidden sm:flex" id="chart-evolucion-meses">
-            <!-- 3 barras trimestre anterior -->
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500 opacity-50" style="height: 4%; min-height: 4px;"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500 opacity-50" style="height: 4%; min-height: 4px;"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500 opacity-50" style="height: 4%; min-height: 4px;"></div>
-            <!-- Separador -->
-            <div class="flex-shrink-0 self-stretch rounded" style="width:2px;background:rgba(156,163,175,0.35);margin:0 4px"></div>
-            <!-- 3 barras trimestre efectivo -->
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 4%; min-height: 4px;"></div>
+          <div id="quarterly-metrics-grid" class="quarterly-metrics-grid">
+            <div class="quarter-metric-card is-loading"><span>Q1</span></div>
+            <div class="quarter-metric-card is-loading"><span>Q2</span></div>
+            <div class="quarter-metric-card is-loading"><span>Q3</span></div>
+            <div class="quarter-metric-card is-loading"><span>Q4</span></div>
           </div>
-          <div id="chart-meses-labels" class="grid mt-2 text-[9px] lg:text-[10px] text-gray-500 text-center hidden sm:grid" style="grid-template-columns: repeat(3,1fr) 10px repeat(3,1fr)">
-            <span class="opacity-60"></span><span class="opacity-60"></span><span class="opacity-60"></span>
-            <span></span>
-            <span></span><span></span><span></span>
-          </div>
-          <div class="grid mt-1 mb-2 text-[9px] lg:text-[10px] text-gray-400 font-medium text-center hidden sm:grid" id="presupuestos-trimestre-labels" style="grid-template-columns: 3fr 10px 3fr">
-            <span class="border-t border-gray-200 pt-1 px-1 truncate opacity-70"></span>
-            <span></span>
-            <span class="border-t border-blue-400 pt-1 px-1 truncate text-blue-500 font-semibold"></span>
-          </div>
-          
-          <!-- Gráfico por trimestres (Móvil) -->
-          <div class="h-48 flex items-end justify-between gap-3 sm:hidden" id="chart-evolucion-trimestres">
-            <div class="flex-1 bg-gray-300 rounded-t transition-all duration-500 opacity-60" style="height: 15%; min-height: 20px;"></div>
-            <div class="flex-1 bg-gray-200 rounded-t transition-all duration-500" style="height: 15%; min-height: 20px;"></div>
-          </div>
-          <div class="grid grid-cols-2 gap-1 mt-2 text-xs text-gray-500 text-center sm:hidden">
-            <span class="opacity-60"></span>
-            <span></span>
-          </div>
-          <div class="grid grid-cols-2 gap-1 mt-1 mb-2 text-[9px] text-gray-400 font-medium text-center sm:hidden tabular-nums tracking-tighter" id="presupuestos-trimestre-labels-mobile">
-            <span class="border-t border-gray-200 pt-1 px-0.5 truncate opacity-70"></span>
-            <span class="border-t border-blue-400 pt-1 px-0.5 truncate text-blue-500"></span>
+          <div class="quarterly-summary-note">
+            <span class="quarterly-summary-note-dot"></span>
+            Cada trimestre conserva su historial. El saldo positivo se arrastra al siguiente período; los pendientes abiertos afectan únicamente el balance simulado hasta ser aprobados.
           </div>
         </div>
 
         <!-- Gastos por Organización -->
-        <div class="card-dark p-4 lg:p-5">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 lg:mb-4 gap-2">
+        <div class="card-dark organization-analysis-card">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between organization-analysis-head gap-2">
             <div>
               <h3 class="text-sm lg:text-base font-semibold text-gray-900 leading-tight">Gastos por Organización</h3>
               <p class="text-[10px] lg:text-xs text-gray-400 mt-0.5" id="indicador-trimestre-actual">Cargando trimestre...</p>
@@ -2746,9 +885,9 @@
               <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight" id="total-gastos-chart">$0</p>
             </div>
           </div>
-          <div class="flex flex-col sm:flex-row items-center justify-center gap-4 lg:gap-5">
+          <div class="organization-analysis-content">
             <!-- Gráfico de dona -->
-            <div class="relative w-40 h-40 sm:w-44 sm:h-44 lg:w-48 lg:h-48 flex-shrink-0">
+            <div class="organization-donut-wrap">
                 <svg viewBox="0 0 200 200" class="transform -rotate-90" id="chart-dona">
                   <!-- Las secciones se generarán dinámicamente -->
                   <circle cx="100" cy="100" r="70" fill="none" stroke="#e5e7eb" stroke-width="30"></circle>
@@ -2847,6 +986,9 @@
                 <button onclick="filtrarPendientesPorCategoria('viaticos')" id="cat-pendientes-viaticos" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
                   Viáticos
                 </button>
+                <button onclick="filtrarPendientesPorCategoria('actividades-area')" id="cat-pendientes-actividades-area" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
+                  Área
+                </button>
                 </div>
                 <button id="btn-modo-seleccion-lcrf-pend" onclick="activarModoSeleccionLCRF()" class="hidden flex-shrink-0 flex items-center gap-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap">
                   🗂️ Selección LCRF
@@ -2885,6 +1027,9 @@
                 </button>
                 <button onclick="filtrarAprobacionPorCategoria('viaticos')" id="cat-aprobacion-viaticos" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
                   Viáticos
+                </button>
+                <button onclick="filtrarAprobacionPorCategoria('actividades-area')" id="cat-aprobacion-actividades-area" class="filtro-btn bg-gray-100 text-gray-600 px-2.5 py-1.5 lg:px-4 lg:py-2 rounded-lg font-medium hover:bg-gray-200 transition-all whitespace-nowrap text-xs lg:text-sm">
+                  Área
                 </button>
               </div>
               
@@ -3002,6 +1147,7 @@
               <option value="">Seleccionar...</option>
               <option value="presupuesto">💰 Presupuesto</option>
               <option value="viaticos">🚗 Viáticos</option>
+              <option value="actividades-area">🏛️ Actividades aprobadas por el área</option>
             </select>
           </div>
 
@@ -3050,6 +1196,19 @@
                 class="w-full rounded-lg pl-8 pr-3 py-2.5 text-sm font-bold text-gray-900 bg-gray-50 border border-gray-300 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:bg-white"
                 placeholder="0.00">
             </div>
+          </div>
+
+          <!-- Beneficiario del pago / reembolso -->
+          <div class="md:col-span-12">
+            <label class="block text-sm font-bold text-gray-700 mb-1.5 flex items-center gap-2">
+              <svg class="w-4 h-4 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 21a8 8 0 10-16 0"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              Pagar / Reembolsar a
+              <span class="text-xs font-medium text-gray-400">(opcional)</span>
+            </label>
+            <input type="text" id="pagado-a"
+              class="w-full rounded-lg px-3 py-2.5 text-sm font-medium bg-gray-50 border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent hover:bg-white"
+              placeholder="Ej: Juan Pérez o nombre del comercio" autocomplete="off">
+            <p class="mt-1 text-xs text-gray-400">Se mostrará en el gasto y se propondrá automáticamente al generar la LCRF.</p>
           </div>
 
           <!-- Opciones de comisión -->
@@ -3267,203 +1426,239 @@
   </div>
 
   <!-- ==================== MODAL PANEL ADMIN ==================== -->
-  <!-- ==================== MODAL PANEL ADMIN ==================== -->
-  <!-- ==================== MODAL PANEL ADMIN ==================== -->
-  <!-- ==================== MODAL PANEL ADMIN ==================== -->
-  <div id="modal-admin" class="fixed inset-0 bg-[#0f172aa6] hidden flex items-center justify-center z-50 p-4 font-sans antialiased">
-    <div class="bg-[#1e293b] border border-blue-900/30 rounded-[18px] p-6 lg:p-7 w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-2xl relative">
-      
-      <!-- Close button -->
-      <button onclick="cerrarModalAdmin()" class="absolute top-5 right-5 w-8 h-8 rounded-full bg-[#334155] flex items-center justify-center text-gray-400 hover:text-gray-100 transition-colors group">
-        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-      </button>
-      
+  <div id="modal-admin" class="fixed inset-0 hidden z-50 admin-settings-overlay">
+    <section class="admin-settings-window" role="dialog" aria-modal="true" aria-labelledby="admin-settings-title">
+
       <!-- Header -->
-      <div class="flex items-center gap-4 mb-8">
-        <div class="w-12 h-12 rounded-[10px] bg-[#3b82f6] flex items-center justify-center shadow-lg shadow-blue-500/20">
-          <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2 22h20M2 13l5-4 5 4 5-4 5 4v6H2v-6z"></path>
+      <header class="admin-settings-header">
+        <div class="admin-settings-heading">
+          <span class="admin-settings-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.08V21h-4v-.08A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.08-.4H2.5v-4h.08A1.7 1.7 0 0 0 4.2 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.08V2.5h4v.08A1.7 1.7 0 0 0 15 4.2a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.6c.42.26.76.6 1 .99.25.42.39.9.4 1.4V11h.7v4h-.08a1.7 1.7 0 0 0-1.02 0z"/>
+            </svg>
+          </span>
+          <div>
+            <span class="admin-settings-eyebrow">Administración</span>
+            <h3 id="admin-settings-title">Configuración del sistema</h3>
+            <p id="admin-trimestre-label">Trimestre actual</p>
+          </div>
+        </div>
+        <button type="button" onclick="cerrarModalAdmin()" class="admin-settings-close" aria-label="Cerrar configuración">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/>
           </svg>
-        </div>
-        <div>
-          <h3 class="text-[20px] font-bold text-white tracking-tight mb-1">Panel de Administración</h3>
-          <p class="text-xs text-gray-400 font-medium tracking-wide" id="admin-trimestre-label">Trimestre actual</p>
-        </div>
-      </div>
-
-      <!-- Stats row -->
-      <div class="grid grid-cols-3 gap-2 pb-6 mb-7 border-b border-gray-700 text-center relative">
-        <div class="flex flex-col items-center justify-center">
-          <p class="text-[11px] text-gray-400 font-medium mb-1.5 uppercase tracking-wide">Presupuesto</p>
-          <p class="text-lg font-bold text-white tracking-tight" id="admin-stat-presupuesto">$0.00</p>
-        </div>
-        <div class="flex flex-col items-center justify-center">
-          <p class="text-[11px] text-gray-400 font-medium mb-1.5 uppercase tracking-wide">Gastado (Q)</p>
-          <p class="text-lg font-bold text-[#f97316] tracking-tight" id="admin-stat-gastado">$0.00</p>
-        </div>
-        <div class="flex flex-col items-center justify-center">
-          <p class="text-[11px] text-gray-400 font-medium mb-1.5 uppercase tracking-wide">Disponible Real</p>
-          <p class="text-lg font-bold text-[#10b981] tracking-tight" id="admin-stat-disponible">$0.00</p>
-        </div>
-      </div>
-
-      <!-- Banner de transición trimestral -->
-      <div id="admin-transition-banner" class="hidden mb-6 p-4 rounded-xl border border-blue-700/50 bg-blue-900/20">
-        <p class="text-xs font-bold text-blue-300 flex items-center gap-1.5 mb-1">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-          Período de transición
-        </p>
-        <p class="text-xs text-blue-200/80" id="admin-transition-text"></p>
-      </div>
-
-      <!-- Section: Actualizar Presupuesto -->
-      <div class="mb-8">
-        <h4 class="text-sm font-bold text-white flex items-center gap-2 mb-4">
-          <svg class="w-4 h-4 text-[#eab308]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-          Actualizar Presupuesto
-        </h4>
-        
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label class="block text-xs font-semibold text-gray-400 mb-2 tracking-wide">Presupuesto Total (ARS)</label>
-            <input type="number" id="nuevo-presupuesto-total" step="0.01" min="0" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6] transition-all" placeholder="Nuevo valor (reemplaza el actual)">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-400 mb-2 tracking-wide">Viáticos (ARS) — actual: <span id="admin-stat-viaticos" class="text-sky-400">$0.00</span></label>
-            <input type="number" id="nuevo-presupuesto-viaticos" step="0.01" min="0" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6] transition-all" placeholder="Nuevo valor (reemplaza el actual)">
-          </div>
-        </div>
-        
-        <!-- HIDDEN BUT NECESSARY FOR JS COMPATIBILITY -->
-        <div class="hidden">
-          <input type="radio" name="modo-actualizacion" value="reemplazar" checked>
-          <input type="checkbox" id="acumular-saldo-sobrante">
-        </div>
-        
-        <button onclick="actualizarPresupuestos()" class="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold py-[11px] rounded-xl text-[13px] flex items-center justify-center gap-2 transition-all">
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          Guardar Presupuesto
         </button>
-      </div>
+      </header>
 
-      <!-- Section: Seguridad -->
-      <div class="mb-5">
-        <h4 class="text-sm font-bold text-white flex items-center gap-2 mb-4">
-          <svg class="w-4 h-4 text-[#38bdf8]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-          Seguridad
-        </h4>
-        
-        <p class="text-xs text-gray-400 mb-4 font-semibold tracking-wide">Email actual: <span class="text-gray-300 font-bold" id="email-actual-display">mo****@hotmail.com</span></p>
-        
-        <div class="space-y-4 mb-4">
-          <div>
-            <label class="block text-xs font-semibold text-gray-400 mb-2 tracking-wide flex items-center gap-1">PIN actual <span class="text-red-500 text-sm mt-0.5">*</span></label>
-            <input type="password" id="pin-actual-admin" inputmode="numeric" pattern="[0-9]*" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6] transition-all" placeholder="Requerido para confirmar cambios">
+      <div class="admin-settings-body">
+
+        <!-- Resumen -->
+        <section class="admin-settings-summary" aria-label="Resumen del trimestre">
+          <article>
+            <span>Presupuesto</span>
+            <strong id="admin-stat-presupuesto">$0.00</strong>
+          </article>
+          <article>
+            <span>Gastado aprobado</span>
+            <strong id="admin-stat-gastado">$0.00</strong>
+          </article>
+          <article>
+            <span>Disponible real</span>
+            <strong id="admin-stat-disponible">$0.00</strong>
+          </article>
+        </section>
+
+        <div id="admin-transition-banner" class="hidden admin-settings-notice">
+          <div class="admin-settings-notice-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/>
+            </svg>
           </div>
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <strong>Período de transición</strong>
+            <p id="admin-transition-text"></p>
+          </div>
+        </div>
+
+        <!-- Presupuesto -->
+        <section class="admin-settings-card admin-settings-card--budget">
+          <div class="admin-settings-card-head">
+            <span class="admin-settings-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h10"/>
+              </svg>
+            </span>
             <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-2 tracking-wide">Nuevo email (opcional)</label>
-              <input type="email" id="nuevo-email-recuperacion" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6] transition-all" placeholder="Dejar vacío para mantener">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-2 tracking-wide">Nuevo PIN (opcional)</label>
-              <input type="password" id="nuevo-pin-admin" inputmode="numeric" pattern="[0-9]*" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6] transition-all" placeholder="Mín. 4 dígitos">
+              <span>Presupuesto</span>
+              <h4>Actualizar asignación trimestral</h4>
+              <p>Ingresá únicamente la nueva asignación. El sistema conserva el remanente y los compromisos pendientes.</p>
             </div>
           </div>
-        </div>
-        
-        <button onclick="actualizarSeguridadCompleta()" class="w-full bg-[#0ea5e9] hover:bg-[#0284c7] text-white font-bold py-[11px] rounded-xl text-[13px] flex items-center justify-center gap-2 transition-all">
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-          Actualizar Seguridad
-        </button>
-      </div>
 
-      <!-- Section: Configuración LCRF -->
-      <div class="mb-5 mt-7">
-        <h4 class="text-sm font-bold text-white flex items-center gap-2 mb-4">
-          <svg class="w-4 h-4 text-[#a78bfa]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-          Configuración Autorización LCRF
-        </h4>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label class="block text-xs font-semibold text-gray-400 mb-2 tracking-wide">Nombre de la Unidad</label>
-            <input type="text" id="lcrf-nombre-unidad" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#a78bfa] focus:ring-1 focus:ring-[#a78bfa] transition-all" placeholder="Ej: Estaca Aldo Bonzi">
+          <div class="admin-settings-form-grid">
+            <label class="admin-settings-field">
+              <span>Nueva asignación de presupuesto (ARS)</span>
+              <input type="number" id="nuevo-presupuesto-total" step="0.01" min="0" placeholder="Ej: 2460347">
+              <small>Se suma al saldo disponible según la lógica trimestral.</small>
+            </label>
+
+            <label class="admin-settings-field">
+              <span>Viáticos (ARS) · actual <b id="admin-stat-viaticos">$0.00</b></span>
+              <input type="number" id="nuevo-presupuesto-viaticos" step="0.01" min="0" placeholder="Nueva asignación de viáticos">
+              <small>Usá este campo solo cuando exista una nueva asignación.</small>
+            </label>
           </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-400 mb-2 tracking-wide">Número de la Unidad</label>
-            <input type="text" id="lcrf-numero-unidad" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#a78bfa] focus:ring-1 focus:ring-[#a78bfa] transition-all" placeholder="Ej: 123456">
+
+          <div class="hidden">
+            <input type="radio" name="modo-actualizacion" value="reemplazar" checked>
+            <input type="checkbox" id="acumular-saldo-sobrante">
           </div>
-        </div>
-        <button onclick="guardarConfigLCRF()" class="w-full bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold py-[11px] rounded-xl text-[13px] flex items-center justify-center gap-2 transition-all">
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          Guardar Configuración LCRF
-        </button>
-        <button onclick="diagnosticarCamposPDF()" class="mt-2 w-full bg-[#1e293b] hover:bg-[#334155] text-gray-400 hover:text-gray-200 border border-gray-700 font-medium py-[9px] rounded-xl text-[12px] flex items-center justify-center gap-2 transition-all" title="Ver los nombres de campos del PDF para configurar el llenado automático">
-          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          Diagnosticar campos del PDF
-        </button>
-      </div>
 
-      <!-- Section: Gastos Eliminados -->
-      <details class="group rounded-xl border border-yellow-700/50 bg-[#29230f] overflow-hidden mt-5 shadow-inner" ontoggle="if(this.open) cargarGastosEliminados()">
-        <summary class="flex justify-between items-center cursor-pointer p-[14px] hover:bg-white/5 transition-colors list-none">
-          <h4 class="text-[13px] font-bold text-[#fde68a] flex items-center gap-2 tracking-wide">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 .49-3.51"></path></svg>
-            Gastos Eliminados
-          </h4>
-          <span class="text-[#fde68a] transition-transform duration-200 group-open:rotate-180 opacity-70">
-            <svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><polyline points="6 9 12 15 18 9"/></svg>
-          </span>
-        </summary>
-        <div class="px-[14px] pb-[14px] hidden group-open:block">
-          <div id="lista-gastos-eliminados" class="space-y-2 max-h-64 overflow-y-auto"></div>
-        </div>
-      </details>
+          <button type="button" onclick="actualizarPresupuestos()" class="admin-settings-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 12l4 4L19 6"/>
+            </svg>
+            Guardar nueva asignación
+          </button>
+        </section>
 
-      <!-- Section: Cierre de Año Fiscal -->
-      <details class="group rounded-xl border border-red-900/50 bg-[#351b22] overflow-hidden mt-6 shadow-inner">
-        <summary class="flex justify-between items-center cursor-pointer p-[14px] hover:bg-white/5 transition-colors list-none">
-          <h4 class="text-[13px] font-bold text-[#fca5a5] flex items-center gap-2 tracking-wide">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-            Cierre de Año Fiscal
-          </h4>
-          <span class="text-[#fca5a5] transition-transform duration-200 group-open:rotate-180 opacity-70">
-            <svg fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="16"><polyline points="6 9 12 15 18 9"/></svg>
-          </span>
-        </summary>
-        
-        <div class="px-[14px] pb-[14px] hidden group-open:block">
-          <div class="border border-[#7f1d1d] bg-[#450a0a]/50 rounded-xl p-[14px] mt-1 relative overflow-hidden">
-            <!-- Warning corner accent -->
-            <div class="absolute top-0 left-0 w-1 h-full bg-[#ef4444]"></div>
-            
-            <p class="text-[12px] text-[#fca5a5] font-semibold mb-4 leading-relaxed pr-1 pl-1">
-              <span class="text-yellow-500 font-bold inline-block mr-1">⚠️</span>
-              ACCIÓN IRREVERSIBLE: Elimina TODOS los gastos del sistema. No se puede deshacer. Úsalo solo al cierre del año fiscal.
-            </p>
-            
-            <div class="space-y-4 mb-4 pl-1">
+        <div class="admin-settings-columns">
+          <!-- Seguridad -->
+          <section class="admin-settings-card">
+            <div class="admin-settings-card-head">
+              <span class="admin-settings-card-icon admin-settings-card-icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <rect x="4" y="10" width="16" height="10" rx="2"/>
+                  <path stroke-linecap="round" d="M8 10V7a4 4 0 0 1 8 0v3"/>
+                </svg>
+              </span>
               <div>
-                <label class="block text-xs font-semibold text-gray-300 mb-2 tracking-wide flex items-center gap-1">PIN de Administrador <span class="text-red-500 text-sm mt-0.5">*</span></label>
-                <input type="password" id="pin-cierre-fiscal" inputmode="numeric" pattern="[0-9]*" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-red-500/50 transition-all font-mono" placeholder="Tu PIN">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-gray-300 mb-2 tracking-wide flex items-center gap-1">Escribe "ELIMINAR TODO" <span class="text-red-500 text-sm mt-0.5">*</span></label>
-                <input type="text" id="confirmacion-cierre-fiscal" class="w-full bg-[#0f172a] border border-gray-700/80 rounded-xl px-4 py-[11px] text-[13.5px] text-gray-200 placeholder-gray-500 focus:outline-none focus:border-red-500/50 transition-all uppercase" placeholder="ELIMINAR TODO">
+                <span>Acceso</span>
+                <h4>Seguridad</h4>
+                <p>Email actual: <b id="email-actual-display">mo****@hotmail.com</b></p>
               </div>
             </div>
-            
-            <div class="pl-1">
-              <button onclick="cerrarAnoFiscal()" class="w-full bg-[#dc2626] hover:bg-[#b91c1c] text-white font-bold py-[11px] rounded-xl text-[13px] transition-all shadow-lg shadow-red-900/30 font-sans tracking-wide">
-                ELIMINAR TODOS LOS GASTOS DEL AÑO
-              </button>
-            </div>
-          </div>
-        </div>
-      </details>
 
-    </div>
+            <div class="admin-settings-stack">
+              <label class="admin-settings-field">
+                <span>PIN actual <em>*</em></span>
+                <input type="password" id="pin-actual-admin" autocomplete="current-password" placeholder="Requerido para confirmar">
+              </label>
+              <label class="admin-settings-field">
+                <span>Nuevo email <small>(opcional)</small></span>
+                <input type="email" id="nuevo-email-recuperacion" placeholder="Dejar vacío para mantener">
+              </label>
+              <label class="admin-settings-field">
+                <span>Nuevo PIN <small>(opcional)</small></span>
+                <input type="password" id="nuevo-pin-admin" autocomplete="new-password" placeholder="Mínimo 4 caracteres">
+              </label>
+            </div>
+
+            <button type="button" onclick="actualizarSeguridadCompleta()" class="admin-settings-secondary">
+              Actualizar seguridad
+            </button>
+          </section>
+
+          <!-- LCRF -->
+          <section class="admin-settings-card">
+            <div class="admin-settings-card-head">
+              <span class="admin-settings-card-icon admin-settings-card-icon--slate">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l4 4v14H7z"/>
+                  <path stroke-linecap="round" d="M14 3v5h5M10 13h5M10 17h5"/>
+                </svg>
+              </span>
+              <div>
+                <span>Documentación</span>
+                <h4>Autorización LCRF</h4>
+                <p>Datos utilizados al generar la documentación de autorización.</p>
+              </div>
+            </div>
+
+            <div class="admin-settings-stack">
+              <label class="admin-settings-field">
+                <span>Nombre de la unidad</span>
+                <input type="text" id="lcrf-nombre-unidad" placeholder="Ej: Estaca Aldo Bonzi">
+              </label>
+              <label class="admin-settings-field">
+                <span>Número de la unidad</span>
+                <input type="text" id="lcrf-numero-unidad" placeholder="Ej: 123456">
+              </label>
+            </div>
+
+            <button type="button" onclick="guardarConfigLCRF()" class="admin-settings-secondary">
+              Guardar configuración LCRF
+            </button>
+            <button type="button" onclick="diagnosticarCamposPDF()" class="admin-settings-link">
+              Diagnosticar campos del PDF
+            </button>
+          </section>
+        </div>
+
+        <!-- Avanzado -->
+        <section class="admin-settings-advanced">
+          <div class="admin-settings-advanced-head">
+            <div>
+              <span>Herramientas avanzadas</span>
+              <h4>Mantenimiento y recuperación</h4>
+            </div>
+            <p>Estas acciones no son necesarias para el uso cotidiano.</p>
+          </div>
+
+          <details class="admin-settings-details" ontoggle="if(this.open) cargarGastosEliminados()">
+            <summary>
+              <div>
+                <span class="admin-settings-details-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5"/>
+                    <path stroke-linecap="round" d="M5.5 15A7 7 0 0 0 18 18.5M18.5 9A7 7 0 0 0 6 5.5"/>
+                  </svg>
+                </span>
+                <div><strong>Gastos eliminados</strong><small>Revisá registros enviados a la papelera.</small></div>
+              </div>
+              <svg class="admin-settings-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </summary>
+            <div class="admin-settings-details-content">
+              <div id="lista-gastos-eliminados" class="space-y-2 max-h-64 overflow-y-auto"></div>
+            </div>
+          </details>
+
+          <details class="admin-settings-details admin-settings-details--danger">
+            <summary>
+              <div>
+                <span class="admin-settings-details-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/>
+                  </svg>
+                </span>
+                <div><strong>Cierre de año fiscal</strong><small>Eliminación definitiva de los gastos del sistema.</small></div>
+              </div>
+              <svg class="admin-settings-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </summary>
+            <div class="admin-settings-details-content">
+              <div class="admin-settings-danger-box">
+                <strong>Acción irreversible</strong>
+                <p>Elimina todos los gastos del sistema. Utilizalo únicamente al cierre del año fiscal y después de verificar tus respaldos.</p>
+                <div class="admin-settings-form-grid">
+                  <label class="admin-settings-field">
+                    <span>PIN de administrador</span>
+                    <input type="password" id="pin-cierre-fiscal" autocomplete="current-password" placeholder="Tu PIN">
+                  </label>
+                  <label class="admin-settings-field">
+                    <span>Escribí “ELIMINAR TODO”</span>
+                    <input type="text" id="confirmacion-cierre-fiscal" class="uppercase" placeholder="ELIMINAR TODO">
+                  </label>
+                </div>
+                <button type="button" onclick="cerrarAnoFiscal()" class="admin-settings-danger-btn">
+                  Eliminar todos los gastos del año
+                </button>
+              </div>
+            </div>
+          </details>
+        </section>
+      </div>
+    </section>
   </div>
 
   <!-- ==================== MODAL GASTOS INFORMADOS ==================== -->
@@ -4036,5 +2231,49 @@ function cerrarSesion() {
 </script>
 
 <script src="./app.js"></script>
+
+<script>
+  // Compatibilidad del login con el app.js original.
+  // La validación real sigue estando íntegramente en app.js.
+  document.addEventListener('DOMContentLoaded', function () {
+    const pinInput = document.getElementById('pin-input');
+    if (pinInput) {
+      pinInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          if (typeof window.validarPIN === 'function') {
+            window.validarPIN();
+          }
+        }
+      });
+    }
+  });
+</script>
+
+
+
+<script>
+  // Tema claro fijo para toda la aplicación.
+  // Evita que una preferencia antigua vuelva a activar el modo oscuro.
+  (function () {
+    const aplicarTemaClaro = () => {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.removeAttribute('data-theme');
+      if (document.body) {
+        document.body.classList.remove('dark');
+        document.body.removeAttribute('data-theme');
+      }
+      try {
+        localStorage.removeItem('theme');
+        localStorage.removeItem('tema');
+        localStorage.setItem('themePreference', 'light');
+      } catch (_) {}
+    };
+
+    aplicarTemaClaro();
+    document.addEventListener('DOMContentLoaded', aplicarTemaClaro);
+    window.addEventListener('load', aplicarTemaClaro);
+  })();
+</script>
 
 </html>
