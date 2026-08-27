@@ -446,17 +446,21 @@
         <!-- Gastos Externos -->
         <div onclick="abrirModalGastosExternos()" class="card-dark external-kpi-card p-4 lg:p-5 transition-all duration-200 hover:shadow-lg border cursor-pointer">
           <div class="flex items-center justify-center mb-3">
-            <div class="external-kpi-icon w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center mr-2 lg:mr-3">
+            <div class="external-kpi-icon w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center mr-2 lg:mr-3 bg-green-50 text-green-600">
                 <svg class="w-4 h-4 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
             </div>
             <div>
               <p class="text-xs lg:text-sm font-semibold text-gray-700 leading-tight">Gastos Externos</p>
-              <p class="external-kpi-subtitle text-[10px] lg:text-xs font-medium">MeetUp • PFJ • Área</p>
+              <p class="external-kpi-subtitle text-[10px] lg:text-xs font-medium text-green-600">MeetUp • PFJ • Área</p>
             </div>
           </div>
-          <div class="text-center">
-            <p class="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900 leading-tight monto-sensible" id="gastos-externos-monto">$0,00</p>
+            <div class="text-center">
+            <p class="text-lg lg:text-xl xl:text-2xl font-extrabold text-green-800 leading-tight monto-sensible" id="gastos-externos-monto">$0,00</p>
             <p class="text-sm md:text-base text-gray-500 mt-2">No afectan presupuesto</p>
+              <div id="gastos-externos-detalle" class="text-xs text-gray-500 mt-2">
+                <div id="gastos-externos-registrado" class="gasto-detalle-item">Registrado: $0,00</div>
+                <div id="gastos-externos-pendiente" class="gasto-detalle-item">Pendiente: $0,00</div>
+              </div>
           </div>
            <p class="text-xs text-gray-400 mt-3 text-center">Click para ver detalle</p>
         </div>
@@ -507,6 +511,26 @@
           </article>
         </section>
 
+        <!-- Saldos por persona (MeetUp) -->
+        <section class="meetup-saldos-section">
+          <div class="meetup-saldos-card meetup-summary-card">
+            <div class="meetup-saldos-inner p-4">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <div>
+                  <span>SALDOS</span>
+                  <h4 style="margin:0">Saldos por persona</h4>
+                  <p class="text-sm text-gray-500">Saldo pendiente a reembolsar por beneficiario</p>
+                </div>
+                <div class="text-right">
+                  <div class="text-sm">Total a reembolsar</div>
+                  <strong id="meetup-total-a-reembolsar">$0,00</strong>
+                </div>
+              </div>
+              <ul id="meetup-saldos-lista" class="mt-3 space-y-2"></ul>
+            </div>
+          </div>
+        </section>
+
         <section class="meetup-budget-section">
           <div class="meetup-section-heading">
             <div>
@@ -530,7 +554,7 @@
               </div>
               <div class="meetup-base-compact">
                 <label class="meetup-field-label" for="meetup-capacitacion">Monto base</label>
-                <input id="meetup-capacitacion" type="text" inputmode="numeric" value="$191.800,00" class="meetup-money-input amount-display" />
+                <input id="meetup-capacitacion" type="text" inputmode="decimal" oninput="formatearCampoARS(this)" value="$191.800,00" class="meetup-money-input amount-display" />
               </div>
               <div class="meetup-budget-details meetup-budget-details--compact">
                 <div><span>Planificado</span><strong id="meetup-capacitacion-total">$191.800,00</strong></div>
@@ -558,7 +582,7 @@
               </div>
               <div class="meetup-base-compact">
                 <label class="meetup-field-label" for="meetup-decoracion">Monto base</label>
-                <input id="meetup-decoracion" type="text" inputmode="numeric" value="$447.552,00" class="meetup-money-input amount-display" />
+                <input id="meetup-decoracion" type="text" inputmode="decimal" oninput="formatearCampoARS(this)" value="$447.552,00" class="meetup-money-input amount-display" />
               </div>
               <div class="meetup-budget-details meetup-budget-details--compact">
                 <div><span>Planificado</span><strong id="meetup-decoracion-total">$447.552,00</strong></div>
@@ -587,7 +611,7 @@
               <div class="meetup-food-fields meetup-food-fields--compact">
                 <div>
                   <label class="meetup-field-label" for="meetup-comida-unitario">Valor unitario</label>
-                  <input id="meetup-comida-unitario" type="text" inputmode="numeric" value="$25.574,00" class="meetup-money-input amount-display" />
+                  <input id="meetup-comida-unitario" type="text" inputmode="decimal" oninput="formatearCampoARS(this)" value="$25.574,00" class="meetup-money-input amount-display" />
                 </div>
                 <div>
                   <label class="meetup-field-label" for="meetup-participantes">Participantes</label>
@@ -658,18 +682,20 @@
             </div>
             <p>Este gasto queda asociado únicamente a MeetUp <span data-meetup-year>2026</span>.</p>
             <form id="form-meetup-gasto" class="meetup-entry-form">
-              <div>
-                <label for="meetup-gasto-tipo">Tipo de gasto</label>
-                <select id="meetup-gasto-tipo" class="meetup-form-control">
-                  <option value="capacitacion">Capacitación</option>
-                  <option value="decoracion">Decoración</option>
-                  <option value="comida">Comida</option>
-                  <option value="otro">Otro</option>
-                </select>
-              </div>
-              <div>
-                <label for="meetup-gasto-monto">Monto</label>
-                <input id="meetup-gasto-monto" type="text" inputmode="numeric" placeholder="$0,00" class="meetup-form-control meetup-form-control--amount" required />
+              <div class="meetup-entry-row">
+                <div>
+                  <label for="meetup-gasto-tipo">Tipo de gasto</label>
+                  <select id="meetup-gasto-tipo" class="meetup-form-control">
+                    <option value="capacitacion">Capacitación</option>
+                    <option value="decoracion">Decoración</option>
+                    <option value="comida">Comida</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="meetup-gasto-monto">Monto</label>
+                  <input id="meetup-gasto-monto" type="text" inputmode="decimal" oninput="formatearCampoARS(this)" placeholder="$0,00" class="meetup-form-control meetup-form-control--amount" required />
+                </div>
               </div>
               <div>
                 <label for="meetup-gasto-descripcion">Descripción</label>
@@ -685,6 +711,7 @@
               </button>
             </form>
           </aside>
+
         </section>
       </div>
 
@@ -1191,10 +1218,9 @@
               Monto (ARS)
             </label>
             <div class="relative">
-              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
-              <input type="number" id="monto" step="0.01" min="0" required 
-                class="w-full rounded-lg pl-8 pr-3 py-2.5 text-sm font-bold text-gray-900 bg-gray-50 border border-gray-300 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:bg-white"
-                placeholder="0.00">
+              <input type="text" id="monto" inputmode="decimal" required
+                class="w-full rounded-lg px-3 py-2.5 text-sm font-bold text-gray-900 bg-gray-50 border border-gray-300 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent hover:bg-white ars-money-input"
+                placeholder="$0" oninput="formatearCampoARS(this)">
             </div>
           </div>
 
@@ -1499,13 +1525,13 @@
           <div class="admin-settings-form-grid">
             <label class="admin-settings-field">
               <span>Nueva asignación de presupuesto (ARS)</span>
-              <input type="number" id="nuevo-presupuesto-total" step="0.01" min="0" placeholder="Ej: 2460347">
+              <input type="text" id="nuevo-presupuesto-total" inputmode="decimal" class="ars-money-input" placeholder="Ej: $2.460.347,75" oninput="formatearCampoARS(this)">
               <small>Se suma al saldo disponible según la lógica trimestral.</small>
             </label>
 
             <label class="admin-settings-field">
               <span>Viáticos (ARS) · actual <b id="admin-stat-viaticos">$0.00</b></span>
-              <input type="number" id="nuevo-presupuesto-viaticos" step="0.01" min="0" placeholder="Nueva asignación de viáticos">
+              <input type="text" id="nuevo-presupuesto-viaticos" inputmode="decimal" class="ars-money-input" placeholder="Ej: $300.000" oninput="formatearCampoARS(this)">
               <small>Usá este campo solo cuando exista una nueva asignación.</small>
             </label>
           </div>
@@ -1521,6 +1547,82 @@
             </svg>
             Guardar nueva asignación
           </button>
+        </section>
+
+        <!-- Movimientos internos de presupuesto -->
+        <section class="admin-settings-card admin-settings-card--transfer">
+          <div class="admin-settings-card-head">
+            <span class="admin-settings-card-icon admin-settings-card-icon--transfer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h11m0 0-3-3m3 3-3 3M17 17H6m0 0 3 3m-3-3 3-3"/>
+              </svg>
+            </span>
+            <div>
+              <span>Movimientos de presupuesto</span>
+              <h4>Transferencias entre unidades</h4>
+              <p>Registrá fondos recibidos o enviados. El movimiento modifica el presupuesto actual sin iniciar ni reiniciar el trimestre.</p>
+            </div>
+          </div>
+
+          <div class="admin-settings-form-grid admin-settings-form-grid--transfer">
+            <label class="admin-settings-field">
+              <span>Tipo de movimiento</span>
+              <select id="transferencia-tipo" onchange="actualizarFormularioTransferencia()">
+                <option value="recibida">Recibimos de una unidad</option>
+                <option value="enviada">Transferimos a una unidad</option>
+              </select>
+              <small id="transferencia-tipo-ayuda">El monto se sumará al presupuesto actual.</small>
+            </label>
+
+            <label class="admin-settings-field">
+              <span id="transferencia-unidad-label">Unidad que transfiere</span>
+              <select id="transferencia-unidad-origen">
+                <option value="">Seleccionar unidad</option>
+                <option value="Aldo Bonzi">Aldo Bonzi</option>
+                <option value="Ciudad Evita 1">Ciudad Evita 1</option>
+                <option value="Ciudad Evita 2">Ciudad Evita 2</option>
+                <option value="Cristiania">Cristiania</option>
+                <option value="Villa Celina">Villa Celina</option>
+                <option value="Villa Madero">Villa Madero</option>
+              </select>
+              <small id="transferencia-unidad-ayuda">Identifica de qué unidad provienen los fondos.</small>
+            </label>
+
+            <label class="admin-settings-field">
+              <span>Monto de la transferencia (ARS)</span>
+              <input type="text" id="transferencia-presupuesto-monto" inputmode="decimal" autocomplete="off" class="ars-money-input" placeholder="Ej: $150.000" oninput="formatearCampoARS(this)">
+              <small id="transferencia-monto-ayuda">Se sumará directamente al presupuesto actual.</small>
+            </label>
+          </div>
+
+          <label class="admin-settings-field admin-settings-field--full">
+            <span>Detalle / motivo <small>(opcional)</small></span>
+            <input type="text" id="transferencia-presupuesto-detalle" maxlength="180" placeholder="Ej: Transferencia para actividad de estaca">
+          </label>
+
+          <div class="admin-transfer-note">
+            <strong>Importante:</strong> estos movimientos modifican el presupuesto actual, pero no crean una nueva asignación trimestral ni cambian el período vigente.
+          </div>
+
+          <button type="button" id="btn-registrar-transferencia" onclick="registrarTransferenciaPresupuesto()" class="admin-settings-primary admin-settings-primary--transfer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14m-7-7h14"/>
+            </svg>
+            Registrar movimiento
+          </button>
+
+          <div class="admin-transfer-history">
+            <div class="admin-transfer-history-head">
+              <div>
+                <span>Historial</span>
+                <h5>Movimientos de transferencias</h5>
+              </div>
+              <strong id="transferencias-historial-total">0 movimientos</strong>
+            </div>
+            <div id="transferencias-historial-lista" class="admin-transfer-history-list">
+              <p class="admin-transfer-history-empty">Todavía no hay transferencias registradas.</p>
+            </div>
+          </div>
         </section>
 
         <div class="admin-settings-columns">
@@ -1884,10 +1986,10 @@
     <div class="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
       
       <!-- Header del Modal -->
-      <div class="bg-gradient-to-r from-blue-600 to-blue-700 p-5 flex items-center justify-between">
+        <div class="bg-gradient-to-r from-blue-600 to-blue-700 p-5 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-white bg-opacity-20 flex items-center justify-center">
-            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center border border-white/20">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
             </svg>
           </div>
@@ -1908,15 +2010,24 @@
       <!-- Contenido del Modal -->
       <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
         <!-- KPIs de resumen -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div class="bg-white p-4 rounded-xl border border-blue-200">
             <p class="text-xs text-gray-500 mb-1">Total Gastos Externos</p>
             <p class="text-2xl font-bold text-blue-600" id="kpi-total-externos">$0</p>
           </div>
+
+          <div id="modal-externos-detalle" class="bg-white p-4 rounded-xl border border-blue-200 flex items-center justify-center">
+            <div class="text-center">
+              <p class="text-xs text-gray-500">Registrado</p>
+              <p id="modal-externos-registrado-amount" class="text-lg font-semibold text-blue-600 mt-1">$0,00</p>
+            </div>
+          </div>
+
           <div class="bg-white p-4 rounded-xl border border-blue-200">
             <p class="text-xs text-gray-500 mb-1">Cantidad de Gastos</p>
             <p class="text-2xl font-bold text-blue-600" id="kpi-cantidad-externos">0</p>
           </div>
+
           <div class="bg-white p-4 rounded-xl border border-blue-200">
             <p class="text-xs text-gray-500 mb-1">Organizaciones Activas</p>
             <p class="text-2xl font-bold text-green-600" id="kpi-organizaciones-externas">0</p>

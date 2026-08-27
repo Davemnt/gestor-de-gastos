@@ -143,7 +143,17 @@ function parseFechaGeneral(val) {
 function esGastoExternoVisible(gasto) {
   if (!gasto || gasto.eliminado) return false;
   if (!gasto.organizacion || !ORGANIZACIONES_EXTERNAS.includes(gasto.organizacion)) return false;
-  if (gasto.organizacion === 'meetup') return false;
+  // Solo considerar gastos aprobados como "externos" para KPI / listado.
+  if (gasto.aprobado !== true) return false;
+
+  // Incluir explícitamente gastos cuya categoría sea "actividades aprobadas por el área"
+  // (nombres comunes: 'actividades_area', 'actividades-area') cuando la organización es externa.
+  const categoria = String(gasto.categoria || '').toLowerCase();
+  if (categoria === 'actividades_area' || categoria === 'actividades-area' || categoria.includes('actividades')) {
+    return Boolean(gasto.fecha);
+  }
+
+  // Para otros gastos externos, requerir fuente 'nuevo-gasto' para evitar duplicados heredados.
   if (gasto.fuente && gasto.fuente !== 'nuevo-gasto') return false;
   return Boolean(gasto.fecha);
 }
@@ -1171,7 +1181,9 @@ async function calcularGastos() {
     let totalPresupuesto = 0;
     let totalPresupuestoAprobado = 0; // Solo gastos aprobados (descuentan del disponible real)
     let totalViaticos = 0;
-    let totalGastosExternos = 0; // Gastos de organizaciones externas
+    let totalGastosExternos = 0; // Gastos de organizaciones externas (suma total)
+    let totalGastosExternosRegistrados = 0; // Solo registrados
+    let totalGastosExternosPendientes = 0; // Solo pendientes (no registrados)
     let totalGastosTrimestre = 0; // Total solo del trimestre actual (aprobados)
     let totalPresupuestoNoAprobado = 0; // Todos los gastos de presupuesto NO aprobados (cualquier trimestre) para simulado
 
@@ -1203,10 +1215,13 @@ async function calcularGastos() {
       
       // Verificar si es una organización externa que no afecta presupuesto/viáticos
       const esOrganizacionExterna = ORGANIZACIONES_EXTERNAS.includes(organizacion);
-      
+
       // Sumar gastos de organizaciones externas por separado solo si pertenecen al flujo de nuevo gasto
       if (esOrganizacionExterna && esGastoExternoVisible(gasto)) {
-        totalGastosExternos += gasto.monto || 0;
+        const monto = gasto.monto || 0;
+        totalGastosExternos += monto;
+        if (gasto.registrado) totalGastosExternosRegistrados += monto;
+        else totalGastosExternosPendientes += monto;
       } else if (!esOrganizacionExterna) {
         // Sumar para presupuesto y viáticos según la CATEGORÍA únicamente
         const esAñoActual = fechaGasto.getFullYear() === añoActual;
@@ -1345,9 +1360,21 @@ async function calcularGastos() {
 
     // ==================== ACTUALIZAR KPI: GASTOS EXTERNOS ====================
     const gastosExternosEl = document.getElementById('gastos-externos-monto');
+    const gastosExternosDetalleEl = document.getElementById('gastos-externos-detalle');
     if (gastosExternosEl) {
+      // Mostrar en el box principal el SALDO TOTAL (Registrado + Pendiente)
       gastosExternosEl.textContent = `$${totalGastosExternos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
       gastosExternosEl.className = `text-lg lg:text-xl xl:text-2xl font-bold leading-tight monto-sensible external-kpi-amount ${totalGastosExternos === 0 ? 'is-empty' : 'has-value'}`;
+    }
+    if (gastosExternosDetalleEl) {
+      const registradoEl = document.getElementById('gastos-externos-registrado');
+      const pendienteEl = document.getElementById('gastos-externos-pendiente');
+      if (registradoEl) registradoEl.textContent = `Registrado: $${totalGastosExternosRegistrados.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      if (pendienteEl) pendienteEl.textContent = `Pendiente: $${totalGastosExternosPendientes.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      // Fallback for older markup: keep single-line text if children missing
+      if (!registradoEl && !pendienteEl) {
+        gastosExternosDetalleEl.textContent = `Registrado: $${totalGastosExternosRegistrados.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} · Pendiente: $${totalGastosExternosPendientes.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      }
     }
 
     // Porcentaje de viáticos
@@ -3039,6 +3066,8 @@ async function abrirModalGastosExternos() {
 
     // Calcular totales
     const totalGastosExternos = gastosExternos.reduce((sum, g) => sum + (g.monto || 0), 0);
+    const totalExternosRegistrados = gastosExternos.filter(g => g.registrado).reduce((s,g) => s + (g.monto||0), 0);
+    const totalExternosPendientes = gastosExternos.filter(g => !g.registrado).reduce((s,g) => s + (g.monto||0), 0);
     const cantidadGastos = gastosExternos.length;
     const organizacionesActivas = ORGANIZACIONES_EXTERNAS.filter(org => gastosAgrupados[org].length > 0).length;
 
@@ -3052,6 +3081,9 @@ async function abrirModalGastosExternos() {
 
     document.getElementById('subtitulo-gastos-externos').textContent = 
       `${cantidadGastos} gasto${cantidadGastos !== 1 ? 's' : ''} externos en ${new Date().getFullYear()}`;
+
+    const modalRegistradoAmountEl = document.getElementById('modal-externos-registrado-amount');
+    if (modalRegistradoAmountEl) modalRegistradoAmountEl.textContent = `$${totalExternosRegistrados.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
 
     // Renderizar gastos por organización
     const contenido = document.getElementById('contenido-gastos-externos');
@@ -3068,27 +3100,47 @@ async function abrirModalGastosExternos() {
       `;
     } else {
       let html = '';
-      
       ORGANIZACIONES_EXTERNAS.forEach(org => {
         const gastosOrg = gastosAgrupados[org];
         if (gastosOrg.length > 0) {
           const totalOrg = gastosOrg.reduce((sum, g) => sum + (g.monto || 0), 0);
           const nombreOrg = org.charAt(0).toUpperCase() + org.slice(1).replace(/-/g, ' ');
-          
+
           html += `
-            <div class="mb-6">
-              <div class="flex items-center justify-between mb-3 pb-2 border-b-2 border-blue-200">
-                <h4 class="text-lg font-bold text-gray-800">${nombreOrg}</h4>
-                <span class="text-lg font-bold text-blue-600">$${totalOrg.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+            <div class="mb-6 bg-white rounded-xl border border-blue-100 p-4">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h4 class="text-lg font-bold text-gray-800">${nombreOrg}</h4>
+                  <div class="text-sm text-gray-500">${gastosOrg.length} gasto(s)</div>
+                </div>
+                <div class="text-right">
+                  <div class="text-sm text-gray-500">Total</div>
+                  <strong class="text-lg font-bold text-blue-600">$${totalOrg.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                </div>
               </div>
-              <div class="grid grid-cols-1 gap-3">
-                ${gastosOrg.map(gasto => crearTarjetaGastoExterno(gasto)).join('')}
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="text-xs text-gray-500 uppercase">
+                      <th class="py-2 pr-4">Fecha</th>
+                      <th class="py-2 pr-4">Descripción</th>
+                      <!-- Pagado a column removed per UX request -->
+                      <th class="py-2 pr-4">Observaciones</th>
+                      <th class="py-2 pr-4 text-right">Monto</th>
+                      <th class="py-2 pr-4">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${gastosOrg.map(gasto => crearFilaGastoExterno(gasto)).join('')}
+                  </tbody>
+                </table>
               </div>
             </div>
           `;
         }
       });
-      
+
       contenido.innerHTML = html;
     }
   } catch (error) {
@@ -3158,6 +3210,26 @@ function crearTarjetaGastoExterno(gasto) {
         </div>
       </div>
     </div>
+  `;
+}
+
+// Crear fila de tabla para modal de gastos externos
+function crearFilaGastoExterno(gasto) {
+  const fecha = formatearFechaSimple(gasto.fecha);
+  const desc = (gasto.descripcion || '—').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const pagadoA = (gasto.pagadoA || '—').replace(/</g, '&lt;');
+  const obs = (gasto.observaciones || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const monto = `$${(gasto.monto || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const estado = gasto.registrado ? '<span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded font-medium">Registrado</span>' : '<span class="inline-block px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded font-medium">Pendiente</span>';
+
+  return `
+    <tr class="border-t border-gray-100 align-top">
+      <td class="py-3 pr-4 text-sm text-gray-600">${fecha}</td>
+      <td class="py-3 pr-4 text-sm text-gray-800">${desc}</td>
+      <td class="py-3 pr-4 text-sm text-gray-600">${obs ? (obs.length > 80 ? obs.slice(0,80) + '…' : obs) : '—'}</td>
+      <td class="py-3 pr-4 text-sm text-right font-bold text-blue-600">${monto}</td>
+      <td class="py-3 pr-4 text-sm">${estado}</td>
+    </tr>
   `;
 }
 
@@ -3584,6 +3656,89 @@ async function cargarGastos() {
   }
 }
 
+// ==================== FORMATO GENERAL DE MONTOS ARS ====================
+function parsearMontoARS(valor) {
+  if (valor === null || valor === undefined) return NaN;
+  let texto = String(valor).trim().replace(/\$/g, '').replace(/\s+/g, '');
+  if (!texto) return NaN;
+
+  let entero = texto;
+  let decimales = '';
+
+  if (texto.includes(',')) {
+    const partes = texto.split(',');
+    entero = partes.shift() || '0';
+    decimales = (partes.join('') || '').replace(/\D/g, '').slice(0, 2);
+  } else {
+    const ultimoPunto = texto.lastIndexOf('.');
+    if (ultimoPunto !== -1) {
+      const despues = texto.slice(ultimoPunto + 1).replace(/\D/g, '');
+      const antes = texto.slice(0, ultimoPunto);
+      // Un punto seguido de 1 o 2 dígitos se interpreta como decimal.
+      // Con 3 dígitos se interpreta como separador de miles.
+      if (despues.length > 0 && despues.length <= 2) {
+        entero = antes;
+        decimales = despues;
+      }
+    }
+  }
+
+  const enteroLimpio = entero.replace(/\D/g, '') || '0';
+  const numero = Number(enteroLimpio + (decimales ? '.' + decimales : ''));
+  return Number.isFinite(numero) ? numero : NaN;
+}
+
+function formatearCampoARS(input) {
+  if (!input) return;
+  const original = String(input.value || '').replace(/\$/g, '').replace(/\s+/g, '');
+  if (!original) {
+    input.value = '';
+    return;
+  }
+
+  const tieneComa = original.includes(',');
+  let parteEntera = original;
+  let parteDecimal = '';
+  let mostrarComa = false;
+
+  if (tieneComa) {
+    const partes = original.split(',');
+    parteEntera = partes.shift() || '0';
+    parteDecimal = (partes.join('') || '').replace(/\D/g, '').slice(0, 2);
+    mostrarComa = true;
+  } else {
+    const ultimoPunto = original.lastIndexOf('.');
+    const despues = ultimoPunto >= 0 ? original.slice(ultimoPunto + 1).replace(/\D/g, '') : '';
+    if (ultimoPunto >= 0 && despues.length > 0 && despues.length <= 2) {
+      parteEntera = original.slice(0, ultimoPunto);
+      parteDecimal = despues;
+      mostrarComa = true;
+    }
+  }
+
+  const digitosEnteros = parteEntera.replace(/\D/g, '');
+  if (!digitosEnteros && !mostrarComa) {
+    input.value = '';
+    return;
+  }
+
+  const enteroNumero = Number(digitosEnteros || '0');
+  let formateado = '$' + enteroNumero.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  if (mostrarComa) formateado += ',' + parteDecimal;
+  input.value = formateado;
+}
+
+function formatearValorARS(valor, incluirCentavos = false) {
+  const numero = Number(valor || 0);
+  return '$' + numero.toLocaleString('es-AR', {
+    minimumFractionDigits: incluirCentavos ? 2 : (Number.isInteger(numero) ? 0 : 2),
+    maximumFractionDigits: 2
+  });
+}
+
+window.formatearCampoARS = formatearCampoARS;
+window.parsearMontoARS = parsearMontoARS;
+
 // ==================== PANEL DE ADMINISTRADOR ====================
 document.getElementById('btn-panel-admin')?.addEventListener('click', async () => {
   if (!esAdmin) {
@@ -3717,7 +3872,7 @@ function abrirModalGasto(gasto = null) {
   if (gasto) {
     title.textContent = 'Editar Gasto';
     document.getElementById('gasto-detalle').value = gasto.detalle;
-    document.getElementById('gasto-monto').value = gasto.monto;
+    document.getElementById('gasto-monto').value = formatearValorARS(gasto.monto || 0);
     document.getElementById('gasto-categoria').value = gasto.categoria;
     document.getElementById('gasto-observacion').value = gasto.observacion || '';
 
@@ -4092,33 +4247,7 @@ function actualizarEstadoCategoriaMeetup(tipo) {
 }
 
 function parsearMontoMeetup(valor) {
-  if (valor === null || valor === undefined || valor === '') return 0;
-
-  let limpio = String(valor)
-    .replace(/\$/g, '')
-    .replace(/\s+/g, '');
-
-  if (!limpio) return 0;
-
-  const tieneComa = limpio.includes(',');
-  const tienePunto = limpio.includes('.');
-
-  if (tieneComa && tienePunto) {
-    limpio = limpio.replace(/\./g, '').replace(',', '.');
-  } else if (tieneComa) {
-    limpio = limpio.replace(',', '.');
-  } else if (tienePunto) {
-    const ultimoPunto = limpio.lastIndexOf('.');
-    const parteIzquierda = limpio.slice(0, ultimoPunto);
-    const parteDerecha = limpio.slice(ultimoPunto + 1);
-    const tieneMiles = parteIzquierda.includes('.') || parteIzquierda.length > 3;
-
-    if (tieneMiles && parteDerecha.length <= 2) {
-      limpio = limpio.replace(/\./g, '');
-    }
-  }
-
-  const numero = Number(limpio);
+  const numero = parsearMontoARS(valor);
   return Number.isFinite(numero) ? numero : 0;
 }
 
@@ -4508,7 +4637,44 @@ function actualizarMeetupDashboard() {
 
   guardarMeetupState();
   renderMeetupGastos();
+  renderMeetupSaldosPorPersona();
   renderMeetupAlertaPrincipal();
+}
+
+function renderMeetupSaldosPorPersona() {
+  const lista = document.getElementById('meetup-saldos-lista');
+  const totalEl = document.getElementById('meetup-total-a-reembolsar');
+  if (!lista) return;
+
+  const gastosValidos = (meetupState.gastos || []).filter((g) => g && !g.eliminado && !Boolean(g.reembolsado));
+  const agrup = new Map();
+
+  gastosValidos.forEach((g) => {
+    const clave = (g.pagadoA || '').trim() || 'Sin beneficiario';
+    const monto = Number(g.monto || 0);
+    agrup.set(clave, (agrup.get(clave) || 0) + monto);
+  });
+
+  if (agrup.size === 0) {
+    lista.innerHTML = '<li class="text-gray-400">Sin saldos pendientes</li>';
+    if (totalEl) totalEl.textContent = formatearMontoMeetup(0);
+    return;
+  }
+
+  const entradas = Array.from(agrup.entries()).sort((a, b) => b[1] - a[1]);
+  lista.innerHTML = entradas.map(([nombre, monto]) => {
+    const safe = String(nombre).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return `
+      <li class="flex items-center justify-between">
+        <div class="min-w-0">
+          <strong class="text-gray-800 truncate">${safe}</strong>
+          <div class="text-xs text-gray-500">Pendiente de reembolso</div>
+        </div>
+        <div class="font-semibold text-gray-900">${formatearMontoMeetup(monto)}</div>
+      </li>`;
+  }).join('');
+
+  if (totalEl) totalEl.textContent = formatearMontoMeetup(entradas.reduce((s, e) => s + e[1], 0));
 }
 
 async function inicializarMeetupDashboard() {
@@ -4524,14 +4690,7 @@ async function inicializarMeetupDashboard() {
     const input = document.getElementById(id);
     if (input) {
       input.addEventListener('focus', () => {
-        if (id === 'meetup-capacitacion' || id === 'meetup-decoracion' || id === 'meetup-comida-unitario') {
-          const valor = parsearMontoMeetup(input.value);
-          if (valor === 0) {
-            input.value = '';
-          } else {
-            input.value = String(valor).replace('.', ',');
-          }
-        }
+        if (id !== 'meetup-participantes' && parsearMontoARS(input.value) === 0) input.value = '';
       });
 
       input.addEventListener('blur', () => {
@@ -4543,10 +4702,7 @@ async function inicializarMeetupDashboard() {
       });
 
       input.addEventListener('input', () => {
-        if (id === 'meetup-capacitacion' || id === 'meetup-decoracion' || id === 'meetup-comida-unitario') {
-          const texto = input.value.replace(/[^\d,.-]/g, '');
-          input.value = texto;
-        }
+        if (id === 'meetup-capacitacion' || id === 'meetup-decoracion' || id === 'meetup-comida-unitario') formatearCampoARS(input);
         actualizarMeetupDashboard();
       });
 
@@ -4563,15 +4719,14 @@ async function inicializarMeetupDashboard() {
     if (montoInput) {
       montoInput.value = '$0,00';
       montoInput.addEventListener('focus', () => {
-        const valor = parsearMontoMeetup(montoInput.value);
-        montoInput.value = valor === 0 ? '' : String(valor).replace('.', ',');
+        if (parsearMontoARS(montoInput.value) === 0) montoInput.value = '';
       });
       montoInput.addEventListener('blur', () => {
         const valor = parsearMontoMeetup(montoInput.value);
         montoInput.value = formatearMontoInputMeetup(valor);
       });
       montoInput.addEventListener('input', () => {
-        montoInput.value = montoInput.value.replace(/[^\d,.-]/g, '');
+        formatearCampoARS(montoInput);
       });
     }
 
@@ -4683,7 +4838,7 @@ function configurarEventListeners() {
         const organizacion = document.getElementById('organizacion')?.value || 'presupuesto';
         
         // Lógica de comisión
-        const montoInput = parseFloat(document.getElementById('monto').value);
+        const montoInput = parsearMontoARS(document.getElementById('monto').value);
         const aplicaComision = document.getElementById('aplica-comision')?.checked || false;
         const incluyeComision = document.getElementById('incluye-comision')?.checked || false;
         
@@ -5142,7 +5297,7 @@ async function editarGasto(id) {
     
     // Rellenar el formulario con los datos del gasto
     document.getElementById('descripcion').value = gasto.descripcion || '';
-    document.getElementById('monto').value = gasto.monto || 0;
+    document.getElementById('monto').value = formatearValorARS(gasto.monto || 0);
     const pagadoAInput = document.getElementById('pagado-a');
     if (pagadoAInput) pagadoAInput.value = gasto.pagadoA || '';
     
@@ -5683,6 +5838,9 @@ async function cargarConfiguracionActual() {
         nombreUnidad: nombreUnidadCfg,
         numeroUnidad: numeroUnidadCfg
       }));
+
+      renderizarHistorialTransferencias(config);
+      actualizarFormularioTransferencia();
     }
   } catch (error) {
     console.error('Error al cargar configuración actual:', error);
@@ -5702,19 +5860,21 @@ async function cargarConfiguracionActual() {
 }
 
 async function actualizarPresupuestos() {
-  const inputPresupuesto = document.getElementById('nuevo-presupuesto-total').value;
-  const inputViaticos = document.getElementById('nuevo-presupuesto-viaticos').value;
+  const inputPresupuestoTexto = document.getElementById('nuevo-presupuesto-total').value;
+  const inputViaticosTexto = document.getElementById('nuevo-presupuesto-viaticos').value;
+  const inputPresupuesto = inputPresupuestoTexto ? parsearMontoARS(inputPresupuestoTexto) : null;
+  const inputViaticos = inputViaticosTexto ? parsearMontoARS(inputViaticosTexto) : null;
   const modoActualizacion = document.querySelector('input[name="modo-actualizacion"]:checked')?.value || 'reemplazar';
   const acumularSaldo = document.getElementById('acumular-saldo-sobrante')?.checked || false;
   
   // Validar que al menos un campo esté completo
-  if (!inputPresupuesto && !inputViaticos) {
+  if (inputPresupuesto === null && inputViaticos === null) {
     mostrarNotificacion('⚠️ Debes ingresar al menos un valor para actualizar', 'error');
     return;
   }
   
   // Validar valores no negativos
-  if ((inputPresupuesto && parseFloat(inputPresupuesto) < 0) || (inputViaticos && parseFloat(inputViaticos) < 0)) {
+  if ((inputPresupuesto !== null && (!Number.isFinite(inputPresupuesto) || inputPresupuesto < 0)) || (inputViaticos !== null && (!Number.isFinite(inputViaticos) || inputViaticos < 0))) {
     mostrarNotificacion('⚠️ Los valores no pueden ser negativos', 'error');
     return;
   }
@@ -5733,8 +5893,8 @@ async function actualizarPresupuestos() {
     let _trimCalendario = null;
 
     // Actualizar solo los campos completados
-    if (inputPresupuesto) {
-      const nuevaAsignacion = parseFloat(inputPresupuesto);
+    if (inputPresupuesto !== null) {
+      const nuevaAsignacion = inputPresupuesto;
       const trimestreCalendario = calcularTrimestreActual();
       _trimCalendario = trimestreCalendario;
 
@@ -5794,16 +5954,16 @@ async function actualizarPresupuestos() {
       updates.presupuestoCargadoParaTrimestre = trimestreCalendario.id;
 
       // Historial: registrar asignación, remanente arrastrado y base operativa del trimestre.
-      updates[`presupuestosHistorial.${trimestreCalendario.id}`] = {
-        ingresado: nuevaAsignacion,
-        remanente: _remanente,
-        total: nuevoPresupuestoTotal,
-        actualizadoEn: new Date().toISOString()
-      };
+      // Actualizar solo los campos de asignación para no borrar datos de transferencias
+      // que ya existan dentro del historial del trimestre.
+      updates[`presupuestosHistorial.${trimestreCalendario.id}.ingresado`] = nuevaAsignacion;
+      updates[`presupuestosHistorial.${trimestreCalendario.id}.remanente`] = _remanente;
+      updates[`presupuestosHistorial.${trimestreCalendario.id}.total`] = nuevoPresupuestoTotal;
+      updates[`presupuestosHistorial.${trimestreCalendario.id}.actualizadoEn`] = new Date().toISOString();
     }
     
-    if (inputViaticos) {
-      const nuevoValor = parseFloat(inputViaticos);
+    if (inputViaticos !== null) {
+      const nuevoValor = inputViaticos;
       if (modoActualizacion === 'sumar') {
         nuevoPresupuestoViaticos = (configActual.presupuestoViaticos || 0) + nuevoValor;
       } else {
@@ -5815,10 +5975,10 @@ async function actualizarPresupuestos() {
     // Mostrar confirmación con valores actuales vs nuevos
     const fmt = (n) => '$' + n.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     let mensajeConfirmacion = '<div style="text-align:left;font-size:14px;">';
-    if (inputPresupuesto) {
+    if (inputPresupuesto !== null) {
       if (_trimCalendario && configActual.presupuestoCargadoParaTrimestre && configActual.presupuestoCargadoParaTrimestre !== _trimCalendario.id) {
         mensajeConfirmacion += `<p><b>Presupuesto ${_trimCalendario.nombre}:</b></p>` +
-          `<p>Nueva asignación: ${fmt(parseFloat(inputPresupuesto))}</p>` +
+          `<p>Nueva asignación: ${fmt(inputPresupuesto)}</p>` +
           `<p>+ Remanente real anterior: <b style="color:#60a5fa">${fmt(_remanente)}</b></p>` +
           `<hr style="border-color:#374151;margin:6px 0">` +
           `<p>Total: <b style="color:#10b981;font-size:16px">${fmt(nuevoPresupuestoTotal)}</b></p><br>`;
@@ -5826,7 +5986,7 @@ async function actualizarPresupuestos() {
         mensajeConfirmacion += `<p><b>Presupuesto Total:</b></p><p>${fmt(configActual.presupuestoTotal || 0)} → <b style="color:#10b981">${fmt(nuevoPresupuestoTotal)}</b></p><br>`;
       }
     }
-    if (inputViaticos) {
+    if (inputViaticos !== null) {
       mensajeConfirmacion += `<p><b>Viáticos:</b></p><p>${fmt(configActual.presupuestoViaticos || 0)} → <b style="color:#10b981">${fmt(nuevoPresupuestoViaticos)}</b></p>`;
     }
     mensajeConfirmacion += '</div>';
@@ -5855,9 +6015,9 @@ async function actualizarPresupuestos() {
     
     // Construir mensaje de éxito personalizado
     let mensaje = '✅ ';
-    if (inputPresupuesto && inputViaticos) {
+    if (inputPresupuesto !== null && inputViaticos !== null) {
       mensaje += 'Ambos presupuestos actualizados correctamente';
-    } else if (inputPresupuesto) {
+    } else if (inputPresupuesto !== null) {
       mensaje += 'Presupuesto total actualizado correctamente';
     } else {
       mensaje += 'Presupuesto de viáticos actualizado correctamente';
@@ -5878,6 +6038,233 @@ async function actualizarPresupuestos() {
     mostrarNotificacion('❌ Error al actualizar presupuestos', 'error');
   }
 }
+
+
+// ==================== MOVIMIENTOS INTERNOS DE PRESUPUESTO ====================
+const UNIDADES_TRANSFERENCIA = [
+  'Aldo Bonzi',
+  'Ciudad Evita 1',
+  'Ciudad Evita 2',
+  'Cristiania',
+  'Villa Celina',
+  'Villa Madero'
+];
+
+function actualizarFormularioTransferencia() {
+  const tipo = document.getElementById('transferencia-tipo')?.value || 'recibida';
+  const esRecibida = tipo === 'recibida';
+  const labelUnidad = document.getElementById('transferencia-unidad-label');
+  const ayudaUnidad = document.getElementById('transferencia-unidad-ayuda');
+  const ayudaTipo = document.getElementById('transferencia-tipo-ayuda');
+  const ayudaMonto = document.getElementById('transferencia-monto-ayuda');
+  const boton = document.getElementById('btn-registrar-transferencia');
+
+  if (labelUnidad) labelUnidad.textContent = esRecibida ? 'Unidad que transfiere' : 'Unidad destinataria';
+  if (ayudaUnidad) ayudaUnidad.textContent = esRecibida
+    ? 'Identifica de qué unidad provienen los fondos.'
+    : 'Identifica a qué unidad se envían los fondos.';
+  if (ayudaTipo) ayudaTipo.textContent = esRecibida
+    ? 'El monto se sumará al presupuesto actual.'
+    : 'El monto se descontará del presupuesto actual.';
+  if (ayudaMonto) ayudaMonto.textContent = esRecibida
+    ? 'Se sumará directamente al presupuesto actual.'
+    : 'Se descontará directamente del presupuesto actual.';
+  if (boton) boton.lastChild.textContent = esRecibida ? ' Registrar ingreso de transferencia' : ' Registrar salida de transferencia';
+}
+
+function escaparHtmlTransferencia(valor) {
+  return String(valor || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function renderizarHistorialTransferencias(config = {}) {
+  const contenedor = document.getElementById('transferencias-historial-lista');
+  const totalEl = document.getElementById('transferencias-historial-total');
+  if (!contenedor) return;
+
+  const mapa = config.transferenciasPresupuesto || {};
+  const movimientos = Object.values(mapa)
+    .filter(Boolean)
+    .sort((a, b) => String(b.creadoEnISO || '').localeCompare(String(a.creadoEnISO || '')));
+
+  if (totalEl) totalEl.textContent = `${movimientos.length} ${movimientos.length === 1 ? 'movimiento' : 'movimientos'}`;
+
+  if (movimientos.length === 0) {
+    contenedor.innerHTML = '<p class="admin-transfer-history-empty">Todavía no hay transferencias registradas.</p>';
+    return;
+  }
+
+  contenedor.innerHTML = movimientos.map((mov) => {
+    const tipo = mov.tipoMovimiento || (mov.tipo === 'transferencia-interna' ? 'recibida' : 'recibida');
+    const esRecibida = tipo === 'recibida';
+    const fecha = mov.creadoEnISO ? new Date(mov.creadoEnISO) : null;
+    const fechaTexto = fecha && !Number.isNaN(fecha.getTime())
+      ? fecha.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : 'Fecha no disponible';
+    const unidad = escaparHtmlTransferencia(mov.unidad || mov.unidadOrigen || mov.unidadDestino || '—');
+    const detalle = escaparHtmlTransferencia(mov.detalle || 'Sin detalle');
+    const monto = formatearValorARS(mov.monto || 0);
+    const saldoAntes = formatearValorARS(mov.presupuestoAntes || 0);
+    const saldoDespues = formatearValorARS(mov.presupuestoDespues || 0);
+
+    return `
+      <article class="admin-transfer-history-item ${esRecibida ? 'is-in' : 'is-out'}">
+        <div class="admin-transfer-history-main">
+          <span class="admin-transfer-history-badge">${esRecibida ? 'Ingreso' : 'Egreso'}</span>
+          <div>
+            <strong>${esRecibida ? 'Recibido de' : 'Enviado a'} ${unidad}</strong>
+            <p>${detalle}</p>
+            <small>${fechaTexto} · ${escaparHtmlTransferencia(mov.trimestreNombre || mov.trimestreId || '')}</small>
+          </div>
+        </div>
+        <div class="admin-transfer-history-values">
+          <strong class="${esRecibida ? 'is-positive' : 'is-negative'}">${esRecibida ? '+' : '−'}${monto}</strong>
+          <small>${saldoAntes} → ${saldoDespues}</small>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+async function registrarTransferenciaPresupuesto() {
+  const tipoEl = document.getElementById('transferencia-tipo');
+  const unidadEl = document.getElementById('transferencia-unidad-origen');
+  const montoEl = document.getElementById('transferencia-presupuesto-monto');
+  const detalleEl = document.getElementById('transferencia-presupuesto-detalle');
+
+  const tipoMovimiento = tipoEl?.value === 'enviada' ? 'enviada' : 'recibida';
+  const unidad = (unidadEl?.value || '').trim();
+  const monto = parsearMontoARS(montoEl?.value || '');
+  const detalle = (detalleEl?.value || '').trim();
+  const esRecibida = tipoMovimiento === 'recibida';
+
+  if (!unidad || !UNIDADES_TRANSFERENCIA.includes(unidad)) {
+    mostrarNotificacion(esRecibida ? '⚠️ Seleccioná la unidad que realiza la transferencia' : '⚠️ Seleccioná la unidad destinataria', 'error');
+    return;
+  }
+
+  if (!Number.isFinite(monto) || monto <= 0) {
+    mostrarNotificacion('⚠️ Ingresá un monto de transferencia mayor a cero', 'error');
+    return;
+  }
+
+  try {
+    const configRef = db.collection('configuracion').doc('sistema');
+    const configSnap = await configRef.get();
+    if (!configSnap.exists) throw new Error('No existe la configuración del sistema');
+
+    const configActual = configSnap.data() || {};
+    const saldoActual = Number(configActual.presupuestoTotal || 0);
+    const saldoNuevo = esRecibida ? saldoActual + monto : saldoActual - monto;
+    const trimestre = calcularTrimestreActual();
+
+    if (!esRecibida && monto > saldoActual) {
+      mostrarNotificacion(`⚠️ No podés transferir ${formatearValorARS(monto)} porque el presupuesto actual es ${formatearValorARS(saldoActual)}`, 'error');
+      return;
+    }
+
+    const resultado = await Swal.fire({
+      title: esRecibida ? '¿Confirmar ingreso de transferencia?' : '¿Confirmar salida de transferencia?',
+      html: `
+        <div style="text-align:left;font-size:14px;line-height:1.6">
+          <p><b>${esRecibida ? 'Unidad de origen' : 'Unidad destinataria'}:</b> ${escaparHtmlTransferencia(unidad)}</p>
+          <p><b>Monto:</b> ${formatearValorARS(monto)}</p>
+          ${detalle ? `<p><b>Detalle:</b> ${escaparHtmlTransferencia(detalle)}</p>` : ''}
+          <hr style="border:0;border-top:1px solid #e5e7eb;margin:10px 0">
+          <p>Presupuesto actual: ${formatearValorARS(saldoActual)}</p>
+          <p>Presupuesto después del movimiento: <b style="color:${esRecibida ? '#059669' : '#dc2626'};font-size:16px">${formatearValorARS(saldoNuevo)}</b></p>
+          <p style="margin-top:10px;color:#64748b;font-size:12px">El trimestre actual no se reiniciará.</p>
+        </div>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: esRecibida ? 'Sí, registrar ingreso' : 'Sí, registrar salida',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: esRecibida ? '#059669' : '#dc2626',
+      cancelButtonColor: '#6b7280'
+    });
+
+    if (!resultado.isConfirmed) return;
+
+    await db.runTransaction(async (transaction) => {
+      const snap = await transaction.get(configRef);
+      if (!snap.exists) throw new Error('No existe la configuración del sistema');
+
+      const config = snap.data() || {};
+      const presupuestoAntes = Number(config.presupuestoTotal || 0);
+      if (!esRecibida && monto > presupuestoAntes) throw new Error('SALDO_INSUFICIENTE');
+      const presupuestoDespues = esRecibida ? presupuestoAntes + monto : presupuestoAntes - monto;
+      const historialActual = config.presupuestosHistorial?.[trimestre.id] || {};
+      const ingresosPrevios = Number(historialActual.transferenciasRecibidas ?? historialActual.transferencias ?? 0);
+      const egresosPrevios = Number(historialActual.transferenciasEnviadas || 0);
+      const movimientoId = `TR-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const ahoraISO = new Date().toISOString();
+
+      const registro = {
+        id: movimientoId,
+        tipoMovimiento,
+        unidad,
+        unidadOrigen: esRecibida ? unidad : 'Estaca Aldo Bonzi',
+        unidadDestino: esRecibida ? 'Estaca Aldo Bonzi' : unidad,
+        monto,
+        detalle,
+        trimestreId: trimestre.id,
+        trimestreNombre: trimestre.nombre,
+        presupuestoAntes,
+        presupuestoDespues,
+        creadoEnISO: ahoraISO,
+        creadoPor: usuarioActual || 'admin',
+        tipo: 'movimiento-transferencia-presupuesto'
+      };
+
+      const updates = {
+        presupuestoTotal: presupuestoDespues,
+        fechaActualizacion: firebase.firestore.FieldValue.serverTimestamp(),
+        actualizadoPor: usuarioActual || 'admin',
+        [`transferenciasPresupuesto.${movimientoId}`]: registro
+      };
+
+      if (config.presupuestosHistorial?.[trimestre.id]) {
+        updates[`presupuestosHistorial.${trimestre.id}.total`] = presupuestoDespues;
+        updates[`presupuestosHistorial.${trimestre.id}.transferenciasRecibidas`] = ingresosPrevios + (esRecibida ? monto : 0);
+        updates[`presupuestosHistorial.${trimestre.id}.transferenciasEnviadas`] = egresosPrevios + (!esRecibida ? monto : 0);
+        updates[`presupuestosHistorial.${trimestre.id}.actualizadoEn`] = ahoraISO;
+      }
+
+      transaction.update(configRef, updates);
+    });
+
+    mostrarNotificacion(
+      esRecibida
+        ? `✅ ${formatearValorARS(monto)} recibidos de ${unidad}`
+        : `✅ ${formatearValorARS(monto)} transferidos a ${unidad}`,
+      'success'
+    );
+
+    if (unidadEl) unidadEl.value = '';
+    if (montoEl) montoEl.value = '';
+    if (detalleEl) detalleEl.value = '';
+
+    await cargarPresupuestos();
+    await cargarConfiguracionActual();
+    await calcularGastos();
+    await calcularEstadisticasDashboard();
+  } catch (error) {
+    console.error('Error al registrar movimiento de transferencia:', error);
+    if (String(error?.message || '').includes('SALDO_INSUFICIENTE')) {
+      mostrarNotificacion('❌ El presupuesto actual ya no tiene saldo suficiente para realizar esa transferencia.', 'error');
+    } else if (String(error?.message || '').toLowerCase().includes('permission')) {
+      mostrarNotificacion('❌ Firebase rechazó la actualización de configuración. Revisá los permisos de configuracion/sistema.', 'error');
+    } else {
+      mostrarNotificacion('❌ No se pudo registrar el movimiento de transferencia', 'error');
+    }
+  }
+}
+
+window.actualizarFormularioTransferencia = actualizarFormularioTransferencia;
+window.registrarTransferenciaPresupuesto = registrarTransferenciaPresupuesto;
 
 async function actualizarPINs() {
   const pinUsuario = document.getElementById('nuevo-pin-usuario').value;
@@ -7680,7 +8067,7 @@ async function imprimirSeleccionLCRF() {
 
   // Construir el HTML del diálogo con campos para cada gasto seleccionado
   const camposGastos = gastos.map((g, i) => {
-    const defaultTipo = g.categoria === 'viaticos' ? 'reembolsable' : 'presupuesto';
+    const defaultTipo = (g.categoria === 'viaticos' || g.categoria === 'actividades-area' || (g.organizacion && ORGANIZACIONES_EXTERNAS.includes(g.organizacion))) ? 'reembolsable' : 'presupuesto';
     return `
       <div style="border:1px solid #4b5563;border-radius:8px;padding:10px;margin-bottom:${i < gastos.length - 1 ? '14px' : '0'}">
         <p style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:8px">
@@ -7989,8 +8376,8 @@ async function imprimirDesembolsoLCRF(gasto) {
     console.error('Error al obtener config LCRF:', e);
   }
 
-  // Default tipo based on category
-  const defaultTipo = gasto.categoria === 'viaticos' ? 'reembolsable' : 'presupuesto';
+  // Default tipo based on category or external organization
+  const defaultTipo = (gasto.categoria === 'viaticos' || gasto.categoria === 'actividades-area' || (gasto.organizacion && ORGANIZACIONES_EXTERNAS.includes(gasto.organizacion))) ? 'reembolsable' : 'presupuesto';
 
   const { value: formValues } = await Swal.fire({
     title: '<span style="font-size:17px">Autorización de Desembolso LCRF</span>',

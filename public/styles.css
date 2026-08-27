@@ -797,6 +797,87 @@
         color: #c2410c;
         border: 1px solid #fed7aa;
     }
+
+/* ==================== ESTILOS ESPECÍFICOS: KPI GASTOS EXTERNOS ==================== */
+.external-kpi-amount {
+  color: var(--primary-color);
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+  display: block;
+}
+
+#gastos-externos-detalle {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-top: 0.35rem;
+}
+
+/* Hacer que el box frontal tenga una presentación más clara y espaciosa */
+#app main > .grid:first-child #gastos-externos-monto {
+  padding: 0.25rem 0.5rem;
+  background: linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.2));
+  border-radius: 8px;
+}
+
+@media (min-width: 1024px) {
+  #app main > .grid:first-child #gastos-externos-monto {
+    font-size: 1.8rem;
+  }
+}
+
+/* Modal detalle card: asegurar buen alineamiento interno */
+/* Modal detail card styling */
+#modal-externos-detalle {
+  text-align: center;
+}
+
+@media (min-width: 900px) {
+  #modal-externos-detalle { display: flex; align-items: center; justify-content: center; }
+  #modal-externos-registrado-amount { text-align: center; }
+}
+
+/* Ajustes de apariencia para tarjeta Gastos Externos */
+.external-kpi-card {
+  border-color: rgba(34,197,94,0.12);
+  background: linear-gradient(180deg, rgba(245,253,250,0.6), rgba(255,255,255,0.6));
+}
+
+.external-kpi-card:hover {
+  transform: translateY(-3px);
+}
+
+.external-kpi-icon {
+  background: linear-gradient(180deg, rgba(16,185,129,0.08), rgba(16,185,129,0.03));
+  border: 1px solid rgba(16,185,129,0.12);
+}
+
+.external-kpi-subtitle {
+  color: var(--success-green);
+  opacity: 0.95;
+}
+
+/* Mejor separación y legibilidad del detalle */
+/* detail container: stacked on small, two-column on wide screens */
+#gastos-externos-detalle {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+#gastos-externos-detalle .gasto-detalle-item {
+  font-size: 0.95rem;
+}
+
+@media (min-width: 900px) {
+  #gastos-externos-detalle {
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+  }
+  #gastos-externos-registrado { text-align: left; }
+  #gastos-externos-pendiente { text-align: right; }
+}
     
     /* ==================== MONTOS DE COMISIONES ==================== */
     .comision-montos-container {
@@ -3727,23 +3808,25 @@ tbody td {
     #app .meetup-food-subtotal span { font-size:9px; color:#56806d; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
     #app .meetup-food-subtotal strong { font-size:13px; color:#146c4d; font-weight:800; }
 
-    #app .meetup-workspace-grid { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:16px; margin-top:18px; align-items:start; }
-    #app .meetup-history-panel, #app .meetup-entry-panel { border:1px solid #e1e4e8; border-radius:20px; background:#fff; padding:20px; }
-    #app .meetup-entry-panel { position:sticky; top:0; }
-    #app .meetup-entry-panel-header { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
-    #app .meetup-entry-plus { width:36px; height:36px; border-radius:11px; display:grid; place-items:center; background:#f97316; color:#fff; font-size:22px; line-height:1; font-weight:400; }
-    #app .meetup-entry-panel-header > div:last-child { display:flex; flex-direction:column; gap:1px; }
-    #app .meetup-entry-panel-header span { font-size:8px; letter-spacing:.12em; color:#f97316; font-weight:800; }
-    #app .meetup-entry-panel-header h4 { margin:0; font-size:16px; color:#20242a; font-weight:800; letter-spacing:-.02em; }
-    #app .meetup-entry-panel > p { margin:0 0 17px; font-size:11px; line-height:1.5; color:#8d949d; }
-    #app .meetup-entry-form { display:flex; flex-direction:column; gap:12px; }
-    #app .meetup-entry-form label { display:block; margin-bottom:5px; color:#747b84 !important; font-size:10px !important; font-weight:700; }
-    #app .meetup-form-control { width:100%; min-height:43px; border:1px solid #dfe2e6 !important; border-radius:11px !important; background:#f9fafb !important; color:#20242a !important; padding:0 11px; font-size:12px; outline:none; box-shadow:none !important; }
-    #app .meetup-form-control:focus { border-color:#f97316 !important; background:#fff !important; box-shadow:0 0 0 3px rgba(249,115,22,.10) !important; }
-    #app .meetup-form-control--amount { text-align:right; font-weight:800; font-size:14px; }
-    #app .meetup-submit-btn { width:100%; min-height:45px; border:0; border-radius:12px; padding:0 14px; background:#20242a !important; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12px; font-weight:750; transition:.18s ease; }
-    #app .meetup-submit-btn:hover { background:#f97316 !important; box-shadow:0 8px 20px rgba(249,115,22,.20); }
-    #app .meetup-submit-btn svg { width:17px; height:17px; }
+    /* Slightly larger and more spacious MeetUp entry panel */
+    #app .meetup-workspace-grid { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:18px; margin-top:18px; align-items:start; }
+    #app .meetup-history-panel, #app .meetup-entry-panel { border:1px solid #e1e4e8; border-radius:20px; background:#fff; padding:24px; }
+    #app .meetup-entry-panel { position:sticky; top:12px; }
+    #app .meetup-entry-panel-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+    #app .meetup-entry-plus { width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:#f97316; color:#fff; font-size:24px; line-height:1; font-weight:500; }
+    #app .meetup-entry-panel-header > div:last-child { display:flex; flex-direction:column; gap:2px; }
+    #app .meetup-entry-panel-header span { font-size:10px; letter-spacing:.12em; color:#f97316; font-weight:800; }
+    #app .meetup-entry-panel-header h4 { margin:0; font-size:18px; color:#20242a; font-weight:800; letter-spacing:-.02em; }
+    #app .meetup-entry-panel > p { margin:0 0 18px; font-size:12px; line-height:1.5; color:#8d949d; }
+    #app .meetup-entry-form { display:flex; flex-direction:column; gap:14px; }
+    #app .meetup-entry-row { display:block; }
+    #app .meetup-entry-form label { display:block; margin-bottom:6px; color:#747b84 !important; font-size:12px !important; font-weight:800; }
+    #app .meetup-form-control { width:100%; min-height:50px; border:1px solid #dfe2e6 !important; border-radius:12px !important; background:#f9fafb !important; color:#20242a !important; padding:0 14px; font-size:14px; outline:none; box-shadow:none !important; }
+    #app .meetup-form-control:focus { border-color:#f97316 !important; background:#fff !important; box-shadow:0 0 0 4px rgba(249,115,22,.10) !important; }
+    #app .meetup-form-control--amount { text-align:right; font-weight:800; font-size:16px; }
+    #app .meetup-submit-btn { width:100%; min-height:52px; border:0; border-radius:14px; padding:0 16px; background:#20242a !important; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:14px; font-weight:800; transition:.18s ease; }
+    #app .meetup-submit-btn:hover { background:#f97316 !important; box-shadow:0 10px 26px rgba(249,115,22,.20); }
+    #app .meetup-submit-btn svg { width:18px; height:18px; }
     #app .meetup-expense-list { display:flex; flex-direction:column; gap:9px; min-height:110px; }
     #app .meetup-expense-list > * { border-radius:13px !important; box-shadow:none !important; }
 
@@ -3783,6 +3866,12 @@ tbody td {
       #app .meetup-budget-card--green { grid-column:auto; }
       #app .meetup-food-fields { grid-template-columns:1fr 1fr; }
       #app .meetup-workspace-grid { gap:12px; }
+    }
+
+    /* Desktop: colocar Tipo y Monto lado a lado */
+    @media (min-width: 980px) {
+      #app .meetup-entry-row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; align-items:start; }
+      #app .meetup-entry-form { gap:16px; }
     }
 
 /* ================================================================
@@ -9753,5 +9842,217 @@ body > footer {
   #meetup-section .meetup-form-control {
     padding-left: 11px !important;
     padding-right: 11px !important;
+  }
+}
+
+
+/* ==================== TRANSFERENCIA INTERNA DE PRESUPUESTO ==================== */
+.admin-settings-card--transfer {
+  margin-bottom: 16px;
+  border-top: 3px solid #10b981;
+}
+
+.admin-settings-card-icon--transfer {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.admin-settings-form-grid--transfer {
+  margin-bottom: 12px;
+}
+
+.admin-settings-field--full {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.admin-settings-field--full > span {
+  display: block;
+}
+
+.admin-settings-field--full > span small {
+  display: inline;
+  margin: 0;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.admin-transfer-note {
+  margin: 12px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #d1fae5;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #52705f;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.admin-transfer-note strong {
+  color: #047857;
+}
+
+.admin-settings-primary--transfer {
+  background: #059669 !important;
+}
+
+.admin-settings-primary--transfer:hover {
+  background: #047857 !important;
+}
+
+@media (max-width: 700px) {
+  .admin-settings-form-grid--transfer {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ==================== HISTORIAL DE MOVIMIENTOS DE PRESUPUESTO ==================== */
+.admin-transfer-history {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.admin-transfer-history-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.admin-transfer-history-head span {
+  display: block;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.admin-transfer-history-head h5 {
+  margin: 1px 0 0;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-transfer-history-head > strong {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-transfer-history-list {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.admin-transfer-history-empty {
+  margin: 0;
+  padding: 18px 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  color: #94a3b8;
+  font-size: 12px;
+  text-align: center;
+}
+
+.admin-transfer-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #10b981;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.admin-transfer-history-item.is-out {
+  border-left-color: #ef4444;
+}
+
+.admin-transfer-history-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+}
+
+.admin-transfer-history-main > div {
+  min-width: 0;
+}
+
+.admin-transfer-history-main strong {
+  display: block;
+  color: #334155;
+  font-size: 12px;
+}
+
+.admin-transfer-history-main p {
+  margin: 2px 0;
+  color: #64748b;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-transfer-history-main small,
+.admin-transfer-history-values small {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.admin-transfer-history-badge {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.admin-transfer-history-item.is-out .admin-transfer-history-badge {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.admin-transfer-history-values {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.admin-transfer-history-values > strong {
+  display: block;
+  font-size: 13px;
+}
+
+.admin-transfer-history-values .is-positive { color: #059669; }
+.admin-transfer-history-values .is-negative { color: #dc2626; }
+
+.ars-money-input {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .admin-transfer-history-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-transfer-history-values {
+    width: 100%;
+    text-align: left;
+    padding-left: 0;
   }
 }
